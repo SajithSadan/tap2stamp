@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Dev;
 
 use App\Http\Controllers\Controller;
+use App\Models\CustomTheme;
+use App\Support\CuratedFonts;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Temporary, dev-only: renders the same customer card UI in a few candidate
- * visual themes so a theme can be picked by eye before it's baked into the
- * real Stage 0 layout. Deleted once a theme is chosen.
+ * Dev-only internal tool: browse the built-in theme catalog and (via
+ * CustomThemeController) save customized variants to the database. Monochrome
+ * Barber was picked as the real site's default (see resources/css/app.css);
+ * this tool stays around as ongoing tooling, not one-time scaffolding.
  *
  * `category` and `mood` exist to drive the picker's filters now, and are the
  * same shape a future per-shop "choose your theme" feature would reuse —
@@ -1078,7 +1081,14 @@ class ThemePreviewController extends Controller
 
     public function index(): Response
     {
-        return Inertia::render('Dev/Themes/Index', ['themes' => self::themes()]);
+        return Inertia::render('Dev/Themes/Index', [
+            'themes' => self::themes(),
+            'customThemes' => CustomTheme::latest()->get()
+                ->map(fn (CustomTheme $theme) => [
+                    'slug' => $theme->slug,
+                    'theme' => $theme->toThemeArray(),
+                ]),
+        ]);
     }
 
     public function show(string $slug): Response
@@ -1088,6 +1098,9 @@ class ThemePreviewController extends Controller
         return Inertia::render('Dev/Themes/Show', [
             'slug' => $slug,
             'theme' => self::themes()[$slug],
+            'isCustom' => false,
+            'availableFonts' => CuratedFonts::all(),
+            'radiusPresets' => CustomTheme::RADIUS_PRESETS,
         ]);
     }
 }

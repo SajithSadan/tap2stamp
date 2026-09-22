@@ -46,7 +46,7 @@ function persistFilters(filters) {
     }
 }
 
-export default function ThemesIndex({ themes }) {
+export default function ThemesIndex({ themes, customThemes = [] }) {
     const [filters, setFilters] = useState(loadStoredFilters);
     const { search, categories, mood } = filters;
 
@@ -201,8 +201,28 @@ export default function ThemesIndex({ themes }) {
                     </div>
                 </div>
 
+                {/* Your custom themes */}
+                {customThemes.length > 0 && (
+                    <div className="mt-8">
+                        <h2 className="text-sm font-semibold text-stone-700">
+                            Your custom themes ({customThemes.length})
+                        </h2>
+                        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {customThemes.map(({ slug, theme }) => (
+                                <ThemeCard
+                                    key={slug}
+                                    slug={slug}
+                                    theme={theme}
+                                    categoryLabel="Custom"
+                                    href={`/dev/custom-themes/${slug}`}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Results grid */}
-                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {visible.map(([slug, theme]) => (
                         <ThemeCard
                             key={slug}
