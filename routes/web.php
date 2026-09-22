@@ -1,11 +1,19 @@
 <?php
 
+use App\Http\Controllers\DeployController;
 use App\Http\Controllers\Dev\CustomThemeController;
 use App\Http\Controllers\Dev\ThemePreviewController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', fn () => Inertia::render('Landing'));
+
+// Runs `php artisan migrate` over HTTP for hosting plans without SSH access.
+// Must work in every environment (it's for production), so it's protected
+// by a bearer token (DEPLOY_MIGRATE_TOKEN) instead of an environment gate.
+Route::post('/deploy/migrate', [DeployController::class, 'migrate'])
+    ->middleware('throttle:5,1')
+    ->name('deploy.migrate');
 
 // Dev-only internal tooling: browse the 50 built-in themes and save custom
 // variants (colors/fonts) to the database. Not part of the customer-facing

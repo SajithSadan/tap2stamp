@@ -15,6 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             HandleInertiaRequests::class,
         ]);
+
+        // Hit by curl/CI after a deploy, not a browser session — no CSRF
+        // cookie exists for it to check. Protected instead by a bearer
+        // token (see App\Http\Controllers\DeployController).
+        $middleware->validateCsrfTokens(except: [
+            'deploy/migrate',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
