@@ -2,24 +2,45 @@
 
 namespace Database\Seeders;
 
+use App\Models\Customer;
+use App\Models\Shop;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed the application's database.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        Shop::factory()->create([
+            'name' => 'Artisan Cafe',
+            'slug' => 'artisan-cafe',
+            'max_stamps' => 6,
+            'reward_title' => 'Free coffee after 6 stamps',
+            'google_review_url' => 'https://g.page/r/artisan-cafe-demo/review',
+            'instagram_url' => 'https://instagram.com/artisancafe',
+            'wifi_ssid' => 'ArtisanCafe-Guest',
+            'wifi_password' => 'latte1234',
+        ]);
+
+        Shop::factory()->create([
+            'name' => 'Urban Barber',
+            'slug' => 'urban-barber',
+            'max_stamps' => 8,
+            'reward_title' => 'Free haircut after 8 visits',
+            'google_review_url' => 'https://g.page/r/urban-barber-demo/review',
+            'instagram_url' => 'https://instagram.com/urbanbarber',
+            'wifi_ssid' => null,
+            'wifi_password' => null,
+        ]);
+
+        Customer::factory(5)->create();
     }
 }
