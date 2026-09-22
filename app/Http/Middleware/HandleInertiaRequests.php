@@ -38,6 +38,20 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'appName' => config('app.name'),
+            'auth' => [
+                'user' => $request->user() ? [
+                    'name' => $request->user()->name,
+                    'email' => $request->user()->email,
+                    'role' => $request->user()->role->value,
+                ] : null,
+            ],
+            // One-time reveal values (generated owner password, staff device
+            // token) are flashed to the session rather than stored, so a page
+            // refresh never shows them a second time.
+            'flash' => [
+                'generatedPassword' => $request->session()->get('generatedPassword'),
+                'staffToken' => $request->session()->get('staffToken'),
+            ],
         ];
     }
 }

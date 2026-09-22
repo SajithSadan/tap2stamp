@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\UserRole;
 use App\Models\Customer;
 use App\Models\Shop;
 use App\Models\User;
@@ -19,7 +20,29 @@ class DatabaseSeeder extends Seeder
             'email' => 'test@example.com',
         ]);
 
+        // Dev-only login accounts (production bootstraps its one admin via
+        // POST /deploy/seed-admin instead - see CLAUDE.md "Admin panel").
+        // All three share the factory's default password: "password".
+        User::factory()->create([
+            'name' => 'Admin',
+            'email' => 'admin@loyaltyhub.test',
+            'role' => UserRole::Admin,
+        ]);
+
+        $cafeOwner = User::factory()->create([
+            'name' => 'Priya Shah',
+            'email' => 'owner@artisan-cafe.test',
+            'role' => UserRole::Owner,
+        ]);
+
+        $barberOwner = User::factory()->create([
+            'name' => 'Tom Reilly',
+            'email' => 'owner@urban-barber.test',
+            'role' => UserRole::Owner,
+        ]);
+
         Shop::factory()->create([
+            'user_id' => $cafeOwner->id,
             'name' => 'Artisan Cafe',
             'slug' => 'artisan-cafe',
             'max_stamps' => 6,
@@ -31,6 +54,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         Shop::factory()->create([
+            'user_id' => $barberOwner->id,
             'name' => 'Urban Barber',
             'slug' => 'urban-barber',
             'max_stamps' => 8,

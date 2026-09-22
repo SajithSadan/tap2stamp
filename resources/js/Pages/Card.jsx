@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
+import Pusher from 'pusher-js';
 import QRCode from 'qrcode';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import BottomNav from '@/Components/BottomNav';
@@ -105,9 +106,13 @@ export default function Card({ shop }) {
     const [wifiOpen, setWifiOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const [celebrate, setCelebrate] = useState(false);
+    const [soundEnabled, setSoundEnabled] = useState(false);
+    const [redeemedToast, setRedeemedToast] = useState(false);
 
     const prevStampsRef = useRef(0);
     const wasReadyRef = useRef(false);
+    const audioCtxRef = useRef(null);
+    const celebrateTimeoutRef = useRef(null);
 
     useEffect(() => {
         window.localStorage.setItem(LAST_SHOP_SLUG_KEY, shop.slug);
@@ -143,6 +148,12 @@ export default function Card({ shop }) {
             .catch(() => setQrSrc(null));
     }, [card]);
 
+    function triggerCelebration() {
+        setCelebrate(true);
+        if (celebrateTimeoutRef.current) clearTimeout(celebrateTimeoutRef.current);
+        celebrateTimeoutRef.current = setTimeout(() => setCelebrate(false), 1000);
+    }
+
     // Detect the moment the card crosses over into "reward ready" to fire a
     // one-off celebration burst, without re-triggering on every re-render.
     useEffect(() => {
@@ -151,18 +162,110 @@ export default function Card({ shop }) {
         const ready = card.stamps >= card.max_stamps;
 
         if (ready && !wasReadyRef.current) {
-            setCelebrate(true);
-            const timeout = setTimeout(() => setCelebrate(false), 1000);
+            triggerCelebration();
             wasReadyRef.current = true;
-            return () => clearTimeout(timeout);
+        } else {
+            wasReadyRef.current = ready;
         }
-
-        wasReadyRef.current = ready;
     }, [card?.stamps, card?.max_stamps]);
 
     useEffect(() => {
         if (card) prevStampsRef.current = card.stamps;
     }, [card?.stamps]);
+
+    // Two-tone chime via Web Audio. Reuses the SAME AudioContext created at
+    // the first tap (see enableSound) rather than a new one per chime -
+    // mobile browsers only need the gesture for the context's creation, not
+    // for every sound played through it afterwards.
+    function playChime() {
+        const ctx = audioCtxRef.current;
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        [660, 880].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            gain.gain.setValueAtTime(0.0001, now + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.2, now + i * 0.12 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 0.35);
+            osc.start(now + i * 0.12);
+            osc.stop(now + i * 0.12 + 0.35);
+        });
+    }
+
+    function enableSound() {
+        try {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            audioCtxRef.current = new Ctx();
+            setSoundEnabled(true);
+        } catch {
+            // Web Audio unsupported - the page still works, just silently.
+        }
+    }
+
+    // Real-time updates from staff scans (Stage 7). Resilience: if Pusher
+    // isn't configured or the connection fails, the page still works via
+    // the normal fetch-on-load path above - this is purely additive.
+    useEffect(() => {
+        if (!card?.uuid) return;
+
+        const key = import.meta.env.VITE_PUSHER_APP_KEY;
+        if (!key) return;
+
+        let pusher;
+        let channel;
+        const channelName = `card.${card.uuid}.${card.shop_id}`;
+
+        try {
+            pusher = new Pusher(key, { cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER });
+            channel = pusher.subscribe(channelName);
+
+            channel.bind('card.updated', (data) => {
+                setCard((prev) => (prev ? { ...prev, stamps: data.stamps, max_stamps: data.max_stamps } : prev));
+                triggerCelebration();
+                playChime();
+                if (navigator.vibrate) navigator.vibrate(60);
+
+                if (data.action === 'reward_redeemed') {
+                    setRedeemedToast(true);
+                    setTimeout(() => setRedeemedToast(false), 3000);
+                }
+            });
+        } catch {
+            // Connection failed - customer can still refresh to see updates.
+        }
+
+        return () => {
+            try {
+                channel?.unbind_all();
+                pusher?.unsubscribe(channelName);
+                pusher?.disconnect();
+            } catch {
+                // Best-effort cleanup.
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [card?.uuid, card?.shop_id]);
+
+    // Self-correct if a real-time event was missed while the tab/app was
+    // backgrounded (Pusher connections can drop silently on mobile).
+    useEffect(() => {
+        function handleVisibility() {
+            if (document.visibilityState !== 'visible' || !card?.uuid) return;
+
+            axios
+                .get(`/s/${shop.slug}/card/${card.uuid}`)
+                .then(({ data }) => setCard(data))
+                .catch(() => {});
+        }
+
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [shop.slug, card?.uuid]);
 
     function handleRegister(name, phone) {
         setSubmitting(true);
@@ -197,6 +300,34 @@ export default function Card({ shop }) {
     return (
         <>
             <Head title={shop.name} />
+
+            <AnimatePresence>
+                {!soundEnabled && card && (
+                    <motion.button
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        onClick={enableSound}
+                        className="fixed inset-x-5 top-3 z-10 mx-auto max-w-sm rounded-brand bg-brand-text px-4 py-2 text-center text-xs font-medium text-white shadow-md"
+                    >
+                        🔔 Tap to enable live sound updates
+                    </motion.button>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {redeemedToast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="fixed inset-x-5 top-3 z-20 mx-auto max-w-sm rounded-brand bg-brand-accent px-4 py-3 text-center text-sm font-semibold text-brand-accent-text shadow-lg"
+                    >
+                        🎉 Reward redeemed — enjoy!
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div className="relative min-h-screen overflow-hidden bg-brand-bg pb-24">
                 <div className="pointer-events-none absolute -right-16 top-24 h-56 w-56 rounded-full bg-brand-accent/15 blur-3xl" />
                 <div className="pointer-events-none absolute -left-20 top-96 h-64 w-64 rounded-full bg-brand-accent/10 blur-3xl" />
@@ -251,8 +382,10 @@ export default function Card({ shop }) {
                             initial={{ opacity: 0, y: 12 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 }}
-                            className="mt-5 rounded-brand border border-brand-border bg-brand-card p-5 shadow-sm"
+                            className="relative mt-5 rounded-brand border border-brand-border bg-brand-card p-5 shadow-sm"
                         >
+                            {celebrate && <Celebration />}
+
                             <AnimatePresence>
                                 {rewardReady && (
                                     <motion.div
@@ -263,7 +396,6 @@ export default function Card({ shop }) {
                                     >
                                         <SparkleIcon className="h-4 w-4 shrink-0" />
                                         Reward unlocked — show this screen to staff!
-                                        {celebrate && <Celebration />}
                                     </motion.div>
                                 )}
                             </AnimatePresence>

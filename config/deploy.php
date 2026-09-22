@@ -13,4 +13,18 @@ return [
     |
     */
     'migrate_token' => env('DEPLOY_MIGRATE_TOKEN'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin bootstrap
+    |--------------------------------------------------------------------------
+    |
+    | Credentials for the one admin account created by POST /deploy/seed-admin
+    | (same bearer token as above). Leave blank locally - DatabaseSeeder
+    | creates a dev admin instead. Idempotent: won't overwrite an existing
+    | admin's password if these change later.
+    |
+    */
+    'admin_email' => env('ADMIN_EMAIL'),
+    'admin_password' => env('ADMIN_PASSWORD'),
 ];
