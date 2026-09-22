@@ -5,8 +5,8 @@ This file is loaded automatically every session. It replaces pasting the Master 
 ## Product
 
 A web-based digital loyalty and social hub for UK high-street independents (cafes, bakeries,
-barbers, pubs). Replaces paper punch cards and doubles as a customer engagement hub (Google
-Review, Instagram, Wi-Fi).
+barbers, pubs). Replaces paper punch cards and doubles as a customer engagement hub (in-app
+ratings/reviews, Instagram, Wi-Fi).
 
 ## Stack (fixed — do not substitute)
 
@@ -33,12 +33,54 @@ Review, Instagram, Wi-Fi).
   8 hours).
 - UK context: `Europe/London` timezone, UK mobile number validation/normalisation (+44).
 
+## In-house review & rating (deviates from the original doc — built)
+
+The original doc's Stage 3 "Google Review" tile just opened `shops.google_review_url`
+externally. That's been replaced: customers rate/review **in-app** instead — the rating (1-5
+stars) + optional comment is saved to our own `reviews` table. The end goal is still Google
+reviews, but not an automatic one-to-one post of every submission: the plan is for the shop
+owner/admin to **selectively** choose which collected reviews get pushed/posted publicly (e.g.
+to Google) — that curation step isn't built yet (pending Stage 4's dashboard), so nothing is
+auto-published today. Don't tell customers it's "never shared with Google" — that's not
+accurate to the plan, and it isn't information they need anyway; customer-facing copy should
+just say the feedback goes to the shop, nothing about where it may or may not end up later.
+
+- Table: `reviews` (`customer_id`, `shop_id`, `rating` 1-5, `comment` nullable, timestamps;
+  unique `customer_id+shop_id` — resubmitting updates the existing review, not a duplicate).
+- Card page: `App\Models\Review`, `ReviewController::store()`
+  (`POST /s/{shop:slug}/card/{customer:uuid}/review`), `RatingTile.jsx` (star UI). `shops.
+  google_review_url` still exists in the DB (unused by the customer-facing UI now) in case a
+  future admin view wants it as a reference link.
+- The tile is deliberately **not** labelled "Google Review" — nothing is posted automatically,
+  so calling it that would overpromise. Labelled "Rate your visit" / "Update your rating"
+  instead.
+- Requires an existing `customer_shop_card` (i.e. the customer has registered at this shop)
+  before a review can be submitted — 404s otherwise.
+
+## Mobile bottom nav & cross-shop "My Cards" (additive — not in the original doc)
+
+A fixed mobile footer nav (`BottomNav.jsx`) on every customer-facing page, with two tabs:
+"My Card" (back to the last shop visited, tracked via `localStorage.loyalty_last_shop_slug`,
+set by `Card.jsx` on mount) and "My Cards" (`/my-cards`), which lists **every** shop the
+customer (identified by the same `loyalty_uuid` used everywhere else) has a card at — each
+with its stamp progress and an expand-to-reveal QR code, so a customer with cards at several
+shops doesn't need to keep re-finding each shop's individual link.
+
+- Route: `GET /my-cards` (Inertia page, no props) + `GET /my-cards/{customer:uuid}` (JSON,
+  `MyCardsController::index()`) — same "uuid is the only identity, read client-side from
+  localStorage" pattern as the card routes.
+- No new DB table — reads existing `customer_shop_cards` scoped to the one customer.
+- Shared localStorage key constants live in `resources/js/lib/storage.js`
+  (`CUSTOMER_UUID_KEY`, `LAST_SHOP_SLUG_KEY`) so `Card.jsx`, `MyCards.jsx`, and `BottomNav.jsx`
+  can't drift out of sync on the key names.
+
 ## Database (agreed schema)
 
 Tables: `shops`, `customers`, `customer_shop_cards`, `stamp_logs`
 (`action_type` enum: `stamp_added`, `reward_redeemed`). Use foreign keys, unique indexes
 (`customers.uuid`, `customers.phone`, `shops.slug`, unique `customer_id+shop_id` on cards),
-and a composite index `stamp_logs(shop_id, created_at)`.
+and a composite index `stamp_logs(shop_id, created_at)`. Plus `reviews` (see above) — additive,
+not part of the original 4-table design.
 
 ## Working rules
 
@@ -54,6 +96,11 @@ and a composite index `stamp_logs(shop_id, created_at)`.
   checklist (marking anything that needs Pusher keys or an HTTPS tunnel as pending until
   those stages).
 - Never auto-continue to the next stage — stop and wait for explicit go-ahead.
+- **Never run `git commit` (or `git push`).** Once work is verified (tests/build green),
+  stage the changes with `git add` if helpful, then give the user a ready-to-use commit
+  message (following the `Stage N: <summary>` / descriptive style already used in this repo)
+  and stop. The user commits manually. This applies to every change from here on, not just
+  stage work.
 
 ## Reliability & performance practices
 

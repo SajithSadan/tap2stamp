@@ -39,4 +39,9 @@ class Shop extends Model
     {
         return $this->hasMany(StampLog::class);
     }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
 }

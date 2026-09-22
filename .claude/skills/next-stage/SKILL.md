@@ -32,8 +32,9 @@ Runs one stage of the Loyalty Hub build (see `loyalty-hub-phase1-build-prompts.m
    - Commands to run to see it locally.
    - The stage's Manual Test Checklist from the doc, reproduced — mark any item that needs
      Pusher keys or an HTTPS tunnel as "pending — needs X, not blocking".
-6. **Commit** with message `Stage N: <short summary>` (only after the user confirms the
-   report looks right, unless they've said to commit automatically).
+6. **Do not commit.** Stage the changes with `git add` if helpful, then give the user a
+   ready-to-use commit message in the `Stage N: <short summary>` style — as its own clearly
+   marked block they can copy — and stop there. Never run `git commit` or `git push` yourself.
 7. **Stop.** Never auto-continue into the next stage — wait for explicit go-ahead.
 
 ## Notes
@@ -42,3 +43,8 @@ Runs one stage of the Loyalty Hub build (see `loyalty-hub-phase1-build-prompts.m
   Pusher dashboard, or Hostinger deploy), say so explicitly rather than claiming it passed.
 - If work from a stage was already partially done in a prior session, read what exists first
   and reconcile rather than redoing it.
+- **Stage 3 (Hub Tiles) and Stage 4 (Owner Dashboard)**: check `CLAUDE.md`'s "In-house review
+  & rating" section before touching either. The Google Review tile is already replaced with an
+  in-app rating/review flow (`reviews` table, `ReviewController`, `RatingTile.jsx`) — this
+  deviates from the original doc, it's not a gap to "fix" by re-adding the external link.
+  Stage 4's owner dashboard should include a place to view collected reviews per customer.

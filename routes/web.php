@@ -1,12 +1,45 @@
 <?php
 
+use App\Http\Controllers\CardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\Dev\CustomThemeController;
 use App\Http\Controllers\Dev\ThemePreviewController;
+use App\Http\Controllers\MyCardsController;
+use App\Http\Controllers\ReviewController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', fn () => Inertia::render('Landing'));
+
+// Customer loyalty card: the page shell renders via Inertia, but which
+// uuid (if any) is known only lives in the browser's localStorage, so the
+// register/card-state endpoints are plain JSON, called client-side after
+// the page has already loaded.
+Route::get('/s/{shop:slug}', [CardController::class, 'show'])->name('card.show');
+Route::post('/s/{shop:slug}/register', [CardController::class, 'register'])
+    ->middleware('throttle:10,1')
+    ->name('card.register');
+// withoutScopedBindings(): a customer isn't a direct relation of a shop
+// (there's no Shop::customers()) - the shop/customer link is the explicit
+// CustomerShopCard lookup CardController::cardState() already does, not
+// something Eloquent's automatic nested-binding scoping should guess at.
+Route::get('/s/{shop:slug}/card/{customer:uuid}', [CardController::class, 'cardState'])
+    ->name('card.state')
+    ->withoutScopedBindings();
+
+// In-app rating/review (never posted to Google or shown publicly - saved
+// to our own DB, visible only to the shop owner once Stage 4 exists).
+// Requires an existing card, same nested-binding caveat as card.state.
+Route::post('/s/{shop:slug}/card/{customer:uuid}/review', [ReviewController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('card.review.store')
+    ->withoutScopedBindings();
+
+// Cross-shop view: the mobile bottom nav's "My Cards" tab. Same uuid-in-
+// localStorage identity as the card routes above - no shop in the URL
+// since this aggregates every shop the customer has a card at.
+Route::get('/my-cards', fn () => Inertia::render('MyCards'))->name('my-cards');
+Route::get('/my-cards/{customer:uuid}', [MyCardsController::class, 'index'])->name('my-cards.index');
 
 // Runs `php artisan migrate` over HTTP for hosting plans without SSH access.
 // Must work in every environment (it's for production), so it's protected

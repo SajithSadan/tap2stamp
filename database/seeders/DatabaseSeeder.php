@@ -35,7 +35,10 @@ class DatabaseSeeder extends Seeder
             'slug' => 'urban-barber',
             'max_stamps' => 8,
             'reward_title' => 'Free haircut after 8 visits',
-            'google_review_url' => 'https://g.page/r/urban-barber-demo/review',
+            // Deliberately only Instagram set (no Google review, no wifi) so
+            // the "tile only shows when the shop has set it" case is testable
+            // alongside Artisan Cafe, which has all three.
+            'google_review_url' => null,
             'instagram_url' => 'https://instagram.com/urbanbarber',
             'wifi_ssid' => null,
             'wifi_password' => null,
