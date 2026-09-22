@@ -114,7 +114,7 @@ export default function ThemesIndex({ themes, customThemes = [] }) {
                 </p>
 
                 {/* Sticky filter bar */}
-                <div className="sticky top-0 z-10 -mx-4 mt-6 border-b border-stone-200 bg-stone-50/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
+                <div className="sticky top-0 z-10 -mx-4 mt-6 px-4 py-4 sm:-mx-6 sm:px-6">
                     <div className="flex flex-col gap-3 sm:flex-row">
                         <input
                             type="text"
