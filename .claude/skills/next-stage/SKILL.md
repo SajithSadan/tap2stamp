@@ -19,7 +19,8 @@ Runs one stage of the Loyalty Hub build (see `loyalty-hub-phase1-build-prompts.m
    (its Tasks list and Acceptance criteria).
 3. **Implement only that stage's tasks.** Do not build anything from later stages, even if it
    seems convenient. Follow the conventions in `CLAUDE.md` (thin controllers, Services, Form
-   Requests, Pest tests colocated with the stage).
+   Requests, Pest tests colocated with the stage). Pages render via `Inertia::render()` from
+   controllers into `resources/js/Pages/**/*.jsx` — no Blade views for app pages.
 4. **Verify:**
    - `php artisan migrate:fresh --seed` (once the DB exists) — must run clean.
    - `php artisan test` — must be green, including the tests this stage's spec calls for.

@@ -10,13 +10,16 @@ Review, Instagram, Wi-Fi).
 
 ## Stack (fixed — do not substitute)
 
-- Laravel 11.x, PHP 8.2+, MySQL (MariaDB locally via XAMPP)
-- Blade + Tailwind CSS (via Vite) + Alpine.js / vanilla JS
-- html5-qrcode for the staff camera scanner
-- Pusher Channels for real-time (free tier)
+- Laravel 12.x, PHP 8.2+, MySQL (MariaDB locally via XAMPP). Not Laravel 13.x — that requires
+  PHP ^8.3, which the shared local XAMPP install (used by ~15 other projects) doesn't have.
+- Inertia.js (`inertiajs/inertia-laravel` + `@inertiajs/react`) + React + Tailwind CSS v4 (via
+  Vite, `@tailwindcss/vite`). **Client-side rendering only — no Inertia SSR**, since Hostinger
+  shared hosting can't run a persistent Node SSR process.
+- html5-qrcode for the staff camera scanner (wrapped in a thin React component when built).
+- Pusher Channels for real-time (free tier).
 - Deployment target: Hostinger shared hosting (no root, no long-running queue workers,
   no Redis, no Docker). So: `QUEUE_CONNECTION=sync`, CACHE/SESSION=file, no `artisan queue:work`,
-  no websocket server of our own.
+  no websocket server of our own, no Inertia SSR process.
 
 ## Product rules
 
@@ -70,10 +73,18 @@ and a composite index `stamp_logs(shop_id, created_at)`.
 
 ## Conventions
 
-- **Tests**: Pest (Laravel 11 default). One feature test file per feature area, added in the
-  same stage that introduces the behaviour.
+- **Tests**: Pest. One feature test file per feature area, added in the same stage that
+  introduces the behaviour. Feature tests hitting Inertia routes assert the rendered component
+  via `assertInertia(fn ($page) => $page->component('...'))`, not just HTTP status.
 - **Formatting**: Laravel Pint, run before each stage's commit.
 - **Architecture**: thin controllers; business logic in Services (e.g. `StampService`);
   validation in Form Requests.
+- **Frontend**: Pages live in `resources/js/Pages/`, one `.jsx` file per `Inertia::render()`
+  call, PascalCase, mirroring the render path (e.g. `Inertia::render('Dev/Themes/Show')` →
+  `resources/js/Pages/Dev/Themes/Show.jsx`). Shared UI in `resources/js/Components/`. No Blade
+  `@extends`/`@yield` layouts for app pages — `resources/views/app.blade.php` is the single
+  Inertia root template.
+- **Package manager**: yarn, not npm — use `yarn add`/`yarn info` for anything touching
+  `package.json` or querying the npm registry.
 - **Commits**: `Stage N: <short summary>`.
 - **Naming**: snake_case tables/columns, PascalCase models, kebab-case routes.

@@ -1,7 +1,8 @@
 <?php
 
-test('the landing page returns a successful response', function () {
+test('the landing page renders the Landing Inertia component', function () {
     $response = $this->get('/');
 
-    $response->assertStatus(200);
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page->component('Landing'));
 });

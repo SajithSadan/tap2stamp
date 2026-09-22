@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Dev;
 
 use App\Http\Controllers\Controller;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 /**
  * Temporary, dev-only: renders the same customer card UI in a few candidate
@@ -477,16 +478,16 @@ class ThemePreviewController extends Controller
         ];
     }
 
-    public function index(): View
+    public function index(): Response
     {
-        return view('dev.themes.index', ['themes' => self::themes()]);
+        return Inertia::render('Dev/Themes/Index', ['themes' => self::themes()]);
     }
 
-    public function show(string $slug): View
+    public function show(string $slug): Response
     {
         abort_unless(array_key_exists($slug, self::themes()), 404);
 
-        return view('dev.themes.show', [
+        return Inertia::render('Dev/Themes/Show', [
             'slug' => $slug,
             'theme' => self::themes()[$slug],
         ]);

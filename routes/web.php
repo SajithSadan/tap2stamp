@@ -2,10 +2,9 @@
 
 use App\Http\Controllers\Dev\ThemePreviewController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
-Route::get('/', function () {
-    return view('landing');
-});
+Route::get('/', fn () => Inertia::render('Landing'));
 
 // Temporary, dev-only theme comparison. Removed once a theme is chosen.
 if (app()->environment('local')) {
