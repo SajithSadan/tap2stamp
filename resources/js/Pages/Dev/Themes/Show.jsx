@@ -9,15 +9,21 @@ export default function ThemeShow({ theme }) {
         []
     );
 
+    // The Google Fonts CSS2 API takes one `family=` param per font family —
+    // a `|`-joined single value returns a 400 (text/html), which Chrome then
+    // blocks reading cross-origin as CORB. `google_fonts` stores families
+    // joined by `|`, so split them back out into separate params here.
+    const fontsHref = useMemo(() => {
+        const families = theme.google_fonts.split('|').map((f) => `family=${f}`);
+        return `https://fonts.googleapis.com/css2?${families.join('&')}&display=swap`;
+    }, [theme.google_fonts]);
+
     return (
         <>
             <Head title={`${theme.name} — Theme Preview`}>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-                <link
-                    href={`https://fonts.googleapis.com/css2?family=${theme.google_fonts}&display=swap`}
-                    rel="stylesheet"
-                />
+                <link href={fontsHref} rel="stylesheet" />
             </Head>
 
             <div
