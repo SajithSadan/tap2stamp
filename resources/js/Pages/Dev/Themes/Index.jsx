@@ -109,11 +109,8 @@ export default function ThemesIndex({ themes }) {
             <Head title="Theme Preview" />
             <main className="mx-auto max-w-5xl px-4 pb-12 pt-6 sm:px-6 sm:pt-12">
                 <h1 className="text-xl font-semibold sm:text-2xl">Pick a theme</h1>
-                <p className="mt-2 max-w-2xl text-sm text-stone-500">
-                    {entries.length} candidate look-and-feel combos for the customer loyalty
-                    card, each rendered with real dummy data. This picker's layout is also the
-                    starting point for a future "choose your shop's theme" feature — filtering
-                    and search matter here, not just this one decision.
+                <p className="mt-1 text-sm text-stone-500">
+                    {entries.length} look-and-feel combos for the loyalty card — search or filter to compare.
                 </p>
 
                 {/* Sticky filter bar */}
@@ -142,8 +139,8 @@ export default function ThemesIndex({ themes }) {
                         </select>
                     </div>
 
-                    {/* Category chips — horizontally scrollable on narrow screens */}
-                    <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+                    {/* Category chips — horizontally scrollable on narrow screens, no visible scrollbar */}
+                    <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
                         <button
                             onClick={() => updateFilters((prev) => ({ ...prev, categories: [] }))}
                             className={`shrink-0 rounded-full border px-3 py-2 text-xs font-medium transition sm:py-1.5 ${
@@ -172,7 +169,7 @@ export default function ThemesIndex({ themes }) {
 
                     {/* Mood toggle + result count + clear */}
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex gap-2 overflow-x-auto">
+                        <div className="no-scrollbar flex gap-2 overflow-x-auto">
                             {MOODS.map((m) => (
                                 <button
                                     key={m.key}
