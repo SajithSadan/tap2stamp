@@ -3,17 +3,37 @@
 @section('title', 'Theme Preview — ' . config('app.name'))
 
 @section('content')
-    <main class="mx-auto max-w-2xl px-6 py-12">
+    <main class="mx-auto max-w-2xl px-6 py-12" x-data="{ search: '' }">
         <h1 class="text-2xl font-semibold">Pick a theme</h1>
         <p class="mt-2 text-sm text-stone-500">
-            Four candidate look-and-feel combos for the customer loyalty card, each rendered
-            with real dummy data. Open each one, then tell me which fits best.
+            {{ count($themes) }} candidate look-and-feel combos for the customer loyalty card,
+            each rendered with real dummy data. Open each one, then tell me which fits best.
         </p>
 
-        <div class="mt-8 grid gap-4 sm:grid-cols-2">
+        <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+            <input
+                type="text"
+                x-model="search"
+                placeholder="Search themes (e.g. &quot;pub&quot;, &quot;pastel&quot;, &quot;dark&quot;)&hellip;"
+                class="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none sm:flex-1"
+            >
+            <select
+                onchange="if (this.value) window.location = this.value"
+                class="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none sm:w-56"
+            >
+                <option value="">Jump to a theme&hellip;</option>
+                @foreach ($themes as $slug => $theme)
+                    <option value="/dev/themes/{{ $slug }}">{{ $theme['name'] }}</option>
+                @endforeach
+            </select>
+        </div>
+
+        <div class="mt-6 grid gap-4 sm:grid-cols-2">
             @foreach ($themes as $slug => $theme)
                 <a
                     href="/dev/themes/{{ $slug }}"
+                    data-search="{{ Illuminate\Support\Str::lower($theme['name'].' '.$theme['blurb']) }}"
+                    x-show="search === '' || $el.dataset.search.includes(search.toLowerCase())"
                     class="block rounded-xl border border-stone-200 p-5 transition hover:border-stone-400 hover:shadow-md"
                 >
                     <div class="flex gap-2">
