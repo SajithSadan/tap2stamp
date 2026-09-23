@@ -9,8 +9,10 @@ use App\Http\Controllers\Dev\CustomThemeController;
 use App\Http\Controllers\Dev\ThemePreviewController;
 use App\Http\Controllers\MyCardsController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\ShopBannerController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\StaffDeviceController;
+use App\Http\Controllers\StaffMemberController;
 use App\Http\Controllers\StaffSetupController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -71,7 +73,27 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 // data through this route, not just policy-enforced.
 Route::middleware(['auth', 'role:owner'])->prefix('dashboard')->name('dashboard.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('index');
+    Route::get('/customers', [DashboardController::class, 'customers'])->name('customers');
+    Route::get('/activity', [DashboardController::class, 'activity'])->name('activity');
+    Route::get('/reviews', [DashboardController::class, 'reviews'])->name('reviews');
+    Route::get('/staff', [DashboardController::class, 'staff'])->name('staff');
+    Route::get('/settings', [DashboardController::class, 'settings'])->name('settings');
     Route::put('/settings', [DashboardController::class, 'updateSettings'])->name('settings.update');
+    Route::get('/theme', [DashboardController::class, 'theme'])->name('theme');
+    Route::put('/theme', [DashboardController::class, 'updateTheme'])->name('theme.update');
+    Route::delete('/theme', [DashboardController::class, 'resetTheme'])->name('theme.reset');
+    Route::put('/theme/dashboard', [DashboardController::class, 'updateDashboardTheme'])->name('theme.dashboard');
+    Route::put('/theme/custom', [DashboardController::class, 'updateCustomTheme'])->name('theme.custom');
+    Route::delete('/theme/custom', [DashboardController::class, 'resetCustomTheme'])->name('theme.custom.reset');
+    Route::put('/theme/stamp-icon', [DashboardController::class, 'updateStampIcon'])->name('theme.stamp-icon');
+    // POST, not PUT: file uploads need a real multipart POST.
+    Route::post('/theme/banner', [ShopBannerController::class, 'update'])->name('theme.banner');
+    Route::delete('/theme/banner', [ShopBannerController::class, 'destroy'])->name('theme.banner.destroy');
+
+    Route::post('/staff-members', [StaffMemberController::class, 'store'])->name('staff-members.store');
+    Route::put('/staff-members/{staffMember}/pin', [StaffMemberController::class, 'updatePin'])->name('staff-members.pin');
+    Route::delete('/staff-members/{staffMember}', [StaffMemberController::class, 'destroy'])->name('staff-members.destroy');
+
     Route::post('/staff-devices', [StaffDeviceController::class, 'store'])->name('staff-devices.store');
     Route::delete('/staff-devices/{staffDevice}', [StaffDeviceController::class, 'destroy'])->name('staff-devices.destroy');
 });
@@ -83,16 +105,25 @@ Route::get('/staff/setup/{token}', [StaffSetupController::class, 'show'])
     ->middleware('throttle:10,1')
     ->name('staff.setup');
 
-// Scanner shell: client-side checks localStorage for a saved token before
+// Staff dashboard shell (PIN sign-in, scanner, customer lookup, today's
+// stats): client-side checks localStorage for a saved device token before
 // calling the API below - no server-side auth needed for the page itself.
-Route::get('/staff', fn () => Inertia::render('Staff/Scanner'))->name('staff.scanner');
+Route::get('/staff', fn () => Inertia::render('Staff/Dashboard'))->name('staff.dashboard');
 
-// Staff scanner API: bearer-token authenticated (AuthenticateStaffDevice),
-// not session/CSRF based - see the CSRF-exempt list in bootstrap/app.php.
+// Staff API: bearer-token authenticated (AuthenticateStaffDevice), not
+// session/CSRF based - see the CSRF-exempt list in bootstrap/app.php. The
+// device is owner-approved; stamping/lookup also need a staff member signed
+// in on it with their PIN (EnsureStaffSignedIn).
 Route::middleware('staff.auth')->prefix('api/staff')->name('staff.')->group(function () {
     Route::get('/me', [StaffController::class, 'me'])->name('me');
-    Route::post('/scan', [StaffController::class, 'scan'])->middleware('throttle:60,1')->name('scan');
-    Route::get('/summary', [StaffController::class, 'summary'])->name('summary');
+    Route::post('/sign-in', [StaffController::class, 'signIn'])->middleware('throttle:staff-pin')->name('sign-in');
+    Route::post('/sign-out', [StaffController::class, 'signOut'])->name('sign-out');
+
+    Route::middleware('staff.signed-in')->group(function () {
+        Route::post('/scan', [StaffController::class, 'scan'])->middleware('throttle:staff-scan')->name('scan');
+        Route::get('/summary', [StaffController::class, 'summary'])->name('summary');
+        Route::get('/customers', [StaffController::class, 'customers'])->name('customers');
+    });
 });
 
 // Runs `php artisan migrate` / bootstraps the admin account over HTTP for

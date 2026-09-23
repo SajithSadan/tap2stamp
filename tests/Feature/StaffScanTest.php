@@ -14,7 +14,7 @@ function payloadFor(Customer $customer, Shop $shop): string
 
 test('scanning a customer adds a stamp', function () {
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create(['name' => 'Jamie Smith']);
     CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id, 'current_stamps' => 2]);
 
@@ -37,7 +37,7 @@ test('scanning a customer adds a stamp', function () {
 
 test('scanning a customer who has never visited this shop creates their card and stamps it', function () {
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
 
     $response = $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop)], [
@@ -51,7 +51,7 @@ test('scanning a customer who has never visited this shop creates their card and
 
 test('filling the card flags reward_ready', function () {
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id, 'current_stamps' => 5]);
 
@@ -64,7 +64,7 @@ test('filling the card flags reward_ready', function () {
 
 test('scanning a full card redeems the reward instead of adding a stamp', function () {
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     $card = CustomerShopCard::factory()->create([
         'customer_id' => $customer->id,
@@ -87,7 +87,7 @@ test('scanning a full card redeems the reward instead of adding a stamp', functi
 
 test('redemption ignores the cooldown - a full card redeems even right after its last stamp', function () {
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create([
         'customer_id' => $customer->id,
@@ -108,7 +108,7 @@ test('a cooldown blocks a second stamp too soon after the last one', function ()
     config(['loyalty.stamp_cooldown_hours' => 8]);
 
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create([
         'customer_id' => $customer->id,
@@ -130,7 +130,7 @@ test('the cooldown boundary allows a stamp exactly at the configured number of h
     config(['loyalty.stamp_cooldown_hours' => 8]);
 
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create([
         'customer_id' => $customer->id,
@@ -150,7 +150,7 @@ test('the cooldown boundary allows a stamp exactly at the configured number of h
 test('a shop mismatch is rejected', function () {
     $shopA = Shop::factory()->create();
     $shopB = Shop::factory()->create();
-    StaffDevice::factory()->create(['shop_id' => $shopA->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shopA->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shopB->id]);
 
@@ -164,7 +164,7 @@ test('a shop mismatch is rejected', function () {
 
 test('an unknown customer uuid is rejected', function () {
     $shop = Shop::factory()->create();
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
 
     $response = $this->postJson('/api/staff/scan', [
         'payload' => 'TOKEN:11111111-1111-1111-1111-111111111111|SHOP:'.$shop->id,
@@ -176,7 +176,7 @@ test('an unknown customer uuid is rejected', function () {
 
 test('a malformed payload is rejected', function () {
     $shop = Shop::factory()->create();
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
 
     $response = $this->postJson('/api/staff/scan', ['payload' => 'https://example.com'], [
         'Authorization' => 'Bearer token',
@@ -202,7 +202,7 @@ test('two scans in a row within the cooldown only ever result in one stamp', fun
     config(['loyalty.stamp_cooldown_hours' => 8]);
 
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id, 'current_stamps' => 0]);
 
@@ -221,7 +221,7 @@ test('two scans in a row within the cooldown only ever result in one stamp', fun
 
 test('the staff summary reflects a scan made today', function () {
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id]);
 

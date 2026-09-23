@@ -21,6 +21,7 @@ class StampLog extends Model
     protected $fillable = [
         'customer_id',
         'shop_id',
+        'staff_member_id',
         'action_type',
     ];
 
@@ -39,5 +40,10 @@ class StampLog extends Model
     public function shop(): BelongsTo
     {
         return $this->belongsTo(Shop::class);
+    }
+
+    public function staffMember(): BelongsTo
+    {
+        return $this->belongsTo(StaffMember::class);
     }
 }

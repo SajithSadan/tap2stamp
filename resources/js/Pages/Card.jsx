@@ -5,11 +5,15 @@ import Pusher from 'pusher-js';
 import QRCode from 'qrcode';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import BottomNav from '@/Components/BottomNav';
+import OfflineBanner from '@/Components/OfflineBanner';
 import RegistrationModal from '@/Components/RegistrationModal';
 import RatingTile from '@/Components/RatingTile';
-import { ArrowRightIcon, CameraIcon, ChevronDownIcon, SparkleIcon, StoreIcon, WifiIcon } from '@/Components/Icons';
+import { HiSparkles } from 'react-icons/hi2';
+import { LuArrowRight, LuCamera, LuChevronDown, LuStore, LuWifi } from 'react-icons/lu';
 import IconBadge from '@/Components/IconBadge';
 import { CUSTOMER_UUID_KEY, LAST_SHOP_SLUG_KEY } from '@/lib/storage';
+import { StampIcon } from '@/lib/stampIcons';
+import { useDocumentTheme } from '@/lib/theme';
 
 function copyToClipboard(text) {
     if (navigator.clipboard?.writeText) {
@@ -45,7 +49,7 @@ function Tile({ href, icon, children }) {
         >
             <IconBadge>{icon}</IconBadge>
             <span className="flex-1">{children}</span>
-            <ArrowRightIcon className="h-4 w-4 shrink-0 text-brand-muted" aria-hidden="true" />
+            <LuArrowRight className="h-4 w-4 shrink-0 text-brand-muted" aria-hidden="true" />
         </motion.a>
     );
 }
@@ -89,14 +93,17 @@ function Celebration() {
                     transition={{ duration: 0.9, ease: 'easeOut' }}
                     className="absolute text-brand-accent-text"
                 >
-                    <SparkleIcon className="h-3.5 w-3.5" />
+                    <HiSparkles className="h-3.5 w-3.5" />
                 </motion.span>
             ))}
         </div>
     );
 }
 
-export default function Card({ shop }) {
+export default function Card({ shop, theme }) {
+    // The owner's chosen look (Dashboard → Theme), applied to this page only.
+    useDocumentTheme(theme);
+
     const [card, setCard] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -106,8 +113,8 @@ export default function Card({ shop }) {
     const [wifiOpen, setWifiOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const [celebrate, setCelebrate] = useState(false);
-    const [soundEnabled, setSoundEnabled] = useState(false);
     const [redeemedToast, setRedeemedToast] = useState(false);
+    const [loadError, setLoadError] = useState(false);
 
     const prevStampsRef = useRef(0);
     const wasReadyRef = useRef(false);
@@ -115,10 +122,32 @@ export default function Card({ shop }) {
     const celebrateTimeoutRef = useRef(null);
 
     useEffect(() => {
+        const unlockAudio = () => {
+            if (!audioCtxRef.current) {
+                try {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    if (Ctx) audioCtxRef.current = new Ctx();
+                } catch {
+                    // Web Audio unsupported
+                }
+            } else if (audioCtxRef.current.state === 'suspended') {
+                audioCtxRef.current.resume();
+            }
+        };
+
+        window.addEventListener('click', unlockAudio, { once: true });
+        window.addEventListener('touchstart', unlockAudio, { once: true });
+        return () => {
+            window.removeEventListener('click', unlockAudio);
+            window.removeEventListener('touchstart', unlockAudio);
+        };
+    }, []);
+
+    useEffect(() => {
         window.localStorage.setItem(LAST_SHOP_SLUG_KEY, shop.slug);
     }, [shop.slug]);
 
-    useEffect(() => {
+    function loadCard() {
         const uuid = window.localStorage.getItem(CUSTOMER_UUID_KEY);
 
         if (!uuid) {
@@ -127,14 +156,29 @@ export default function Card({ shop }) {
             return;
         }
 
+        setLoading(true);
+        setLoadError(false);
+
         axios
             .get(`/s/${shop.slug}/card/${uuid}`)
             .then(({ data }) => setCard(data))
-            .catch(() => {
-                window.localStorage.removeItem(CUSTOMER_UUID_KEY);
-                setShowModal(true);
+            .catch((error) => {
+                // Only a 404 means "not registered here" - anything else
+                // (offline, rate limited, server error) is temporary, and
+                // forgetting the uuid then would orphan the customer's cards.
+                if (error.response?.status === 404) {
+                    window.localStorage.removeItem(CUSTOMER_UUID_KEY);
+                    setShowModal(true);
+                } else {
+                    setLoadError(true);
+                }
             })
             .finally(() => setLoading(false));
+    }
+
+    useEffect(() => {
+        loadCard();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [shop.slug]);
 
     useEffect(() => {
@@ -173,13 +217,22 @@ export default function Card({ shop }) {
         if (card) prevStampsRef.current = card.stamps;
     }, [card?.stamps]);
 
-    // Two-tone chime via Web Audio. Reuses the SAME AudioContext created at
-    // the first tap (see enableSound) rather than a new one per chime -
-    // mobile browsers only need the gesture for the context's creation, not
-    // for every sound played through it afterwards.
+    // Two-tone chime via Web Audio.
     function playChime() {
+        if (!audioCtxRef.current) {
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (Ctx) audioCtxRef.current = new Ctx();
+            } catch {
+                return;
+            }
+        }
+
         const ctx = audioCtxRef.current;
         if (!ctx) return;
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
 
         const now = ctx.currentTime;
         [660, 880].forEach((freq, i) => {
@@ -194,16 +247,6 @@ export default function Card({ shop }) {
             osc.start(now + i * 0.12);
             osc.stop(now + i * 0.12 + 0.35);
         });
-    }
-
-    function enableSound() {
-        try {
-            const Ctx = window.AudioContext || window.webkitAudioContext;
-            audioCtxRef.current = new Ctx();
-            setSoundEnabled(true);
-        } catch {
-            // Web Audio unsupported - the page still works, just silently.
-        }
     }
 
     // Real-time updates from staff scans (Stage 7). Resilience: if Pusher
@@ -267,20 +310,28 @@ export default function Card({ shop }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [shop.slug, card?.uuid]);
 
-    function handleRegister(name, phone) {
+    function handleRegister(name, phone, marketingConsent) {
         setSubmitting(true);
         setErrors({});
 
         axios
-            .post(`/s/${shop.slug}/register`, { name, phone })
+            .post(`/s/${shop.slug}/register`, { name, phone, marketing_consent: marketingConsent })
             .then(({ data }) => {
                 window.localStorage.setItem(CUSTOMER_UUID_KEY, data.uuid);
                 setCard(data);
                 setShowModal(false);
             })
             .catch((error) => {
-                if (error.response?.status === 422) {
+                const status = error.response?.status;
+
+                if (status === 422) {
                     setErrors(error.response.data.errors);
+                } else if (status === 429) {
+                    setErrors({ general: 'Too many tries. Please wait a minute and try again.' });
+                } else if (!error.response) {
+                    setErrors({ general: "Can't connect right now. Check your connection and try again." });
+                } else {
+                    setErrors({ general: 'Something went wrong. Please try again.' });
                 }
             })
             .finally(() => setSubmitting(false));
@@ -300,20 +351,7 @@ export default function Card({ shop }) {
     return (
         <>
             <Head title={shop.name} />
-
-            <AnimatePresence>
-                {!soundEnabled && card && (
-                    <motion.button
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        onClick={enableSound}
-                        className="fixed inset-x-5 top-3 z-10 mx-auto max-w-sm rounded-brand bg-brand-text px-4 py-2 text-center text-xs font-medium text-white shadow-md"
-                    >
-                        🔔 Tap to enable live sound updates
-                    </motion.button>
-                )}
-            </AnimatePresence>
+            <OfflineBanner />
 
             <AnimatePresence>
                 {redeemedToast && (
@@ -332,14 +370,26 @@ export default function Card({ shop }) {
                 <div className="pointer-events-none absolute -right-16 top-24 h-56 w-56 rounded-full bg-brand-accent/15 blur-3xl" />
                 <div className="pointer-events-none absolute -left-20 top-96 h-64 w-64 rounded-full bg-brand-accent/10 blur-3xl" />
 
-                {/* Default banner - a real logo/banner upload isn't built yet, so
-                    this is a deliberate placeholder rather than empty space. */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.5 }}
-                    className="h-28 w-full bg-gradient-to-br from-brand-accent to-brand-text sm:h-36"
-                />
+                {/* The owner's banner photo (Dashboard → Theme → Banner), else a colour banner. */}
+                {shop.banner_url ? (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                        className="relative h-40 w-full overflow-hidden bg-neutral-900 sm:h-48"
+                    >
+                        <img src={shop.banner_url} alt="" className="h-full w-full object-cover" />
+                        {/* Fades into the page so the shop badge below sits cleanly on it. */}
+                        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-brand-bg to-transparent" />
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                        className="h-28 w-full bg-gradient-to-br from-brand-accent to-neutral-900 sm:h-36"
+                    />
+                )}
 
                 <div className="relative mx-auto max-w-sm px-5">
                     <motion.div
@@ -353,7 +403,7 @@ export default function Card({ shop }) {
                             transition={{ delay: 1, duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                             className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-brand-bg bg-brand-card shadow-md"
                         >
-                            <StoreIcon className="h-9 w-9 text-brand-accent" />
+                            <LuStore className="h-9 w-9 text-brand-accent" />
                         </motion.div>
                     </motion.div>
 
@@ -369,13 +419,25 @@ export default function Card({ shop }) {
 
                     {shop.instagram_url && (
                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="mt-5">
-                            <Tile href={shop.instagram_url} icon={<CameraIcon className="h-5 w-5" />}>
+                            <Tile href={shop.instagram_url} icon={<LuCamera className="h-5 w-5" />}>
                                 Follow us on Instagram
                             </Tile>
                         </motion.div>
                     )}
 
                     {loading && <SkeletonCard />}
+
+                    {loadError && !loading && (
+                        <div className="mt-5 rounded-brand border border-brand-border bg-brand-card p-5 text-center">
+                            <p className="text-sm text-brand-muted">We couldn't load your card just now.</p>
+                            <button
+                                onClick={loadCard}
+                                className="mt-3 rounded-brand bg-brand-accent px-4 py-2 text-sm font-semibold text-brand-accent-text"
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    )}
 
                     {card && (
                         <motion.div
@@ -394,7 +456,7 @@ export default function Card({ shop }) {
                                         exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }}
                                         className="relative flex items-center gap-2 overflow-hidden rounded-brand bg-brand-accent px-3 py-2.5 text-xs font-semibold text-brand-accent-text"
                                     >
-                                        <SparkleIcon className="h-4 w-4 shrink-0" />
+                                        <HiSparkles className="h-4 w-4 shrink-0" />
                                         Reward unlocked — show this screen to staff!
                                     </motion.div>
                                 )}
@@ -439,7 +501,7 @@ export default function Card({ shop }) {
                                                 animate={isNew ? { scale: [0, 1.5, 1] } : { scale: 1 }}
                                                 transition={{ duration: 0.5 }}
                                             >
-                                                {filled && '✓'}
+                                                {filled && <StampIcon icon={shop.stamp_icon} className="h-5 w-5" />}
                                             </motion.span>
                                         </motion.div>
                                     );
@@ -486,11 +548,11 @@ export default function Card({ shop }) {
                                 className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-brand-text"
                             >
                                 <IconBadge>
-                                    <WifiIcon className="h-5 w-5" />
+                                    <LuWifi className="h-5 w-5" />
                                 </IconBadge>
                                 <span className="flex-1">Free Wi-Fi</span>
                                 <motion.span animate={{ rotate: wifiOpen ? 180 : 0 }} className="text-brand-muted" aria-hidden="true">
-                                    <ChevronDownIcon className="h-5 w-5" />
+                                    <LuChevronDown className="h-5 w-5" />
                                 </motion.span>
                             </button>
                             <AnimatePresence initial={false}>
@@ -535,7 +597,7 @@ export default function Card({ shop }) {
                     <RegistrationModal
                         key="registration-modal"
                         shopName={shop.name}
-                        rewardTitle={shop.reward_title}
+                        bannerUrl={shop.banner_url}
                         submitting={submitting}
                         errors={errors}
                         onSubmit={handleRegister}
@@ -543,7 +605,8 @@ export default function Card({ shop }) {
                 )}
             </AnimatePresence>
 
-            <BottomNav />
+            {/* Hidden behind the sign-up modal it would only peek out from under. */}
+            {!showModal && <BottomNav />}
         </>
     );
 }

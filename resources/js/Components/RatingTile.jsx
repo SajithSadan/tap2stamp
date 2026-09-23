@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircleIcon, ChevronDownIcon, StarIcon } from '@/Components/Icons';
+import { IoStar } from 'react-icons/io5';
+import { LuChevronDown, LuCircleCheck } from 'react-icons/lu';
 import IconBadge from '@/Components/IconBadge';
 
 const COMMENT_MAX_HEIGHT = 200;
@@ -56,11 +57,11 @@ export default function RatingTile({ shopSlug, uuid, existingReview }) {
                 className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-brand-text"
             >
                 <IconBadge>
-                    <StarIcon className="h-5 w-5" />
+                    <IoStar className="h-5 w-5" />
                 </IconBadge>
                 <span className="flex-1">{existingReview ? 'Update your rating' : 'Rate your visit'}</span>
                 <motion.span animate={{ rotate: open ? 180 : 0 }} className="text-brand-muted" aria-hidden="true">
-                    <ChevronDownIcon className="h-5 w-5" />
+                    <LuChevronDown className="h-5 w-5" />
                 </motion.span>
             </button>
 
@@ -93,7 +94,7 @@ export default function RatingTile({ shopSlug, uuid, existingReview }) {
                                         transition={{ duration: 0.35 }}
                                         className="p-0.5"
                                     >
-                                        <StarIcon
+                                        <IoStar
                                             className="h-7 w-7 transition-colors"
                                             style={{ color: value <= displayRating ? 'var(--color-brand-accent)' : 'var(--color-brand-border)' }}
                                         />
@@ -133,7 +134,7 @@ export default function RatingTile({ shopSlug, uuid, existingReview }) {
                                             exit={{ opacity: 0 }}
                                             className="flex items-center gap-1.5"
                                         >
-                                            <CheckCircleIcon className="h-4 w-4" />
+                                            <LuCircleCheck className="h-4 w-4" />
                                             Thanks for your feedback!
                                         </motion.span>
                                     ) : (

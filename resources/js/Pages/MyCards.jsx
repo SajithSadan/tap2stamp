@@ -4,8 +4,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import BottomNav from '@/Components/BottomNav';
-import { StoreIcon } from '@/Components/Icons';
+import { LuStore } from 'react-icons/lu';
 import IconBadge from '@/Components/IconBadge';
+import OfflineBanner from '@/Components/OfflineBanner';
+import { StampIcon } from '@/lib/stampIcons';
 import { CUSTOMER_UUID_KEY } from '@/lib/storage';
 
 function SkeletonTile() {
@@ -95,7 +97,7 @@ function ShopCardTile({ uuid, card }) {
                 <div className="min-w-0 flex-1 pl-2">
                     <div className="flex items-center gap-2.5">
                         <IconBadge>
-                            <StoreIcon className="h-4 w-4" />
+                            <LuStore className="h-4 w-4" />
                         </IconBadge>
                         <div className="min-w-0">
                             <p className="truncate text-sm font-bold text-brand-text">{card.shop_name}</p>
@@ -119,7 +121,7 @@ function ShopCardTile({ uuid, card }) {
                                         color: filled ? 'var(--color-brand-accent-text)' : 'var(--color-brand-muted)',
                                     }}
                                 >
-                                    {filled && '✓'}
+                                    {filled && <StampIcon icon={card.stamp_icon} className="h-3 w-3" />}
                                 </motion.span>
                             );
                         })}
@@ -159,6 +161,7 @@ export default function MyCards() {
     const [uuid, setUuid] = useState(null);
     const [cards, setCards] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
 
     useEffect(() => {
         const storedUuid = window.localStorage.getItem(CUSTOMER_UUID_KEY);
@@ -173,15 +176,18 @@ export default function MyCards() {
         axios
             .get(`/my-cards/${storedUuid}`)
             .then(({ data }) => setCards(data.cards))
-            .catch(() => setCards([]))
+            // A failed fetch is not the same as "no cards" - don't tell a
+            // customer with a full card that they have nothing.
+            .catch(() => setLoadError(true))
             .finally(() => setLoading(false));
     }, []);
 
-    const isEmpty = !loading && (!uuid || cards?.length === 0);
+    const isEmpty = !loading && !loadError && (!uuid || cards?.length === 0);
 
     return (
         <>
             <Head title="My Cards" />
+            <OfflineBanner />
             <div className="min-h-screen bg-brand-bg pb-24">
                 <div className="mx-auto max-w-sm px-5 pt-8">
                     <h1 className="font-heading text-xl font-bold text-brand-text">My Cards</h1>
@@ -193,6 +199,18 @@ export default function MyCards() {
                                 <SkeletonTile />
                                 <SkeletonTile />
                             </>
+                        )}
+
+                        {loadError && (
+                            <div className="rounded-brand border border-brand-border bg-brand-card p-6 text-center">
+                                <p className="text-sm text-brand-muted">We couldn't load your cards just now.</p>
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    className="mt-3 rounded-brand bg-brand-accent px-4 py-2 text-sm font-semibold text-brand-accent-text"
+                                >
+                                    Try again
+                                </button>
+                            </div>
                         )}
 
                         {isEmpty && (

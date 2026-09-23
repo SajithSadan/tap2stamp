@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Enums\UserRole;
 use App\Models\Customer;
 use App\Models\Shop;
+use App\Models\StaffMember;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -41,7 +42,7 @@ class DatabaseSeeder extends Seeder
             'role' => UserRole::Owner,
         ]);
 
-        Shop::factory()->create([
+        $cafe = Shop::factory()->create([
             'user_id' => $cafeOwner->id,
             'name' => 'Artisan Cafe',
             'slug' => 'artisan-cafe',
@@ -67,6 +68,10 @@ class DatabaseSeeder extends Seeder
             'wifi_ssid' => null,
             'wifi_password' => null,
         ]);
+
+        // Dev staff accounts for the staff dashboard's PIN sign-in.
+        StaffMember::factory()->for($cafe)->withPin('1234')->create(['name' => 'Sam']);
+        StaffMember::factory()->for($cafe)->withPin('5678')->create(['name' => 'Alex']);
 
         Customer::factory(5)->create();
     }

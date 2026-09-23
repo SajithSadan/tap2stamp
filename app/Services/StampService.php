@@ -7,6 +7,7 @@ use App\Events\CardUpdated;
 use App\Models\Customer;
 use App\Models\CustomerShopCard;
 use App\Models\StaffDevice;
+use App\Models\StaffMember;
 use App\Models\StampLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +18,7 @@ class StampService
     /**
      * @return array{0: int, 1: array<string, mixed>} [HTTP status, JSON body]
      */
-    public function scan(StaffDevice $device, string $payload): array
+    public function scan(StaffDevice $device, string $payload, ?StaffMember $staff = null): array
     {
         if (! preg_match('/^TOKEN:([0-9a-fA-F-]{36})\|SHOP:(\d+)$/', $payload, $matches)) {
             return $this->error(422, 'invalid_qr', "That doesn't look like a loyalty card QR code.");
@@ -38,7 +39,7 @@ class StampService
             return $this->error(404, 'customer_not_found', 'No customer found for this QR code.');
         }
 
-        [$status, $body] = DB::transaction(function () use ($customer, $device) {
+        [$status, $body] = DB::transaction(function () use ($customer, $device, $staff) {
             // lockForUpdate() inside the transaction: two near-simultaneous
             // scans of the same card must serialize here, or both could read
             // the same current_stamps and both increment - a lost update.
@@ -57,7 +58,7 @@ class StampService
             $maxStamps = $device->shop->max_stamps;
 
             if ($card->current_stamps >= $maxStamps) {
-                return $this->redeem($card, $customer, $maxStamps);
+                return $this->redeem($card, $customer, $maxStamps, $staff);
             }
 
             $cooldownHours = (int) config('loyalty.stamp_cooldown_hours');
@@ -66,7 +67,7 @@ class StampService
                 return $this->cooldown($card, $customer, $maxStamps, $cooldownHours);
             }
 
-            return $this->stamp($card, $customer, $maxStamps);
+            return $this->stamp($card, $customer, $maxStamps, $staff);
         });
 
         // Dispatched AFTER the transaction above has committed - a broadcast
@@ -90,13 +91,14 @@ class StampService
         return [$status, $body];
     }
 
-    private function redeem(CustomerShopCard $card, Customer $customer, int $maxStamps): array
+    private function redeem(CustomerShopCard $card, Customer $customer, int $maxStamps, ?StaffMember $staff): array
     {
         $card->update(['current_stamps' => 0, 'rewards_claimed' => $card->rewards_claimed + 1]);
 
         StampLog::create([
             'customer_id' => $customer->id,
             'shop_id' => $card->shop_id,
+            'staff_member_id' => $staff?->id,
             'action_type' => ActionType::RewardRedeemed,
         ]);
 
@@ -125,7 +127,7 @@ class StampService
         ]];
     }
 
-    private function stamp(CustomerShopCard $card, Customer $customer, int $maxStamps): array
+    private function stamp(CustomerShopCard $card, Customer $customer, int $maxStamps, ?StaffMember $staff): array
     {
         $card->update([
             'current_stamps' => $card->current_stamps + 1,
@@ -135,6 +137,7 @@ class StampService
         StampLog::create([
             'customer_id' => $customer->id,
             'shop_id' => $card->shop_id,
+            'staff_member_id' => $staff?->id,
             'action_type' => ActionType::StampAdded,
         ]);
 

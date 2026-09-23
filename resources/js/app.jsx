@@ -9,7 +9,7 @@ createInertiaApp({
     resolve: (name) => {
         // Lazy (not eager): each page becomes its own chunk, so heavy
         // page-specific dependencies (e.g. html5-qrcode, only used by
-        // Staff/Scanner) aren't bundled into every other page's load.
+        // Staff/Dashboard) aren't bundled into every other page's load.
         const pages = import.meta.glob('./Pages/**/*.jsx');
         return pages[`./Pages/${name}.jsx`]();
     },

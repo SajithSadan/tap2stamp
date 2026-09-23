@@ -18,6 +18,8 @@ class CustomerShopCard extends Model
         'current_stamps',
         'rewards_claimed',
         'last_stamped_at',
+        'marketing_consent',
+        'marketing_consent_at',
     ];
 
     protected function casts(): array
@@ -26,6 +28,8 @@ class CustomerShopCard extends Model
             'current_stamps' => 'integer',
             'rewards_claimed' => 'integer',
             'last_stamped_at' => 'datetime',
+            'marketing_consent' => 'boolean',
+            'marketing_consent_at' => 'datetime',
         ];
     }
 

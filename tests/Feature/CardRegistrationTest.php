@@ -103,3 +103,75 @@ test('the same customer registering at a second shop gets a separate card', func
     expect(Customer::count())->toBe(1);
     expect(CustomerShopCard::count())->toBe(2);
 });
+
+test('a customer can register without marketing consent', function () {
+    $shop = Shop::factory()->create();
+
+    $this->postJson("/s/{$shop->slug}/register", registerPayload())->assertOk();
+
+    $card = CustomerShopCard::where('shop_id', $shop->id)->firstOrFail();
+    expect($card->marketing_consent)->toBeFalse();
+    expect($card->marketing_consent_at)->toBeNull();
+});
+
+test('a customer can register with marketing consent, recorded with a timestamp', function () {
+    $shop = Shop::factory()->create();
+
+    $this->postJson("/s/{$shop->slug}/register", registerPayload(['marketing_consent' => true]))->assertOk();
+
+    $card = CustomerShopCard::where('shop_id', $shop->id)->firstOrFail();
+    expect($card->marketing_consent)->toBeTrue();
+    expect($card->marketing_consent_at)->not->toBeNull();
+});
+
+test('marketing consent is per shop, not platform-wide', function () {
+    $shopA = Shop::factory()->create();
+    $shopB = Shop::factory()->create();
+
+    $this->postJson("/s/{$shopA->slug}/register", registerPayload(['marketing_consent' => true]))->assertOk();
+    $this->postJson("/s/{$shopB->slug}/register", registerPayload())->assertOk();
+
+    expect(CustomerShopCard::where('shop_id', $shopA->id)->first()->marketing_consent)->toBeTrue();
+    expect(CustomerShopCard::where('shop_id', $shopB->id)->first()->marketing_consent)->toBeFalse();
+});
+
+test('re-registering with the box unticked does not withdraw earlier consent', function () {
+    $shop = Shop::factory()->create();
+
+    $this->postJson("/s/{$shop->slug}/register", registerPayload(['marketing_consent' => true]))->assertOk();
+    $consentedAt = CustomerShopCard::first()->marketing_consent_at;
+
+    $this->postJson("/s/{$shop->slug}/register", registerPayload(['marketing_consent' => false]))->assertOk();
+
+    $card = CustomerShopCard::first();
+    expect($card->marketing_consent)->toBeTrue();
+    expect($card->marketing_consent_at->equalTo($consentedAt))->toBeTrue();
+});
+
+test('marketing consent must be a boolean', function () {
+    $shop = Shop::factory()->create();
+
+    $this->postJson("/s/{$shop->slug}/register", registerPayload(['marketing_consent' => 'please']))
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('marketing_consent');
+});
+
+test('an Indian mobile number is accepted', function () {
+    $shop = Shop::factory()->create();
+
+    $this->postJson("/s/{$shop->slug}/register", registerPayload(['phone' => '+919876543210']))->assertOk();
+
+    expect(Customer::first()->phone)->toBe('+919876543210');
+});
+
+test('an invalid Indian mobile number is rejected', function (string $phone) {
+    $shop = Shop::factory()->create();
+
+    $this->postJson("/s/{$shop->slug}/register", registerPayload(['phone' => $phone]))
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('phone');
+})->with([
+    'starts with 5' => '+915876543210',
+    'too short' => '+91987654321',
+    'too long' => '+9198765432100',
+]);

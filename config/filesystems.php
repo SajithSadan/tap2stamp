@@ -47,6 +47,21 @@ return [
             'report' => false,
         ],
 
+        // Owner uploads (shop banners). Written straight into a web-served
+        // folder instead of storage/app/public: that disk needs `artisan
+        // storage:link`, and Hostinger has no SSH to run it. The URL is
+        // relative so images work behind any domain or HTTPS tunnel. If the
+        // host serves a different folder (e.g. public_html), point
+        // UPLOADS_ROOT at it.
+        'uploads' => [
+            'driver' => 'local',
+            'root' => env('UPLOADS_ROOT', public_path('uploads')),
+            'url' => env('UPLOADS_URL', '/uploads'),
+            'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

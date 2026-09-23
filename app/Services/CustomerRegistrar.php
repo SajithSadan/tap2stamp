@@ -14,7 +14,7 @@ class CustomerRegistrar
      * existing customer's name is left untouched — only a brand-new
      * customer gets the submitted name.
      */
-    public function registerFor(Shop $shop, string $name, string $phone): CustomerShopCard
+    public function registerFor(Shop $shop, string $name, string $phone, bool $marketingConsent = false): CustomerShopCard
     {
         $customer = Customer::firstOrCreate(
             ['phone' => $phone],
@@ -31,6 +31,13 @@ class CustomerRegistrar
             ['customer_id' => $customer->id, 'shop_id' => $shop->id],
             ['current_stamps' => 0, 'rewards_claimed' => 0]
         );
+
+        // Only ever turns consent ON. An unticked box on a repeat
+        // registration (e.g. new phone, cleared browser) isn't an explicit
+        // withdrawal, so it must not silently erase an earlier opt-in.
+        if ($marketingConsent && ! $card->marketing_consent) {
+            $card->update(['marketing_consent' => true, 'marketing_consent_at' => now()]);
+        }
 
         $card->setRelation('customer', $customer);
 

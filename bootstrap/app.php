@@ -1,11 +1,16 @@
 <?php
 
 use App\Http\Middleware\AuthenticateStaffDevice;
+use App\Http\Middleware\EnsureStaffSignedIn;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -17,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             HandleInertiaRequests::class,
         ]);
+
+        // Global (not just the web group) so error responses for unmatched
+        // routes carry the headers too.
+        $middleware->append(SecurityHeaders::class);
 
         // Trust X-Forwarded-* from any proxy in front of the app - both an
         // HTTPS tunnel (ngrok/Cloudflare Tunnel, needed to test the staff
@@ -30,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
             'staff.auth' => AuthenticateStaffDevice::class,
+            'staff.signed-in' => EnsureStaffSignedIn::class,
         ]);
 
         // Hit by curl/CI after a deploy, not a browser session — no CSRF
@@ -45,5 +55,30 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Friendly Inertia error page instead of Laravel's default one for
+        // browser visits. JSON callers (the card/scan fetch endpoints) keep
+        // their normal JSON error bodies - the pages calling them handle
+        // those themselves. 500/503 are left alone while debugging, so the
+        // real stack trace is still visible locally.
+        $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
+            $status = $response->getStatusCode();
+
+            if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+                return $response;
+            }
+
+            $friendly = [403, 404, 419, 429];
+
+            if (! config('app.debug')) {
+                $friendly = [...$friendly, 500, 503];
+            }
+
+            if (! in_array($status, $friendly, true)) {
+                return $response;
+            }
+
+            return Inertia::render('Error', ['status' => $status])
+                ->toResponse($request)
+                ->setStatusCode($status);
+        });
     })->create();

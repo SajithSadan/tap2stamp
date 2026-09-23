@@ -8,6 +8,7 @@ use App\Models\CustomerShopCard;
 use App\Models\Review;
 use App\Models\Shop;
 use App\Services\CustomerRegistrar;
+use App\Support\StampIcons;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -33,13 +34,22 @@ class CardController extends Controller
                 // No google_review_url here: reviews are collected in-app
                 // and saved to our own DB, never posted externally.
                 'instagram_url' => $shop->instagram_url,
+                'stamp_icon' => StampIcons::resolve($shop->stamp_icon),
+                'banner_url' => $shop->bannerUrl(),
             ],
+            // The look the owner picked on /dashboard/theme (or the default).
+            'theme' => $shop->appliedTheme(),
         ]);
     }
 
     public function register(RegisterCustomerRequest $request, Shop $shop, CustomerRegistrar $registrar): JsonResponse
     {
-        $card = $registrar->registerFor($shop, $request->string('name')->value(), $request->string('phone')->value());
+        $card = $registrar->registerFor(
+            $shop,
+            $request->string('name')->value(),
+            $request->string('phone')->value(),
+            $request->boolean('marketing_consent'),
+        );
 
         return response()->json($this->cardPayload($card, $shop));
     }

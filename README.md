@@ -1,59 +1,86 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Loyalty Hub
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Digital loyalty cards and a small customer hub for UK high-street independents (cafes,
+bakeries, barbers, pubs). Customers scan a QR at the counter, register once with a name and
+UK mobile, and get a stamp card in the browser with no app and no password. Staff stamp cards
+with a phone camera scanner. Owners manage their shop from a dashboard.
 
-## About Laravel
+**Stack:** Laravel 12 (PHP 8.2+), MySQL/MariaDB, Inertia.js + React, Tailwind CSS v4 (Vite),
+html5-qrcode, Pusher Channels.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Local setup
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Requirements: PHP 8.2+, Composer, MySQL or MariaDB (XAMPP works), Node 20+ and Yarn.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+```bash
+git clone <repo-url> loyalty-hub
+cd loyalty-hub
 
-## Learning Laravel
+composer install
+yarn install
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+cp .env.example .env
+php artisan key:generate
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Create an empty database called `loyalty_hub`, then check the `DB_*` values in `.env`. The
+defaults match a stock XAMPP install (`root`, no password).
 
-## Laravel Sponsors
+```bash
+php artisan migrate:fresh --seed
+yarn run build        # or `yarn dev` for hot reload while you work
+php artisan serve
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Open http://localhost:8000.
 
-### Premium Partners
+### Seeded accounts and shops
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+All seeded passwords are `password`.
 
-## Contributing
+| Who | Login | Where |
+|---|---|---|
+| Admin | `admin@loyaltyhub.test` | `/login` → `/admin` |
+| Owner of Artisan Cafe | `owner@artisan-cafe.test` | `/login` → `/dashboard` |
+| Owner of Urban Barber | `owner@urban-barber.test` | `/login` → `/dashboard` |
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Customer cards: http://localhost:8000/s/artisan-cafe and http://localhost:8000/s/urban-barber
 
-## Code of Conduct
+### Trying the staff scanner
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+1. Log in as an owner, go to **Staff devices** on the dashboard and add a device.
+2. Open the one-time setup link it shows, `/staff/setup/{token}`. The token is saved in the
+   browser and you're sent to `/staff`.
+3. The camera only works over **HTTPS**, or on `localhost`. To test on a real phone, run a
+   tunnel such as `cloudflared tunnel --url http://localhost:8000` or
+   `ngrok http 8000`, and open the tunnel URL on the phone.
 
-## Security Vulnerabilities
+### Real-time updates (optional)
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Fill in `PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET` and `PUSHER_APP_CLUSTER` in
+`.env`, then rebuild assets (`yarn run build`) so the `VITE_PUSHER_*` values are picked up.
+Without Pusher keys everything still works. The customer card just updates on refresh, or
+when the tab comes back into focus, instead of live.
 
-## License
+## Tests
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+php artisan test
+```
+
+Pest feature tests live in `tests/Feature`, one file per feature area. Format code with
+`vendor/bin/pint` before committing.
+
+## Useful config
+
+| `.env` key | Default | What it does |
+|---|---|---|
+| `STAMP_COOLDOWN_HOURS` | `8` | Minimum gap between two stamps for one customer at one shop |
+| `APP_TIMEZONE` | `Europe/London` | All displayed times |
+| `QUEUE_CONNECTION` | `sync` | Keep this. The app never needs a queue worker. |
+
+## Project notes
+
+Product rules, architecture decisions and stage history are in [`CLAUDE.md`](CLAUDE.md).
+The original build plan is in
+[`loyalty-hub-phase1-build-prompts.md`](loyalty-hub-phase1-build-prompts.md).

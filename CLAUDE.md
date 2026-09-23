@@ -26,12 +26,16 @@ ratings/reviews, Instagram, Wi-Fi).
 - Customers: no app, no passwords. First visit = name + UK mobile once; a persistent `uuid` is
   stored in `localStorage`. The browser is READ-ONLY: it can never change stamps.
 - Staff: device authenticated via a long-lived bearer token stored in browser storage; the
-  staff scanner is a PWA (Add to Home Screen).
+  staff scanner is a PWA (Add to Home Screen). On top of that, each staff member signs in on
+  the device with their name + PIN, so every stamp records who gave it (see "Staff accounts").
 - Customer QR payload is exactly: `TOKEN:{customer_uuid}|SHOP:{shop_id}`
 - Multi-tenant: every query touching cards/stamps is scoped by `shop_id`.
 - Cooldown: one stamp per customer per shop per configurable window (config value, default
   8 hours).
 - UK context: `Europe/London` timezone, UK mobile number validation/normalisation (+44).
+  Indian mobiles (+91, 10 digits starting 6-9) are also accepted. The registration sheet's
+  country picker (`COUNTRIES` in `RegistrationModal.jsx`) and the `RegisterCustomerRequest`
+  regex must stay in sync when adding a country.
 
 ## In-house review & rating (deviates from the original doc — built)
 
@@ -117,7 +121,7 @@ Stage 6's endpoint exists too.
   `$request->attributes->set('staffDevice', $device)`, updates `last_used_at`. 401 JSON
   otherwise. Registered on `api/staff/*`, which is bearer-token auth, not session/CSRF — those
   routes are in the CSRF-exempt list in `bootstrap/app.php`, same reasoning as `/deploy/*`.
-- **Scanner shell**: `/staff` (`Staff/Scanner.jsx`) uses `html5-qrcode` directly (not the
+- **Scanner shell**: `/staff` (now `Staff/Dashboard.jsx`'s Scan tab, see "Staff accounts" below) uses `html5-qrcode` directly (not the
   built-in `Html5QrcodeScanner` widget, to get a custom banner overlay instead of its default
   UI). Debounces identical decodes within 2s. Beep via Web Audio (no audio file asset) +
   `navigator.vibrate`, auto-dismiss after 3s. PWA: `public/manifest.webmanifest`, a minimal
@@ -176,6 +180,104 @@ Stage 6's endpoint exists too.
   disappears the moment it happens, which would otherwise make a scan-triggered redemption
   invisible to the customer without something else announcing it.
 
+## Hardening & QA (Stage 8 — built; hosting deliberately out of scope)
+
+Stage 8's deployment half (DEPLOYMENT.md, hPanel layout) was skipped on purpose: the user is
+handling Hostinger themselves. `shop:create` was also skipped, because the admin panel already
+creates shops and an artisan command can't run without SSH.
+
+- `SecurityHeaders` middleware is appended globally, not per group, so 404s for unmatched
+  routes get the headers too. There's no CSP yet: it would need Google Fonts, Pusher and
+  Vite allow-listed.
+- The scan throttle is the named limiter `staff-scan` in `AppServiceProvider`, keyed by the
+  sha256 of the bearer token, not by IP. Every phone in a shop shares one Wi-Fi IP.
+- `URL::forceScheme('https')` applies in production only.
+- Friendly errors: `bootstrap/app.php` renders `Pages/Error.jsx` for browser and Inertia
+  requests. JSON callers keep JSON bodies. 500/503 only get the error page when
+  `APP_DEBUG=false`.
+- The client must never forget stored identity on a transient failure. `Card.jsx` only clears
+  `loyalty_uuid` on a 404, and `Staff/Dashboard.jsx` only clears `staff_token` on a 401. Anything else
+  shows a retry state.
+- The dashboard's activity feed shows name, action and staff name only, never a phone number.
+
+## Staff accounts & dashboards (additive — changes the Stage 5 device model)
+
+Devices alone didn't say *who* gave a stamp, so staff now have their own accounts on top of the
+owner-approved device.
+
+- **Two layers**: the device is still approved once by the owner (setup QR →
+  `localStorage.staff_token`, `AuthenticateStaffDevice`, unchanged). On that device a staff
+  member then picks their name and enters a 4-6 digit PIN (`POST /api/staff/sign-in`,
+  throttled by the `staff-pin` limiter: 5/min per device). The sign-in is stored on the device
+  row (`staff_devices.staff_member_id` + `staff_signed_in_at`) and expires after
+  `config('loyalty.staff_session_hours')` (default 12). `StaffDevice::activeStaffMember()` is
+  the single check for this.
+- **`EnsureStaffSignedIn`** (alias `staff.signed-in`) guards scan, summary and customer lookup.
+  It answers **403 `staff_signed_out`**, not 401, so the client goes back to the PIN screen
+  without forgetting the device token.
+- **Attribution**: `StampService::scan()` takes the signed-in `StaffMember` and writes
+  `stamp_logs.staff_member_id`. It's nullable, because older logs have no staff member.
+- **Owner manages staff** at `/dashboard/staff` (`StaffMemberController`): add (name unique
+  per shop + PIN), reset PIN, remove. Removing sets `deactivated_at` (a soft delete, so past
+  stamps keep the name) and signs them out of every device. PINs are hashed (`pin_hash`); the
+  owner tells staff their PIN in person.
+- **Staff dashboard** (`/staff` → `Staff/Dashboard.jsx`): PIN sign-in, then three tabs: Scan
+  (camera only mounted while open), Customers (read-only lookup by name or ≥3 phone digits via
+  `GET /api/staff/customers`, this shop only, phone shown as last 3 digits) and Today (my
+  numbers vs the whole shop's). Lookup can't stamp; stamping still needs the customer's QR.
+- **Owner dashboard** is now sidebar + sections, one Inertia page each, all in
+  `DashboardController`: Overview (stat tiles, 14-day stamps-per-day chart, last 5 activity),
+  Customers (search, no phones), Activity (paginated 15), Reviews (average + breakdown +
+  list), Staff, Settings (form + counter QR download). Shell: `Components/Dashboard/OwnerLayout.jsx`.
+  Still never a shop param in the URL.
+- Dev seeder: Artisan Cafe has staff `Sam` (PIN 1234) and `Alex` (PIN 5678).
+
+## Per-shop themes (additive)
+
+- The 50-theme catalog lives in `App\Support\ThemeCatalog` (moved out of the dev-only
+  `ThemePreviewController`, which now just reads it). `ThemeCatalog::DEFAULT` is
+  `monochrome-barber` = the site look in `app.css`.
+- `shops.theme` (nullable slug) is set on `/dashboard/theme` (`Dashboard/Theme.jsx`: filters,
+  live phone preview, `PUT /dashboard/theme` validated with `Rule::in` the catalog keys).
+  `ThemeCatalog::forShop()` falls back to the default for null/unknown slugs.
+- Applied **only on the customer card page** (`/s/{slug}`, incl. the registration sheet):
+  `CardController::show()` passes `theme`, `Card.jsx` calls `useDocumentTheme()` from
+  `resources/js/lib/theme.js`, which re-points the `--color-brand-*`, `--radius-brand` and font
+  variables on `<html>` and loads the theme's Google Fonts. The owner dashboard, staff app and
+  cross-shop `/my-cards` keep the default look.
+- Because themes can be dark, customer-page code must not use `brand-text` as a "dark"
+  colour (it's light on dark themes) - use a fixed neutral (e.g. `neutral-900/950`) for
+  always-dark surfaces like the registration backdrop and card banner.
+- Dev-only custom themes (`custom_themes` table) are not offered to owners.
+- **Reset**: `DELETE /dashboard/theme` sets `shops.theme` back to null (not to the default
+  slug), so a future change of `ThemeCatalog::DEFAULT` still applies to those shops.
+- **Dashboard opt-in**: `shops.theme_in_dashboard` (bool, default false), toggled via
+  `PUT /dashboard/theme/dashboard`. `DashboardController::shopSummary()` sends
+  `dashboard_theme` (the theme, or null) on every section, and `OwnerLayout` passes it to
+  `useDocumentTheme()`. The staff app never uses the shop theme.
+- **Owner customisation** (Theme page → Customise tab): `shops.theme_custom` (JSON, null =
+  catalog theme as-is) holds 7 colours (`ThemeCatalog::CUSTOM_COLORS`), heading/body font
+  (`CuratedFonts`) and card radius (`CustomTheme::RADIUS_PRESETS`), validated by
+  `ThemeCatalog::customRules()`. It's layered on top of `shops.theme` by
+  `ThemeCatalog::forShop()`; always read the look via `Shop::appliedTheme()`. Picking a new
+  catalog theme or "Reset to default" clears it; `DELETE /dashboard/theme/custom` clears only
+  the tweaks. The client-side preview twin is `withCustomisation()` in `lib/theme.js`.
+  Separate from the dev tool's global `custom_themes` table - owners' tweaks belong to their
+  own shop only.
+- **Stamp icon**: `shops.stamp_icon` (null = tick), keys in `App\Support\StampIcons::KEYS`,
+  mapped to react-icons in `resources/js/lib/stampIcons.jsx` - **keep the two lists in sync**.
+  Shown in filled stamps on `Card.jsx` and `MyCards.jsx` (`MyCardsController` sends it per card).
+- **Banner image** (Theme page → Banner tab, `ShopBannerController`): `shops.banner_path` on
+  the **`uploads` disk** (`config/filesystems.php`), which writes straight into
+  `public/uploads` - not the `public` disk, because that needs `artisan storage:link` and
+  Hostinger has no SSH. URLs are relative (`/uploads/...`); if the host's web root isn't
+  the project's `public/`, set `UPLOADS_ROOT`. JPG/PNG/WebP only (never SVG), ≤ 4 MB,
+  ≥ 600×200, stored under a random name; replacing or removing deletes the old file.
+  Read it via `Shop::bannerUrl()`. Shown as the card page header (`Card.jsx`) and, blurred
+  and darkened, as the registration backdrop (`RegistrationModal` `bannerUrl` prop).
+  `public/uploads` is gitignored.
+
+
 ## Database (agreed schema)
 
 Tables: `shops`, `customers`, `customer_shop_cards`, `stamp_logs`
@@ -185,6 +287,13 @@ and a composite index `stamp_logs(shop_id, created_at)`. Plus `reviews` (see abo
 not part of the original 4-table design. Plus (Stage 4, see "Admin panel" above): `users.role`,
 `shops.user_id` (nullable FK — shops created before the admin panel existed have no owner),
 `staff_devices` (`shop_id`, `name`, `token_hash` unique, `last_used_at`, `revoked_at`).
+Plus (staff accounts, see above) `staff_members` (`shop_id`, `name` unique per shop,
+`pin_hash`, `deactivated_at`), `staff_devices.staff_member_id` + `staff_signed_in_at`, and
+`stamp_logs.staff_member_id` (nullable FK).
+Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
+(timestamp). This is an optional opt-in to texts from **that one shop**, unticked by default,
+and customers can register without it. `CustomerRegistrar` only ever turns it on: an unticked
+box on a repeat registration is not a withdrawal. There's no opt-out UI and no SMS sending yet.
 
 ## Working rules
 
@@ -235,6 +344,9 @@ not part of the original 4-table design. Plus (Stage 4, see "Admin panel" above)
   `resources/js/Pages/Dev/Themes/Show.jsx`). Shared UI in `resources/js/Components/`. No Blade
   `@extends`/`@yield` layouts for app pages — `resources/views/app.blade.php` is the single
   Inertia root template.
+- **Icons**: use `react-icons` for every icon. Don't hand-write inline `<svg>` icons. The only
+  exception is artwork that `react-icons` doesn't have, such as the country flags in
+  `RegistrationModal.jsx`.
 - **Package manager**: yarn, not npm — use `yarn add`/`yarn info` for anything touching
   `package.json` or querying the npm registry.
 - **Commits**: `Stage N: <short summary>`.

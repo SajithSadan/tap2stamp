@@ -21,7 +21,7 @@ class StaffDeviceController extends Controller
             'token_hash' => hash('sha256', $token),
         ]);
 
-        return redirect()->route('dashboard.index')->with('staffToken', $token);
+        return redirect()->route('dashboard.staff')->with('staffToken', $token);
     }
 
     public function destroy(Request $request, StaffDevice $staffDevice): RedirectResponse
@@ -30,6 +30,6 @@ class StaffDeviceController extends Controller
 
         $staffDevice->update(['revoked_at' => now()]);
 
-        return redirect()->route('dashboard.index');
+        return redirect()->route('dashboard.staff');
     }
 }

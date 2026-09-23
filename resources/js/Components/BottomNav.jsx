@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { CardsIcon, StoreIcon } from '@/Components/Icons';
+import { LuCopy, LuStore } from 'react-icons/lu';
 import { LAST_SHOP_SLUG_KEY } from '@/lib/storage';
 
 function NavItem({ href, icon, label, active, disabled }) {
@@ -49,10 +49,10 @@ export default function BottomNav() {
                 href={shopHref}
                 disabled={!shopHref}
                 active={Boolean(shopHref) && url.startsWith(`/s/${lastShopSlug}`)}
-                icon={<StoreIcon className="h-5 w-5" />}
+                icon={<LuStore className="h-5 w-5" />}
                 label="My Card"
             />
-            <NavItem href="/my-cards" active={url.startsWith('/my-cards')} icon={<CardsIcon className="h-5 w-5" />} label="My Cards" />
+            <NavItem href="/my-cards" active={url.startsWith('/my-cards')} icon={<LuCopy className="h-5 w-5" />} label="My Cards" />
         </nav>
     );
 }

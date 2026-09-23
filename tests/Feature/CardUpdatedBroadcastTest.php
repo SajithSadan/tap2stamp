@@ -11,7 +11,7 @@ test('a successful stamp dispatches CardUpdated on the correct channel with the 
     Event::fake([CardUpdated::class]);
 
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id, 'current_stamps' => 2]);
 
@@ -34,7 +34,7 @@ test('a redemption dispatches CardUpdated with action reward_redeemed', function
     Event::fake([CardUpdated::class]);
 
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id, 'current_stamps' => 6]);
 
@@ -48,7 +48,7 @@ test('a rejected scan (cooldown) does not dispatch CardUpdated', function () {
     Event::fake([CardUpdated::class]);
 
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create([
         'customer_id' => $customer->id,
@@ -67,7 +67,7 @@ test('an invalid payload does not dispatch CardUpdated', function () {
     Event::fake([CardUpdated::class]);
 
     $shop = Shop::factory()->create();
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
 
     $this->postJson('/api/staff/scan', ['payload' => 'not-a-qr-code'], ['Authorization' => 'Bearer token'])
         ->assertStatus(422);
@@ -92,7 +92,7 @@ test('a broadcast failure does not affect the stamp result', function () {
     ]);
 
     $shop = Shop::factory()->create(['max_stamps' => 6]);
-    StaffDevice::factory()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id, 'current_stamps' => 0]);
 
