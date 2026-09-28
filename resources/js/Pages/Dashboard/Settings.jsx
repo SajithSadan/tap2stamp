@@ -16,7 +16,110 @@ function Field({ label, error, hint, children }) {
     );
 }
 
-export default function Settings({ shop }) {
+/** Business contact + location (collected at shop setup). Its own form and save button. */
+function ContactPanel({ contact }) {
+    const form = useForm({
+        contact_name: contact.contact_name ?? '',
+        contact_email: contact.contact_email ?? '',
+        contact_phone: contact.contact_phone ?? '',
+        address_line1: contact.address_line1 ?? '',
+        address_line2: contact.address_line2 ?? '',
+        town: contact.town ?? '',
+        postcode: contact.postcode ?? '',
+        delivery_same: !contact.delivery_address,
+        delivery_address: contact.delivery_address ?? '',
+    });
+
+    const text = (key) => ({ value: form.data[key], onChange: (e) => form.setData(key, e.target.value), className: inputClass });
+    const missing = !contact.contact_phone || !contact.town;
+
+    function submit(e) {
+        e.preventDefault();
+        form.put('/dashboard/settings/contact', { preserveScroll: true });
+    }
+
+    return (
+        <Panel className="lg:col-span-2" title="Contact & address" description="How we reach you, and where your shop is.">
+            {missing && (
+                <p className="mb-5 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-800">Please add your contact number and shop address - we don't have them yet.</p>
+            )}
+            <form onSubmit={submit} noValidate className="space-y-6">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="Contact person name" error={form.errors.contact_name}>
+                        <input type="text" autoComplete="name" {...text('contact_name')} />
+                    </Field>
+                    <Field label="Contact number" error={form.errors.contact_phone} hint="Mobile or landline.">
+                        <input type="tel" inputMode="tel" autoComplete="tel" {...text('contact_phone')} />
+                    </Field>
+                    <div className="sm:col-span-2">
+                        <Field label="Email" error={form.errors.contact_email}>
+                            <input type="email" autoComplete="email" {...text('contact_email')} />
+                        </Field>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-brand-muted">Shop address</h3>
+                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <Field label="Address line 1" error={form.errors.address_line1}>
+                            <input type="text" autoComplete="address-line1" {...text('address_line1')} />
+                        </Field>
+                        <Field label="Address line 2 (optional)" error={form.errors.address_line2}>
+                            <input type="text" autoComplete="address-line2" {...text('address_line2')} />
+                        </Field>
+                        <Field label="Town / city" error={form.errors.town}>
+                            <input type="text" autoComplete="address-level2" {...text('town')} />
+                        </Field>
+                        <Field label="Postcode" error={form.errors.postcode}>
+                            <input
+                                type="text"
+                                autoComplete="postal-code"
+                                autoCapitalize="characters"
+                                {...text('postcode')}
+                                onChange={(e) => form.setData('postcode', e.target.value.toUpperCase())}
+                            />
+                        </Field>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-brand-muted">Delivery address (optional)</h3>
+                    <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm text-brand-text">
+                        <input
+                            type="checkbox"
+                            checked={form.data.delivery_same}
+                            onChange={(e) => form.setData('delivery_same', e.target.checked)}
+                            className="h-4 w-4 accent-[var(--color-brand-accent)]"
+                        />
+                        Same as the shop address
+                    </label>
+                    {!form.data.delivery_same && (
+                        <div className="mt-3">
+                            <textarea
+                                rows={3}
+                                value={form.data.delivery_address}
+                                onChange={(e) => form.setData('delivery_address', e.target.value)}
+                                autoComplete="shipping street-address"
+                                aria-label="Delivery address"
+                                className={`${inputClass} resize-y`}
+                            />
+                            <FieldError message={form.errors.delivery_address} />
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-3 border-t border-brand-border pt-5">
+                    <button type="submit" disabled={form.processing} className={primaryButton}>
+                        {form.processing ? 'Saving…' : 'Save contact details'}
+                    </button>
+                    {form.recentlySuccessful && <span className="text-sm text-green-700">Saved</span>}
+                </div>
+            </form>
+        </Panel>
+    );
+}
+
+export default function Settings({ shop, contact }) {
     const [posterQr, setPosterQr] = useState(null);
     const cardUrl = typeof window !== 'undefined' ? `${window.location.origin}/s/${shop.slug}` : `/s/${shop.slug}`;
 
@@ -128,6 +231,9 @@ export default function Settings({ shop }) {
                         </div>
                     </div>
                 </Panel>
+
+                {/* Below the shop settings (the QR sits beside them in the first row). */}
+                <ContactPanel contact={contact} />
             </div>
         </OwnerLayout>
     );

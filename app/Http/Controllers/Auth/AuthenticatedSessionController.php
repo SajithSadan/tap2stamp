@@ -14,7 +14,7 @@ class AuthenticatedSessionController extends Controller
 {
     public function create(): Response
     {
-        return Inertia::render('Auth/Login');
+        return Inertia::render('Auth/Login', ['googleEnabled' => GoogleAuthController::enabled()]);
     }
 
     public function store(LoginRequest $request): RedirectResponse
@@ -22,9 +22,9 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
         $request->session()->regenerate();
 
-        return $request->user()->isAdmin()
-            ? redirect()->route('admin.index')
-            : redirect()->route('dashboard.index');
+        // intended(): an admin sent here from a scanned sticker's map page
+        // goes straight back to it.
+        return redirect()->intended($request->user()->homeUrl());
     }
 
     public function destroy(Request $request): RedirectResponse

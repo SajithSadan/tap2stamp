@@ -9,6 +9,8 @@ export function themeVars(theme) {
     return {
         '--color-brand-bg': theme.page_bg,
         '--color-brand-card': theme.card_bg,
+        // Dev-tool custom themes have no deep colour: near-black, as before it existed.
+        '--color-brand-deep': theme.deep ?? '#171717',
         '--color-brand-text': theme.text,
         '--color-brand-muted': theme.muted,
         '--color-brand-accent': theme.accent,
@@ -24,6 +26,7 @@ export function themeVars(theme) {
 export const CUSTOM_COLOR_FIELDS = [
     ['page_bg', 'Page background'],
     ['card_bg', 'Card background'],
+    ['deep', 'Brand dark (banner, sidebar)'],
     ['text', 'Text'],
     ['muted', 'Muted text'],
     ['accent', 'Accent (buttons, stamps)'],

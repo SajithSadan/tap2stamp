@@ -11,9 +11,10 @@ use Inertia\Response;
 
 /**
  * Dev-only internal tool: browse the built-in theme catalog and (via
- * CustomThemeController) save customized variants to the database. Monochrome
- * Barber was picked as the real site's default (see resources/css/app.css);
- * this tool stays around as ongoing tooling, not one-time scaffolding.
+ * CustomThemeController) save customized variants to the database. Tap2Stamp
+ * (the brand look from the WordPress landing page) is the real site's default
+ * (see resources/css/app.css); this tool stays around as ongoing tooling, not
+ * one-time scaffolding.
  *
  * The catalog itself lives in App\Support\ThemeCatalog, shared with the
  * owner's /dashboard/theme picker.

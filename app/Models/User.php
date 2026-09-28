@@ -23,6 +23,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'google_id',
         'password',
         'role',
     ];
@@ -33,6 +34,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $hidden = [
+        'google_id',
         'password',
         'remember_token',
     ];
@@ -59,5 +61,18 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;
+    }
+
+    /**
+     * Where this user belongs after logging in or signing up: the admin panel,
+     * or the owner dashboard - via shop setup first if they haven't got one.
+     */
+    public function homeUrl(): string
+    {
+        if ($this->isAdmin()) {
+            return route('admin.index');
+        }
+
+        return $this->shop()->exists() ? route('dashboard.index') : route('onboarding.create');
     }
 }

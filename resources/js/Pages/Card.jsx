@@ -376,7 +376,7 @@ export default function Card({ shop, theme }) {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ duration: 0.5 }}
-                        className="relative h-40 w-full overflow-hidden bg-neutral-900 sm:h-48"
+                        className="relative h-40 w-full overflow-hidden bg-brand-deep sm:h-48"
                     >
                         <img src={shop.banner_url} alt="" className="h-full w-full object-cover" />
                         {/* Fades into the page so the shop badge below sits cleanly on it. */}
@@ -387,7 +387,7 @@ export default function Card({ shop, theme }) {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ duration: 0.5 }}
-                        className="h-28 w-full bg-gradient-to-br from-brand-accent to-neutral-900 sm:h-36"
+                        className="h-28 w-full bg-gradient-to-br from-brand-accent to-brand-deep sm:h-36"
                     />
                 )}
 

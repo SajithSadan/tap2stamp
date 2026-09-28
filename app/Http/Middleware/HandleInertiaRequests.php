@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Navigation;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -45,12 +46,18 @@ class HandleInertiaRequests extends Middleware
                     'role' => $request->user()->role->value,
                 ] : null,
             ],
+            // Sidebar / tab-bar menu from App\Support\Navigation - only the
+            // items this user's role may open. Lazy: skipped for guests.
+            'navigation' => fn () => $request->user() ? Navigation::for($request->user(), $request) : null,
             // One-time reveal values (generated owner password, staff device
             // token) are flashed to the session rather than stored, so a page
             // refresh never shows them a second time.
             'flash' => [
                 'generatedPassword' => $request->session()->get('generatedPassword'),
+                'createdOwnerEmail' => $request->session()->get('createdOwnerEmail'),
                 'staffToken' => $request->session()->get('staffToken'),
+                // Plain one-line success message after an admin action.
+                'status' => $request->session()->get('status'),
             ],
         ];
     }

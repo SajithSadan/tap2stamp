@@ -2,7 +2,7 @@ import { router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LuCheck, LuImage, LuImagePlus, LuMoon, LuPaintbrush, LuPalette, LuRotateCcw, LuStamp, LuStar, LuStore, LuSun, LuTrash2 } from 'react-icons/lu';
 import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
-import { FieldError, inputClass, Panel, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
+import { FieldError, inputClass, Panel, primaryButton, secondaryButton, Switch } from '@/Components/Dashboard/Ui';
 import { STAMP_ICONS, StampIcon } from '@/lib/stampIcons';
 import { CUSTOM_COLOR_FIELDS, fontNameOf, themeVars, useThemeFonts, withCustomisation } from '@/lib/theme';
 
@@ -37,12 +37,12 @@ function PhonePreview({ theme, shop, stampIcon, bannerUrl }) {
             className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[2rem] border-[6px] border-neutral-900 bg-brand-bg font-sans text-brand-text shadow-xl"
         >
             {bannerUrl ? (
-                <div className="relative h-24 overflow-hidden bg-neutral-900">
+                <div className="relative h-24 overflow-hidden bg-brand-deep">
                     <img src={bannerUrl} alt="" className="h-full w-full object-cover" />
                     <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-brand-bg to-transparent" />
                 </div>
             ) : (
-                <div className="h-20 bg-gradient-to-br from-brand-accent to-neutral-900" />
+                <div className="h-20 bg-gradient-to-br from-brand-accent to-brand-deep" />
             )}
             <div className="px-4 pb-5">
                 <div className="-mt-8 flex justify-center">
@@ -419,27 +419,6 @@ function BannerTab({ bannerUrl, shown, file, onFile, error, progress, onRemove, 
 }
 
 /* ---------- Shared ---------- */
-
-function Switch({ checked, onChange, disabled, label, description }) {
-    return (
-        <label className="flex cursor-pointer items-start justify-between gap-4">
-            <span>
-                <span className="block text-sm font-medium text-brand-text">{label}</span>
-                {description && <span className="mt-0.5 block text-xs text-brand-muted">{description}</span>}
-            </span>
-            <button
-                type="button"
-                role="switch"
-                aria-checked={checked}
-                disabled={disabled}
-                onClick={() => onChange(!checked)}
-                className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${checked ? 'bg-brand-accent' : 'bg-brand-border'}`}
-            >
-                <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : ''}`} />
-            </button>
-        </label>
-    );
-}
 
 /** Editor starting values: the saved customisation, else the current theme's own values. */
 function initialFields(customTheme, appliedTheme, fonts, radiusPresets) {

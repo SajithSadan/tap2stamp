@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Middleware\AuthenticateStaffDevice;
+use App\Http\Middleware\EnsureNavigationAccess;
+use App\Http\Middleware\EnsureOwnerHasShop;
 use App\Http\Middleware\EnsureStaffSignedIn;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -38,6 +40,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
+            'shop.ready' => EnsureOwnerHasShop::class,
+            'nav.access' => EnsureNavigationAccess::class,
             'staff.auth' => AuthenticateStaffDevice::class,
             'staff.signed-in' => EnsureStaffSignedIn::class,
         ]);

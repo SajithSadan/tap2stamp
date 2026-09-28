@@ -13,14 +13,55 @@ use Illuminate\Validation\Rule;
 class ThemeCatalog
 {
     /** The site's own look (resources/css/app.css), used when a shop hasn't picked one. */
-    public const DEFAULT = 'monochrome-barber';
+    public const DEFAULT = 'tap2stamp';
+
+    /**
+     * The "deep" brand colour: an always-dark surface (card banner, dashboard
+     * sidebar, sign-up panel) that always carries white text. Themes that
+     * don't set their own keep this near-black, which is what those surfaces
+     * used before the colour existed.
+     */
+    public const DEFAULT_DEEP = '#171717';
 
     /**
      * @return array<string, array<string, mixed>>
      */
     public static function all(): array
     {
+        return array_map(fn (array $theme) => $theme + ['deep' => self::DEFAULT_DEEP], self::catalog());
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private static function catalog(): array
+    {
         return [
+            // The tap2stamp brand (matches the WordPress landing page): three
+            // colours - navy surfaces (deep), mint green accent, white - on
+            // near-black ink. Also the site's own look: keep app.css in sync.
+            'tap2stamp' => [
+                'name' => 'Tap2Stamp',
+                'blurb' => 'The tap2stamp brand — navy, mint green and white, friendly rounded type.',
+                'category' => 'general',
+                'mood' => 'light',
+                'google_fonts' => 'Poppins:wght@400;500;600;700;800',
+                'heading_font' => "'Poppins', sans-serif",
+                'body_font' => "'Poppins', sans-serif",
+                'page_bg' => '#F5F8FA',
+                'card_bg' => '#FFFFFF',
+                'deep' => '#0F2A46',
+                'text' => '#0A1A2F',
+                'muted' => '#5E6E7F',
+                'accent' => '#17C68B',
+                'accent_text' => '#FFFFFF',
+                'stamp_filled' => '#17C68B',
+                'stamp_empty' => '#E3EAF0',
+                'border' => '#E3EAF0',
+                'radius' => '16px',
+                'button_radius' => '9999px',
+                'shadow' => '0 8px 24px -12px rgba(11,31,53,0.18)',
+            ],
             'warm-artisan' => [
                 'name' => 'Warm Artisan',
                 'blurb' => 'Cafe & bakery feel — terracotta and cream, soft rounded cards.',
@@ -1080,7 +1121,7 @@ class ThemeCatalog
     }
 
     /** Colours an owner can change on top of their theme (see forShop()). */
-    public const CUSTOM_COLORS = ['page_bg', 'card_bg', 'text', 'muted', 'accent', 'accent_text', 'border'];
+    public const CUSTOM_COLORS = ['page_bg', 'card_bg', 'deep', 'text', 'muted', 'accent', 'accent_text', 'border'];
 
     /**
      * Validation for an owner's customisation - the same curated fonts and

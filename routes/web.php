@@ -1,15 +1,22 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\QrCodeController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShopOwnerController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\Dev\CustomThemeController;
 use App\Http\Controllers\Dev\ThemePreviewController;
 use App\Http\Controllers\MyCardsController;
+use App\Http\Controllers\QrRedirectController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ShopBannerController;
+use App\Http\Controllers\ShopOnboardingController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\StaffDeviceController;
 use App\Http\Controllers\StaffMemberController;
@@ -54,6 +61,19 @@ Route::get('/my-cards/{customer:uuid}', [MyCardsController::class, 'index'])->na
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:5,1');
+
+    // Self-service owner sign-up (the landing page's "Start Free"). Always
+    // creates an owner - admins are never self-registered.
+    Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
+    Route::post('/register', [RegisteredUserController::class, 'store'])->middleware('throttle:5,1');
+
+    // "Continue with Google" - sign-up and log-in in one flow (Socialite).
+    Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])
+        ->middleware('throttle:10,1')
+        ->name('auth.google.redirect');
+    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])
+        ->middleware('throttle:10,1')
+        ->name('auth.google.callback');
 });
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')
@@ -62,16 +82,45 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
 // Admin: onboards new shops + their owner login (no self-service
 // registration - see CLAUDE.md "Admin panel"). No shop param anywhere in
 // dashboard routes below, so there's no ID to scope wrong.
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+// nav.access: who may open each menu page is declared once, in
+// App\Support\Navigation (which also builds the sidebars).
+Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
     Route::get('/', [ShopOwnerController::class, 'index'])->name('index');
     Route::get('/shops/create', [ShopOwnerController::class, 'create'])->name('shops.create');
     Route::post('/shops', [ShopOwnerController::class, 'store'])->name('shops.store');
+
+    // Bulk QR stickers: generate in batches, map each to a destination later,
+    // print as a PDF (built client-side from printData's JSON).
+    Route::get('/qr-codes', [QrCodeController::class, 'index'])->name('qr-codes.index');
+    Route::post('/qr-codes', [QrCodeController::class, 'store'])->name('qr-codes.store');
+    Route::post('/qr-codes/print', [QrCodeController::class, 'printData'])->name('qr-codes.print');
+    Route::put('/qr-codes/{qrCode}', [QrCodeController::class, 'update'])->name('qr-codes.update');
+
+    // App-wide switches (API keys themselves stay in .env).
+    Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
+    Route::put('/settings/google', [SettingsController::class, 'updateGoogle'])->name('settings.google');
 });
+
+// Public landing link inside every printed QR sticker. Redirects to the
+// mapped destination, or shows "Nothing found". Throttled so the code space
+// can't be cheaply walked.
+Route::get('/qr/{code}', [QrRedirectController::class, 'show'])
+    ->where('code', '[A-Za-z0-9]{1,16}')
+    ->middleware('throttle:60,1')
+    ->name('qr.show');
 
 // Owner dashboard: always "my shop" (auth()->user()->shop), never a shop
 // param in the URL - structurally impossible for one owner to view another's
 // data through this route, not just policy-enforced.
-Route::middleware(['auth', 'role:owner'])->prefix('dashboard')->name('dashboard.')->group(function () {
+// One-time shop setup straight after sign-up. Owners without a shop are
+// sent here by shop.ready on every dashboard route below.
+Route::middleware(['auth', 'role:owner'])->group(function () {
+    Route::get('/onboarding', [ShopOnboardingController::class, 'create'])->name('onboarding.create');
+    Route::post('/onboarding', [ShopOnboardingController::class, 'store'])->middleware('throttle:10,1')->name('onboarding.store');
+});
+
+Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('dashboard')->name('dashboard.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('index');
     Route::get('/customers', [DashboardController::class, 'customers'])->name('customers');
     Route::get('/activity', [DashboardController::class, 'activity'])->name('activity');
@@ -79,6 +128,7 @@ Route::middleware(['auth', 'role:owner'])->prefix('dashboard')->name('dashboard.
     Route::get('/staff', [DashboardController::class, 'staff'])->name('staff');
     Route::get('/settings', [DashboardController::class, 'settings'])->name('settings');
     Route::put('/settings', [DashboardController::class, 'updateSettings'])->name('settings.update');
+    Route::put('/settings/contact', [DashboardController::class, 'updateContact'])->name('settings.contact');
     Route::get('/theme', [DashboardController::class, 'theme'])->name('theme');
     Route::put('/theme', [DashboardController::class, 'updateTheme'])->name('theme.update');
     Route::delete('/theme', [DashboardController::class, 'resetTheme'])->name('theme.reset');

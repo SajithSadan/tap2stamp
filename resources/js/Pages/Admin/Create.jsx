@@ -1,25 +1,18 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import AppHeader from '@/Components/AppHeader';
+import { Link, useForm } from '@inertiajs/react';
+import { LuArrowLeft, LuKeyRound, LuStore, LuUser } from 'react-icons/lu';
+import AdminLayout from '@/Components/Dashboard/AdminLayout';
+import { CardPreview, MAX_STAMPS, MIN_STAMPS, SlugInput, StampStepper, slugify } from '@/Components/Dashboard/ShopFields';
+import { FieldError, Panel, inputClass, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
 
-function slugify(value) {
-    return value
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
-}
-
-function Field({ label, value, onChange, error, type = 'text' }) {
+function Field({ id, label, hint, error, children }) {
     return (
         <div>
-            <label className="block text-xs font-medium text-brand-muted">{label}</label>
-            <input
-                type={type}
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className="mt-1 w-full rounded border border-brand-border px-3 py-2 text-sm text-brand-text outline-none focus:border-brand-accent"
-            />
-            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+            <label htmlFor={id} className="block text-sm font-medium text-brand-text">
+                {label}
+            </label>
+            <div className="mt-1.5">{children}</div>
+            {hint && !error && <p className="mt-1 text-xs text-brand-muted">{hint}</p>}
+            <FieldError message={error} />
         </div>
     );
 }
@@ -50,72 +43,96 @@ export default function Create() {
     }
 
     return (
-        <>
-            <Head title="Add shop" />
-            <div className="min-h-screen bg-brand-bg">
-                <AppHeader title="Add shop" />
-
-                <div className="mx-auto max-w-lg px-5 py-8">
-                    <Link href="/admin" className="text-sm text-brand-accent">
-                        &larr; Back to shops
-                    </Link>
-
-                    <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-4 rounded-brand border border-brand-border bg-brand-card p-5">
-                        <fieldset className="space-y-3">
-                            <legend className="text-sm font-semibold text-brand-text">Shop</legend>
-                            <Field label="Shop name" value={data.shop_name} onChange={handleShopNameChange} error={errors.shop_name} />
-                            <Field
-                                label="Slug (used in the card URL: /s/…)"
-                                value={data.shop_slug}
-                                onChange={(v) => setData('shop_slug', slugify(v))}
-                                error={errors.shop_slug}
-                            />
-                            <Field
-                                label="Reward title"
-                                value={data.shop_reward_title}
-                                onChange={(v) => setData('shop_reward_title', v)}
-                                error={errors.shop_reward_title}
-                            />
-                            <div>
-                                <label className="block text-xs font-medium text-brand-muted">Stamps needed (4–12)</label>
+        <AdminLayout
+            title="Add shop"
+            description="Creates the shop and its owner login together."
+            actions={
+                <Link href="/admin" className={secondaryButton}>
+                    <LuArrowLeft className="h-4 w-4" /> Back to shops
+                </Link>
+            }
+        >
+            <form onSubmit={handleSubmit} noValidate className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+                {/* Very wide screens: Shop and Owner side by side instead of over-long inputs. */}
+                <div className="grid gap-6 2xl:grid-cols-2 2xl:items-start">
+                    <Panel title="Shop" description="What customers see on their card.">
+                        <div className="space-y-4">
+                            <Field id="shop_name" label="Shop name" error={errors.shop_name}>
                                 <input
-                                    type="number"
-                                    min={4}
-                                    max={12}
-                                    value={data.shop_max_stamps}
-                                    onChange={(e) => setData('shop_max_stamps', Number(e.target.value))}
-                                    className="mt-1 w-full rounded border border-brand-border px-3 py-2 text-sm text-brand-text outline-none focus:border-brand-accent"
+                                    id="shop_name"
+                                    value={data.shop_name}
+                                    onChange={(e) => handleShopNameChange(e.target.value)}
+                                    placeholder="e.g. Corner Bakery"
+                                    className={inputClass}
                                 />
-                                {errors.shop_max_stamps && <p className="mt-1 text-xs text-red-600">{errors.shop_max_stamps}</p>}
+                            </Field>
+
+                            <Field id="shop_slug" label="Card link" hint="Lowercase letters, numbers and dashes. Can't be shared with another shop." error={errors.shop_slug}>
+                                <SlugInput id="shop_slug" value={data.shop_slug} onChange={(v) => setData('shop_slug', v)} placeholder="corner-bakery" />
+                            </Field>
+
+                            <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+                                <Field id="shop_max_stamps" label="Stamps needed" hint={`${MIN_STAMPS}–${MAX_STAMPS}`} error={errors.shop_max_stamps}>
+                                    <StampStepper id="shop_max_stamps" value={data.shop_max_stamps} onChange={(v) => setData('shop_max_stamps', v)} />
+                                </Field>
+
+                                <Field id="shop_reward_title" label="Reward" error={errors.shop_reward_title}>
+                                    <input
+                                        id="shop_reward_title"
+                                        value={data.shop_reward_title}
+                                        onChange={(e) => setData('shop_reward_title', e.target.value)}
+                                        placeholder={`Free coffee after ${data.shop_max_stamps} stamps`}
+                                        className={inputClass}
+                                    />
+                                </Field>
                             </div>
-                        </fieldset>
+                        </div>
+                    </Panel>
 
-                        <fieldset className="space-y-3 border-t border-brand-border pt-4">
-                            <legend className="text-sm font-semibold text-brand-text">Owner login</legend>
-                            <Field label="Owner name" value={data.owner_name} onChange={(v) => setData('owner_name', v)} error={errors.owner_name} />
-                            <Field
-                                label="Owner email"
-                                type="email"
-                                value={data.owner_email}
-                                onChange={(v) => setData('owner_email', v)}
-                                error={errors.owner_email}
-                            />
-                        </fieldset>
+                    <Panel title="Owner login" description="The person who runs this shop's dashboard.">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field id="owner_name" label="Owner name" error={errors.owner_name}>
+                                <input
+                                    id="owner_name"
+                                    value={data.owner_name}
+                                    onChange={(e) => setData('owner_name', e.target.value)}
+                                    autoComplete="off"
+                                    className={inputClass}
+                                />
+                            </Field>
+                            <Field id="owner_email" label="Owner email" error={errors.owner_email}>
+                                <input
+                                    id="owner_email"
+                                    type="email"
+                                    value={data.owner_email}
+                                    onChange={(e) => setData('owner_email', e.target.value)}
+                                    autoComplete="off"
+                                    className={inputClass}
+                                />
+                            </Field>
+                        </div>
 
-                        <p className="text-xs text-brand-muted">
-                            A temporary password is generated automatically and shown once after the shop is created.
-                        </p>
-
-                        <button
-                            type="submit"
-                            disabled={processing}
-                            className="w-full rounded-brand bg-brand-accent px-4 py-2.5 text-sm font-semibold text-brand-accent-text disabled:opacity-50"
-                        >
-                            {processing ? 'Creating…' : 'Create shop'}
-                        </button>
-                    </form>
+                        <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-brand-bg px-3.5 py-3 text-sm text-brand-muted">
+                            <LuKeyRound className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
+                            <p>A temporary password is generated automatically and shown to you once after the shop is created.</p>
+                        </div>
+                    </Panel>
                 </div>
-            </div>
-        </>
+
+                <aside className="space-y-4 lg:sticky lg:top-10">
+                    <div>
+                        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-brand-muted">
+                            <LuStore className="h-3.5 w-3.5" /> Card preview
+                        </p>
+                        <CardPreview name={data.shop_name} slug={data.shop_slug} maxStamps={data.shop_max_stamps} reward={data.shop_reward_title} />
+                    </div>
+
+                    <button type="submit" disabled={processing} className={`${primaryButton} w-full py-3`}>
+                        <LuUser className="h-4 w-4" />
+                        {processing ? 'Creating…' : 'Create shop & owner'}
+                    </button>
+                </aside>
+            </form>
+        </AdminLayout>
     );
 }

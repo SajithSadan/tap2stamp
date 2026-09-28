@@ -179,8 +179,9 @@ function Backdrop({ bannerUrl }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
-            // Always dark (not bg-brand-text): on a dark theme the text colour is light.
-            className="fixed inset-0 overflow-hidden bg-neutral-950"
+            // Always dark: the theme's deep brand colour (not bg-brand-text,
+            // which is light on a dark theme).
+            className="fixed inset-0 overflow-hidden bg-brand-deep"
             aria-hidden="true"
         >
             {bannerUrl && (

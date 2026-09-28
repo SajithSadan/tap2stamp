@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ActionType;
+use App\Http\Requests\UpdateShopContactRequest;
 use App\Http\Requests\UpdateShopSettingsRequest;
 use App\Http\Requests\UpdateShopThemeCustomRequest;
 use App\Http\Requests\UpdateShopThemeRequest;
@@ -14,6 +15,7 @@ use App\Models\StaffDevice;
 use App\Models\StaffMember;
 use App\Models\StampLog;
 use App\Support\CuratedFonts;
+use App\Support\ShopContact;
 use App\Support\StampIcons;
 use App\Support\ThemeCatalog;
 use Illuminate\Http\RedirectResponse;
@@ -181,6 +183,7 @@ class DashboardController extends Controller
                 'wifi_ssid' => $shop->wifi_ssid,
                 'wifi_password' => $shop->wifi_password,
             ],
+            'contact' => $shop->only(ShopContact::FIELDS),
         ]);
     }
 
@@ -189,6 +192,14 @@ class DashboardController extends Controller
         $request->user()->shop->update($request->validated());
 
         return redirect()->route('dashboard.settings');
+    }
+
+    /** Business contact + location - its own form, so older shops' main settings keep saving. */
+    public function updateContact(UpdateShopContactRequest $request): RedirectResponse
+    {
+        $request->user()->shop->update(ShopContact::attributes($request->validated()));
+
+        return redirect()->route('dashboard.settings')->with('status', 'Contact details saved.');
     }
 
     public function theme(Request $request): Response

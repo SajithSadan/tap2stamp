@@ -84,13 +84,24 @@ The doc's Stage 4 plan for creating owner accounts (`php artisan owner:create`) 
 production: Hostinger has no SSH access, same reason `/deploy/migrate` exists. Instead there's a
 real admin role: `users.role` (`admin` | `owner`, `App\Enums\UserRole`), one login form for
 both, role decides where `AuthenticatedSessionController::store()` redirects
-(`/admin` vs `/dashboard`). No self-service registration for either role.
+(`User::homeUrl()`: `/admin`, `/dashboard`, or `/onboarding` for an owner with no shop yet).
+Admins are never self-registered; owners can be created by the admin **or** sign up themselves
+(see "Self-service sign-up" below).
 
 - **Owner dashboard routes never take a shop param** — `/dashboard` always means
   `auth()->user()->shop`. One owner can't view another's data through this route by
   construction, not just because a policy happens to check it.
 - **Admin** (`role:admin` middleware, `/admin`): `Admin\ShopOwnerController` — lists shops with
-  their owner, and creates a new shop + owner together (`POST /admin/shops`). The owner's
+  their owner, and creates a new shop + owner together (`POST /admin/shops`). "Add shop" is a
+  button on the Shops page, not a menu item (the Shops item stays active on it).
+- **Data grids** use `Components/Dashboard/DataTable.jsx` on **TanStack Table v8** (headless —
+  chosen over AG Grid for size (~15 KB vs 300 KB+) and so it wears our own design). One search
+  box (no per-column filter inputs — the user removed them), multi-sort, column show/hide +
+  page size remembered in localStorage, sticky header/first column, CSV export of the rows
+  shown (formula-looking cells neutralised). Search is `type="text"` on purpose —
+  `type="search"` adds a second ✕. The Shops grid
+  is client-side (all rows sent) — fine for hundreds of shops; switch to server-side paging if
+  it ever reaches thousands. Shop status: active / quiet (no stamps for 14 days) / not started. The owner's
   password is randomly generated (`Str::password(16)`) and flashed once via
   `session('generatedPassword')` — never chosen by the owner, never stored in plain text,
   never shown twice. The admin shares it with the owner out of band.
@@ -236,7 +247,9 @@ owner-approved device.
 
 - The 50-theme catalog lives in `App\Support\ThemeCatalog` (moved out of the dev-only
   `ThemePreviewController`, which now just reads it). `ThemeCatalog::DEFAULT` is
-  `monochrome-barber` = the site look in `app.css`.
+  `tap2stamp` (navy + mint green, Poppins — the brand look of the WordPress landing page at
+  tap2stamp.co.uk) = the site look in `app.css` and the fonts in `app.blade.php`. **Keep all
+  three in sync** when the brand colours change.
 - `shops.theme` (nullable slug) is set on `/dashboard/theme` (`Dashboard/Theme.jsx`: filters,
   live phone preview, `PUT /dashboard/theme` validated with `Rule::in` the catalog keys).
   `ThemeCatalog::forShop()` falls back to the default for null/unknown slugs.
@@ -246,8 +259,17 @@ owner-approved device.
   variables on `<html>` and loads the theme's Google Fonts. The owner dashboard, staff app and
   cross-shop `/my-cards` keep the default look.
 - Because themes can be dark, customer-page code must not use `brand-text` as a "dark"
-  colour (it's light on dark themes) - use a fixed neutral (e.g. `neutral-900/950`) for
-  always-dark surfaces like the registration backdrop and card banner.
+  colour (it's light on dark themes). For always-dark brand surfaces (card banner,
+  registration backdrop, owner/admin sidebar, sign-up panel) use **`brand-deep`** — the theme's
+  `deep` colour, always paired with white text. Tap2Stamp sets it to its navy; every other
+  theme falls back to `ThemeCatalog::DEFAULT_DEEP` (near-black, the old look), added in
+  `ThemeCatalog::all()` so every theme array always has it. Owners can customise it (it's in
+  `CUSTOM_COLORS`). The owner/admin **sidebar and mobile tab bar** use the calmer
+  `brand-deep-soft` (`--color-brand-deep` tinted with 7% of the accent — **never mixed with
+  white or made translucent**, that reads as a milky overlay) and, for the sidebar, the
+  `bg-brand-nav` utility (same colour + a faint accent glow), all in `app.css`. Use them via the
+  shared `navSurface` / `sideLinkClass` / `tabLinkClass` in `Components/Dashboard/Ui.jsx` so
+  desktop and phone stay the same colour.
 - Dev-only custom themes (`custom_themes` table) are not offered to owners.
 - **Reset**: `DELETE /dashboard/theme` sets `shops.theme` back to null (not to the default
   slug), so a future change of `ThemeCatalog::DEFAULT` still applies to those shops.
@@ -277,6 +299,117 @@ owner-approved device.
   and darkened, as the registration backdrop (`RegistrationModal` `bannerUrl` prop).
   `public/uploads` is gitignored.
 
+## Bulk QR stickers (additive — admin only)
+
+Printable QR stickers whose destination is decided later. The QR only ever holds the permanent
+link `/qr/{code}`, never the destination itself, so remapping never needs a reprint.
+
+- **Tables**: `qr_batches` (`name` nullable; the batch number is its id) and `qr_codes`
+  (`qr_batch_id`, `code` unique, `destination_url` nullable = unmapped, `mapped_at`).
+- **Stickers print the QR only — no code label** (customers see them). The admin identifies and
+  maps a sticker by **scanning it while logged in**: `QrRedirectController` renders
+  `Admin/QrCodes/Scan` for an admin instead of redirecting. Everyone else (incl. owners) gets
+  the normal redirect / Nothing found. Login uses `redirect()->intended()` so an admin bounced
+  to `/login` returns to where they were.
+- **Codes**: 6 random chars from `QrCodeGenerator::ALPHABET` (no 0/O/1/I), unguessable rather
+  than sequential. Shown in the admin UI only. `QrCodeGenerator::generate()` is the only place codes are made: it skips
+  existing codes and tops up, and the unique index is the final guarantee. Max
+  `MAX_PER_BATCH` (1000) per request.
+- **Scan**: `GET /qr/{code}` (`QrRedirectController`, `throttle:60,1`, case-insensitive) →
+  302 + `no-store` to the destination (never 301: browsers would cache the old target), else
+  `Pages/Qr/NotFound.jsx` with a 404 status. Unknown codes are never echoed back.
+- **Admin**: `/admin/qr-codes` (`Admin\QrCodeController`): generate, search/filter
+  (batch, mapped/unmapped), map/unmap (`url:http,https` only — the URL is redirected to),
+  select + print. Success messages use the shared `flash.status`.
+- **PDF**: built **client-side** with jsPDF (`resources/js/lib/qrPrint.js`, lazy-loaded) from
+  `POST /admin/qr-codes/print` JSON — A4, 4×5 grid, code printed under each QR. No
+  server-side PDF library, for the Hostinger CPU/memory limits and to avoid dompdf's attack
+  surface.
+
+## Self-service sign-up (additive — the landing page's "Start Free")
+
+The marketing site is WordPress (tap2stamp.co.uk); its "Start Free" links to this app's
+`/register`. Sign-up always creates an **owner**, never an admin, and the shop is live as soon
+as it's set up (no approval step).
+
+- `/register` (`RegisteredUserController`, email + password) and "Continue with Google"
+  (`GoogleAuthController`, Laravel Socialite — one flow for sign-up and log-in). Shared UI:
+  `Components/AuthShell.jsx` (also used by `Auth/Login.jsx`).
+- **Google**: `config/services.php` `google` + `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`. The
+  button and routes only exist when both credentials are set **and** the admin hasn't switched
+  it off (`GoogleAuthController::enabled()` = `configured()` && the `google_auth_enabled`
+  setting, default on; 404 otherwise).
+- **Admin settings** (`/admin/settings`, `Admin\SettingsController`): app-wide switches in the
+  `settings` table (`App\Models\Setting::get/set`, JSON values). Never secrets — API keys stay
+  in `.env`. Currently just the Google switch: it can't be turned on without the keys, and the
+  page warns how many Google-only owners (`password` null) would be locked out if it's off. An account is matched by `users.google_id`, then by email — but only a
+  Google-**verified** email may create or claim an account, and a Google account is **never
+  linked to an admin**. Google-only owners have `password = null`.
+- **Business contact & location** (collected at shop setup, so Google sign-ups give it too):
+  `shops.contact_name/contact_email/contact_phone`, `address_line1/address_line2/town/postcode`,
+  `delivery_address` (null = same as the shop). One place validates + tidies it:
+  `App\Support\ShopContact` (phone → `+44…` for any UK landline/mobile format or `+91` mobile;
+  postcode upper-cased with its space; `delivery_same` tick box). Required in the forms,
+  nullable in the table (older shops). Owners edit it on Settings in its **own** form
+  (`PUT /dashboard/settings/contact`) so the main settings form still saves for older shops.
+  The admin Shops grid shows Contact + Location columns.
+- **Shop setup**: `/onboarding` (`ShopOnboardingController`, `Pages/Onboarding/Shop.jsx`)
+  creates the owner's one shop. `EnsureOwnerHasShop` (alias `shop.ready`) on the whole
+  dashboard group sends an owner without a shop there — every dashboard action assumes
+  `auth()->user()->shop` exists. Shared form pieces with the admin "Add shop":
+  `Components/Dashboard/ShopFields.jsx`.
+- Not built yet: email verification and password reset (mail is `log` locally).
+
+## Admin dashboard & charts (additive)
+
+- `/admin/dashboard` (`Admin\DashboardController`, `Pages/Admin/Dashboard.jsx`): platform-wide
+  KPIs, growth (running total + new per day), popularity (active customers split first-time vs
+  returning, stamps vs rewards, weekday × hour heatmap), a this-period-vs-previous table, a
+  sortable shop comparison, ratings, health ratios, owner activation funnel, quiet shops.
+  **Each card has its own 7/30/90-day filter** (default 30): every section is a lazy Inertia
+  prop whose name is also its URL param (`?visits=7&comparison=90`), and a card's switch does
+  `router.reload({ only: [prop], data: {prop: range} })` — only that section is recomputed.
+  `periodMetrics()` returns the same keys for current and previous periods (memoised per
+  request) so every figure compares like for like. "When customers visit" switches between
+  stamps (mint), rewards (blue) and **redemption rate** (rewards ÷ visits per slot; slots with
+  < 5 visits show as "not enough data", never 0% / 100%). "All visits" was dropped: rewards
+  are a small share of visits at the same times, so it looked identical to stamps. Heatmap
+  shading is relative to its own max, so the legend always prints the real scale (0 … max).
+- **Owner activation is a cohort**: owners who *signed up* in the chosen range → set up their
+  shop → gave a first stamp → still stamping (last 14 days), plus the median days from sign-up
+  to first stamp. Every bar is the same group, so the filter changes all of them (an earlier
+  all-time version only moved the last bar and looked broken).
+- **Ratings are per shop**, so the headline is the average *shop* rating (each shop's own
+  average, averaged), not the mean of all reviews — one busy shop can't dominate. "Lowest
+  rated" only ranks shops with ≥ 3 reviews. Daily series are `GROUP BY DATE(created_at)` in SQL (MySQL/MariaDB functions:
+  `DATE`, `HOUR`, `DAYOFWEEK`) — a fixed number of queries regardless of platform size.
+- Chart kit: `Components/Dashboard/Charts.jsx` (`KpiTile` + `ChangePill`, `StackedLines` —
+  two measures as stacked bands with their own scales sharing one x-axis/crosshair, the
+  answer to "two lines on one chart" without a dual axis — `ColumnChart`, `Heatmap`,
+  `BarList`, `Legend`; all labels are clamped inside their chart) + `resources/js/lib/charts.js`. Colours were validated with
+  the dataviz palette checker: mint `#12A877` (a deeper step of the brand accent — the brand
+  `#17C68B` is too faint for marks on white) and blue `#2A78D6` for a second series; navy
+  failed as a series colour. Rules: one y-axis per chart (never dual-axis), legend only for
+  2+ series, solid hairline grid, hover/keyboard tooltip + screen-reader table on every chart.
+  No chart library — plain SVG/HTML.
+
+## Navigation & page access (one registry)
+
+`App\Support\Navigation::items()` is the **single list of dashboard menu pages and which roles
+may open each**. Never hard-code links in a layout.
+
+- Menus: shared to every page as the `navigation` prop (`{main, footer}`, only the signed-in
+  user's items, with `href` resolved and `active` computed server-side via `routeIs`).
+  `AdminLayout` / `OwnerLayout` render it through `Components/Dashboard/NavMenu.jsx`
+  (`SidebarLinks`, `TabLinks`); icon keys map to react-icons in `resources/js/lib/navIcons.js`
+  — **keep the two in sync**. Optional `group` renders a sidebar section heading.
+- Access: the `nav.access` middleware (`EnsureNavigationAccess`) on the admin and owner route
+  groups 403s any role not in a menu page's `roles`. It only covers routes listed in the
+  registry; form posts / JSON endpoints keep their own guards. The groups' `role:*`
+  middleware stays as the outer lock, so giving a role a page in another area also needs that
+  route moved/opened — `NavigationTest` fails if the registry and real access disagree.
+- Adding a page: route → registry entry (`route`, `label`, `icon`, `roles`, optional
+  `active` patterns / `section` / `group` / `href` closure / `external`) → icon key.
 
 ## Database (agreed schema)
 
@@ -290,6 +423,8 @@ not part of the original 4-table design. Plus (Stage 4, see "Admin panel" above)
 Plus (staff accounts, see above) `staff_members` (`shop_id`, `name` unique per shop,
 `pin_hash`, `deactivated_at`), `staff_devices.staff_member_id` + `staff_signed_in_at`, and
 `stamp_logs.staff_member_id` (nullable FK).
+Plus `users.google_id` (nullable, unique) with `users.password` now nullable (Google-only
+owners), and `qr_batches` / `qr_codes` (see "Bulk QR stickers").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to texts from **that one shop**, unticked by default,
 and customers can register without it. `CustomerRegistrar` only ever turns it on: an unticked

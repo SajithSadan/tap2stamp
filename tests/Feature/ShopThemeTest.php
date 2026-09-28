@@ -105,6 +105,7 @@ function customFields(array $overrides = []): array
     return [
         'page_bg' => '#101010',
         'card_bg' => '#1A1A1A',
+        'deep' => '#123456',
         'text' => '#FAFAFA',
         'muted' => '#A0A0A0',
         'accent' => '#FF6600',
@@ -116,6 +117,34 @@ function customFields(array $overrides = []): array
         ...$overrides,
     ];
 }
+
+test('the default Tap2Stamp theme has three brand colours: navy, mint and white', function () {
+    $theme = ThemeCatalog::forShop(null);
+
+    expect($theme['slug'])->toBe('tap2stamp')
+        ->and($theme['deep'])->toBe('#0F2A46')
+        ->and($theme['accent'])->toBe('#17C68B')
+        ->and($theme['card_bg'])->toBe('#FFFFFF');
+});
+
+test('every catalog theme has a deep colour, near-black unless it sets its own', function () {
+    $themes = ThemeCatalog::all();
+
+    foreach ($themes as $slug => $theme) {
+        expect($theme['deep'])->toMatch('/^#[0-9A-F]{6}$/i', "{$slug} has no deep colour");
+    }
+
+    expect($themes['warm-artisan']['deep'])->toBe(ThemeCatalog::DEFAULT_DEEP);
+});
+
+test('a customisation saved before the deep colour existed keeps the theme\'s own', function () {
+    $shop = Shop::factory()->create([
+        'theme' => 'tap2stamp',
+        'theme_custom' => collect(customFields())->except('deep')->all(),
+    ]);
+
+    expect($shop->appliedTheme()['deep'])->toBe('#0F2A46');
+});
 
 test('an owner can customise colours, fonts and corners on top of their theme', function () {
     $owner = User::factory()->create(['role' => UserRole::Owner]);
@@ -129,6 +158,7 @@ test('an owner can customise colours, fonts and corners on top of their theme', 
         ->where('theme.slug', 'warm-artisan')
         ->where('theme.customised', true)
         ->where('theme.accent', '#FF6600')
+        ->where('theme.deep', '#123456')
         ->where('theme.radius', '16px')
         ->where('theme.heading_font', "'Playfair Display', serif")
         ->where('theme.mood', 'dark')
