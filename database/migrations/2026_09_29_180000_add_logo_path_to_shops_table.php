@@ -1,0 +1,27 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * The shop's logo (Dashboard → Theme → Banner & logo), shown in the round
+     * badge on the customer card page and sign-up screen instead of the
+     * generic store icon. On the `uploads` disk, like the banner.
+     */
+    public function up(): void
+    {
+        Schema::table('shops', function (Blueprint $table) {
+            $table->string('logo_path')->nullable()->after('banner_path');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('shops', function (Blueprint $table) {
+            $table->dropColumn('logo_path');
+        });
+    }
+};

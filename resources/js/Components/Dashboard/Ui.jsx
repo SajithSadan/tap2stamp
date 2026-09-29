@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { LuCheck, LuChevronLeft, LuChevronRight, LuCircleCheck, LuCopy, LuX } from 'react-icons/lu';
+import { LuCheck, LuChevronLeft, LuChevronRight, LuCircleAlert, LuCircleCheck, LuCopy, LuX } from 'react-icons/lu';
 
 // Small building blocks shared by the owner dashboard and admin pages.
 
@@ -23,21 +23,48 @@ export function tabLinkClass(active) {
     return `flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${active ? 'text-brand-accent' : 'text-white/60 hover:text-white'}`;
 }
 
-/** Flashed one-line success message (flash.status), dismissible. */
+/** How long a success message stays before fading out (hovering pauses it). */
+const STATUS_TTL_MS = 5000;
+const STATUS_FADE_MS = 300;
+
+/** Flashed one-line success message (flash.status): fades out by itself after a few seconds, or on ✕. */
 export function StatusBanner() {
     const { flash } = usePage().props;
-    const [hidden, setHidden] = useState(false);
+    // 'shown' -> 'leaving' (fading) -> 'gone'.
+    const [phase, setPhase] = useState('shown');
+    const [paused, setPaused] = useState(false);
 
-    // A new message (e.g. a second save) shows again even if the last was dismissed.
-    useEffect(() => setHidden(false), [flash?.status]);
+    // Every new server response brings a new flash object, so a repeated
+    // message (e.g. saving twice) shows again and restarts the timer.
+    useEffect(() => setPhase('shown'), [flash]);
 
-    if (!flash?.status || hidden) return null;
+    useEffect(() => {
+        if (!flash?.status || paused || phase !== 'shown') return undefined;
+        const timer = setTimeout(() => setPhase('leaving'), STATUS_TTL_MS);
+        return () => clearTimeout(timer);
+    }, [flash, paused, phase]);
+
+    useEffect(() => {
+        if (phase !== 'leaving') return undefined;
+        const timer = setTimeout(() => setPhase('gone'), STATUS_FADE_MS);
+        return () => clearTimeout(timer);
+    }, [phase]);
+
+    if (!flash?.status || phase === 'gone') return null;
 
     return (
-        <div role="status" className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-brand-text">
+        <div
+            role="status"
+            onMouseEnter={() => setPaused(true)}
+            onMouseLeave={() => setPaused(false)}
+            style={{ transitionDuration: `${STATUS_FADE_MS}ms` }}
+            className={`mb-6 flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-brand-text transition-opacity ${
+                phase === 'leaving' ? 'opacity-0' : 'opacity-100'
+            }`}
+        >
             <LuCircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
             <p className="min-w-0 flex-1 break-words">{flash.status}</p>
-            <button type="button" onClick={() => setHidden(true)} aria-label="Dismiss" className="-m-1 rounded-lg p-1 text-brand-muted hover:bg-brand-bg">
+            <button type="button" onClick={() => setPhase('gone')} aria-label="Dismiss" className="-m-1 rounded-lg p-1 text-brand-muted hover:bg-brand-bg">
                 <LuX className="h-4 w-4" />
             </button>
         </div>
@@ -70,19 +97,20 @@ export function Panel({ title, description, action, children, className = '', bo
     );
 }
 
-export function StatTile({ icon: Icon, label, value, hint }) {
+/** `compact`: a little smaller all round (less padding, smaller number and icon). */
+export function StatTile({ icon: Icon, label, value, hint, compact = false }) {
     return (
-        <div className="rounded-2xl border border-brand-border bg-brand-card p-4 shadow-sm sm:p-5">
+        <div className={`rounded-2xl border border-brand-border bg-brand-card shadow-sm ${compact ? 'p-3.5 sm:px-4 sm:py-3.5' : 'p-4 sm:p-5'}`}>
             <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-brand-muted">{label}</p>
                 {Icon && (
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-accent/10 text-brand-accent">
-                        <Icon className="h-4 w-4" />
+                    <span className={`flex items-center justify-center rounded-lg bg-brand-accent/10 text-brand-accent ${compact ? 'h-7 w-7' : 'h-8 w-8'}`}>
+                        <Icon className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
                     </span>
                 )}
             </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums text-brand-text sm:text-3xl">{value}</p>
-            {hint && <p className="mt-1 text-xs text-brand-muted">{hint}</p>}
+            <p className={`font-bold tabular-nums text-brand-text ${compact ? 'mt-1 text-xl sm:text-2xl' : 'mt-2 text-2xl sm:text-3xl'}`}>{value}</p>
+            {hint && <p className={`text-xs text-brand-muted ${compact ? 'mt-0.5' : 'mt-1'}`}>{hint}</p>}
         </div>
     );
 }
@@ -194,6 +222,11 @@ export function Switch({ checked, onChange, disabled, label, description }) {
     );
 }
 
-export function FieldError({ message }) {
-    return message ? <p className="mt-1 text-xs text-red-600">{message}</p> : null;
+export function FieldError({ id, message }) {
+    return message ? (
+        <p id={id} role="alert" className="mt-1.5 flex animate-field-error items-start gap-1.5 text-xs font-medium text-red-600">
+            <LuCircleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {message}
+        </p>
+    ) : null;
 }

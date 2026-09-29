@@ -37,6 +37,7 @@ class User extends Authenticatable
         'google_id',
         'password',
         'remember_token',
+        'onboarding_draft',
     ];
 
     /**
@@ -50,6 +51,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'onboarding_draft' => 'array',
         ];
     }
 

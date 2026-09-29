@@ -1,71 +1,104 @@
 import { Link, router, useForm } from '@inertiajs/react';
-import { LuExternalLink, LuLink, LuQrCode, LuScanLine, LuUnlink } from 'react-icons/lu';
+import { useState } from 'react';
+import { LuArrowLeft, LuCircleCheck, LuCircleDashed, LuExternalLink, LuLink, LuQrCode, LuScanLine, LuUnlink } from 'react-icons/lu';
+import { useConfirm } from '@/Components/ConfirmDialog';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
-import { FieldError, Panel, inputClass, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
+import { FieldError, inputClass, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
+import QrStickerScanner from '@/Components/QrStickerScanner';
 
 /**
- * What a logged-in admin sees after scanning a sticker with their phone
- * camera (GET /qr/{code}). Customers scanning the same sticker are
- * redirected, or get "Nothing found" - never this page.
+ * What a logged-in admin sees after scanning a sticker (with the phone camera
+ * or the in-app scanner - GET /qr/{code}). Customers scanning the same sticker
+ * are redirected, or get "Nothing found" - never this page.
  */
 export default function Scan({ qr }) {
     const form = useForm({ destination_url: qr.destination_url ?? '' });
     const mapped = !!qr.destination_url;
+    const [confirm, confirmDialog] = useConfirm();
+    // Map a roll of stickers in a row: scan the next one straight from here.
+    const [scanning, setScanning] = useState(false);
 
     function save(e) {
         e.preventDefault();
         form.put(`/admin/qr-codes/${qr.id}`, { preserveScroll: true });
     }
 
-    function unmap() {
-        if (!window.confirm('Unmap this sticker? Anyone scanning it will see "Nothing found" until it\'s mapped again.')) return;
+    async function unmap() {
+        const ok = await confirm({
+            title: 'Unmap this sticker?',
+            message: 'Anyone scanning it will see “Nothing found” until it’s mapped again.',
+            confirmLabel: 'Unmap',
+            danger: true,
+        });
+        if (!ok) return;
 
         router.put(`/admin/qr-codes/${qr.id}`, { destination_url: '' }, { preserveScroll: true, onSuccess: () => form.setData('destination_url', '') });
     }
 
+    const scanNext = (
+        <button type="button" onClick={() => setScanning(true)} className={primaryButton}>
+            <LuScanLine className="h-4 w-4" /> Scan next sticker
+        </button>
+    );
+
     return (
-        <AdminLayout title={mapped ? 'Sticker mapped' : 'Map this sticker'} description="You're seeing this because you're logged in as admin.">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-                <Panel>
-                    <div className="flex items-center gap-4">
-                        <span
-                            className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${
-                                mapped ? 'bg-emerald-500/10 text-emerald-600' : 'bg-brand-accent/10 text-brand-accent'
-                            }`}
-                        >
-                            <LuQrCode className="h-7 w-7" />
+        <AdminLayout
+            title={mapped ? 'Sticker mapped' : 'Map this sticker'}
+            description="Only you see this screen. Customers who scan the sticker go straight to its destination."
+            // Desktop: in the header. Phones: full width under the card (and the footer's Scan button).
+            actions={<div className="hidden lg:block">{scanNext}</div>}
+        >
+            <div className="max-w-xl">
+                <section className="overflow-hidden rounded-2xl border border-brand-border bg-brand-card">
+                    {/* The sticker: code, batch and status. */}
+                    <div className="flex items-center gap-4 px-5 py-5">
+                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-bg text-brand-text ring-1 ring-brand-border">
+                            <LuQrCode className="h-6 w-6" />
                         </span>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                             <p className="font-mono text-2xl font-bold tracking-wider text-brand-text">{qr.code}</p>
-                            <p className="truncate text-xs text-brand-muted">
-                                {qr.batch_label}
-                                {qr.mapped_at && ` · mapped ${qr.mapped_at}`}
-                            </p>
+                            <p className="truncate text-xs text-brand-muted">{qr.batch_label}</p>
                         </div>
+                        {mapped ? (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                <LuCircleCheck className="h-3.5 w-3.5" /> Mapped
+                            </span>
+                        ) : (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                <LuCircleDashed className="h-3.5 w-3.5" /> Not mapped
+                            </span>
+                        )}
                     </div>
 
+                    {/* Where it goes now. */}
                     {mapped && (
-                        <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3.5 py-2.5">
-                            <LuLink className="h-4 w-4 shrink-0 text-emerald-600" />
-                            <p className="min-w-0 flex-1 truncate text-sm text-brand-text" title={qr.destination_url}>
-                                {qr.destination_url}
+                        <div className="border-t border-brand-border px-5 py-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-muted">
+                                Sends people to{qr.mapped_at && <span className="font-normal normal-case tracking-normal"> · mapped {qr.mapped_at}</span>}
                             </p>
-                            <a
-                                href={qr.destination_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label="Open destination"
-                                className="rounded-lg p-1.5 text-brand-muted hover:bg-brand-card hover:text-brand-text"
-                            >
-                                <LuExternalLink className="h-4 w-4" />
-                            </a>
+                            <div className="mt-1.5 flex items-center gap-2">
+                                <LuLink className="h-4 w-4 shrink-0 text-emerald-600" />
+                                <p className="min-w-0 flex-1 truncate text-sm font-medium text-brand-text" title={qr.destination_url}>
+                                    {qr.destination_url}
+                                </p>
+                                <a
+                                    href={qr.destination_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="Open destination in a new tab"
+                                    className="rounded-lg p-1.5 text-brand-muted hover:bg-brand-bg hover:text-brand-text"
+                                >
+                                    <LuExternalLink className="h-4 w-4" />
+                                </a>
+                            </div>
                         </div>
                     )}
 
-                    <form onSubmit={save} noValidate className="mt-5 space-y-3">
+                    {/* Set or change the destination. */}
+                    <form onSubmit={save} noValidate className="space-y-3 border-t border-brand-border px-5 py-5">
                         <div>
                             <label htmlFor="destination_url" className="block text-sm font-medium text-brand-text">
-                                {mapped ? 'Change destination' : 'Where should this sticker go?'}
+                                {mapped ? 'Change destination' : 'Destination URL'}
                             </label>
                             <input
                                 id="destination_url"
@@ -73,11 +106,14 @@ export default function Scan({ qr }) {
                                 inputMode="url"
                                 value={form.data.destination_url}
                                 onChange={(e) => form.setData('destination_url', e.target.value)}
-                                placeholder="https://example.com/event/summer-festival"
+                                placeholder="https://yourdomain.com/s/the-coffee-corner"
                                 autoFocus={!mapped}
                                 className={`${inputClass} mt-1.5 py-3`}
                             />
                             <FieldError message={form.errors.destination_url} />
+                            {!form.errors.destination_url && (
+                                <p className="mt-1 text-xs text-brand-muted">For a shop, paste its card page link (/s/…). Any https web address works too.</p>
+                            )}
                         </div>
 
                         <button type="submit" disabled={form.processing} className={`${primaryButton} w-full py-3`}>
@@ -85,23 +121,27 @@ export default function Scan({ qr }) {
                         </button>
 
                         {mapped && (
-                            <button type="button" onClick={unmap} className={`${secondaryButton} w-full text-red-600`}>
-                                <LuUnlink className="h-4 w-4" /> Unmap
+                            <button
+                                type="button"
+                                onClick={unmap}
+                                className="mx-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                            >
+                                <LuUnlink className="h-4 w-4" /> Unmap sticker
                             </button>
                         )}
                     </form>
-                </Panel>
+                </section>
 
-                <div className="flex items-start gap-3 rounded-2xl border border-dashed border-brand-border px-4 py-3.5 text-sm text-brand-muted">
-                    <LuScanLine className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
-                    <p>
-                        Done? Scan the next sticker with your camera. Customers who scan this one are sent straight to its destination.{' '}
-                        <Link href="/admin/qr-codes" className="font-medium text-brand-accent hover:underline">
-                            All QR codes
-                        </Link>
-                    </p>
-                </div>
+                {/* Phones: the next step, full width and easy to reach with a thumb. */}
+                <div className="mt-4 lg:hidden [&>button]:w-full [&>button]:py-3">{scanNext}</div>
+
+                <Link href="/admin/qr-codes" className={`${secondaryButton} mt-3 w-full border-transparent bg-transparent lg:w-auto`}>
+                    <LuArrowLeft className="h-4 w-4" /> All QR codes
+                </Link>
             </div>
+
+            {confirmDialog}
+            {scanning && <QrStickerScanner onClose={() => setScanning(false)} />}
         </AdminLayout>
     );
 }

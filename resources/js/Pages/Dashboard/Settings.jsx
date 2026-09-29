@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { LuDownload, LuExternalLink } from 'react-icons/lu';
 import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
+import { MAX_STAMPS, MIN_STAMPS } from '@/Components/Dashboard/ShopFields';
 import { FieldError, inputClass, Panel, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
 
 function Field({ label, error, hint, children }) {
@@ -159,11 +160,11 @@ export default function Settings({ shop, contact }) {
                             <Field label="Shop name" error={form.errors.name}>
                                 <input type="text" {...text('name')} />
                             </Field>
-                            <Field label="Stamps for a reward" error={form.errors.max_stamps} hint="Between 4 and 12.">
+                            <Field label="Stamps for a reward" error={form.errors.max_stamps} hint={`Between ${MIN_STAMPS} and ${MAX_STAMPS}.`}>
                                 <input
                                     type="number"
-                                    min={4}
-                                    max={12}
+                                    min={MIN_STAMPS}
+                                    max={MAX_STAMPS}
                                     value={form.data.max_stamps}
                                     onChange={(e) => form.setData('max_stamps', Number(e.target.value))}
                                     className={inputClass}
@@ -182,7 +183,7 @@ export default function Settings({ shop, contact }) {
                                 <Field label="Instagram URL" error={form.errors.instagram_url}>
                                     <input type="url" placeholder="https://instagram.com/…" {...text('instagram_url')} />
                                 </Field>
-                                <Field label="Google review URL" error={form.errors.google_review_url} hint="Kept for reference, not shown to customers.">
+                                <Field label="Google review URL" error={form.errors.google_review_url} hint="After rating you, customers get a button to post it on Google too.">
                                     <input type="url" placeholder="https://g.page/r/…" {...text('google_review_url')} />
                                 </Field>
                             </div>

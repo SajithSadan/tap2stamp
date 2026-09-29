@@ -22,6 +22,16 @@
     --color-brand-border: #e3eaf0;
 
     --radius-brand: 16px;
+
+    /* Field error message sliding in under its input (FieldError). */
+    --animate-field-error: field-error-in 180ms ease-out;
+
+    @keyframes field-error-in {
+        from {
+            opacity: 0;
+            transform: translateY(-3px);
+        }
+    }
 }
 
 @theme inline {

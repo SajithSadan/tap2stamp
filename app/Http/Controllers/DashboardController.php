@@ -16,6 +16,7 @@ use App\Models\StaffMember;
 use App\Models\StampLog;
 use App\Support\CuratedFonts;
 use App\Support\ShopContact;
+use App\Support\SignupIcons;
 use App\Support\StampIcons;
 use App\Support\ThemeCatalog;
 use Illuminate\Http\RedirectResponse;
@@ -218,7 +219,9 @@ class DashboardController extends Controller
             'defaultTheme' => ThemeCatalog::DEFAULT,
             'themeInDashboard' => $shop->theme_in_dashboard,
             'stampIcon' => StampIcons::resolve($shop->stamp_icon),
+            'signupIcon' => SignupIcons::resolve($shop->signup_icon),
             'bannerUrl' => $shop->bannerUrl(),
+            'logoUrl' => $shop->logoUrl(),
             'themes' => ThemeCatalog::all(),
             'availableFonts' => CuratedFonts::all(),
             'radiusPresets' => CustomTheme::RADIUS_PRESETS,
@@ -261,6 +264,16 @@ class DashboardController extends Controller
         $validated = $request->validate(['stamp_icon' => ['required', 'string', Rule::in(StampIcons::KEYS)]]);
 
         $request->user()->shop->update(['stamp_icon' => $validated['stamp_icon']]);
+
+        return redirect()->route('dashboard.theme');
+    }
+
+    /** The decorative icon on the customer sign-up screen (separate from the stamp icon). */
+    public function updateSignupIcon(Request $request): RedirectResponse
+    {
+        $validated = $request->validate(['signup_icon' => ['required', 'string', Rule::in(SignupIcons::KEYS)]]);
+
+        $request->user()->shop->update(['signup_icon' => $validated['signup_icon']]);
 
         return redirect()->route('dashboard.theme');
     }

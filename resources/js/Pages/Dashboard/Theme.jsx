@@ -1,9 +1,12 @@
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LuCheck, LuImage, LuImagePlus, LuMoon, LuPaintbrush, LuPalette, LuRotateCcw, LuStamp, LuStar, LuStore, LuSun, LuTrash2 } from 'react-icons/lu';
+import { LuCheck, LuImage, LuImagePlus, LuMoon, LuPaintbrush, LuPalette, LuRotateCcw, LuSparkles, LuStamp, LuStar, LuStore, LuSun, LuTrash2 } from 'react-icons/lu';
+import { useConfirm } from '@/Components/ConfirmDialog';
 import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
 import { FieldError, inputClass, Panel, primaryButton, secondaryButton, Switch } from '@/Components/Dashboard/Ui';
-import { STAMP_ICONS, StampIcon } from '@/lib/stampIcons';
+import { SIGNUP_ICON_GROUPS, SignupIcon } from '@/lib/signupIcons';
+import StampGrid from '@/Components/StampGrid';
+import { STAMP_ICONS } from '@/lib/stampIcons';
 import { CUSTOM_COLOR_FIELDS, fontNameOf, themeVars, useThemeFonts, withCustomisation } from '@/lib/theme';
 
 const CATEGORY_LABELS = {
@@ -20,7 +23,8 @@ const TABS = [
     { id: 'themes', label: 'Themes', icon: LuPalette },
     { id: 'customise', label: 'Customise', icon: LuPaintbrush },
     { id: 'stamp', label: 'Stamp icon', icon: LuStamp },
-    { id: 'banner', label: 'Banner', icon: LuImage },
+    { id: 'signup', label: 'Sign-up icon', icon: LuSparkles },
+    { id: 'banner', label: 'Banner & logo', icon: LuImage },
 ];
 
 /**
@@ -28,53 +32,42 @@ const TABS = [
  * utilities - so setting the theme's variables on it shows exactly what
  * customers will see.
  */
-function PhonePreview({ theme, shop, stampIcon, bannerUrl }) {
+function PhonePreview({ theme, shop, stampIcon, bannerUrl, logoUrl }) {
     const filled = Math.min(3, shop.max_stamps);
 
     return (
         <div
             style={themeVars(theme)}
-            className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[2rem] border-[6px] border-neutral-900 bg-brand-bg font-sans text-brand-text shadow-xl"
+            className="relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[2rem] border-[6px] border-neutral-900 bg-brand-bg font-sans text-brand-text shadow-xl"
         >
-            {bannerUrl ? (
-                <div className="relative h-24 overflow-hidden bg-brand-deep">
-                    <img src={bannerUrl} alt="" className="h-full w-full object-cover" />
-                    <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-brand-bg to-transparent" />
-                </div>
-            ) : (
-                <div className="h-20 bg-gradient-to-br from-brand-accent to-brand-deep" />
-            )}
-            <div className="px-4 pb-5">
-                <div className="-mt-8 flex justify-center">
-                    <span className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-brand-bg bg-brand-card text-brand-accent shadow-md">
-                        <LuStore className="h-7 w-7" />
+            {/* Same header as the card page: photo (or colour) with logo, name and reward inside it. */}
+            <div className="relative overflow-hidden bg-brand-deep">
+                {bannerUrl ? (
+                    <>
+                        <img src={bannerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/5" />
+                    </>
+                ) : (
+                    <div className="absolute inset-0 bg-gradient-to-br from-brand-accent to-brand-deep" />
+                )}
+                <div className="relative flex items-end gap-3 px-4 pb-7 pt-20">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-2 ring-white/90">
+                        {logoUrl ? <img src={logoUrl} alt="" className="h-full w-full object-cover" /> : <LuStore className="h-6 w-6 text-brand-accent" />}
                     </span>
+                    <div className="min-w-0">
+                        <p className="truncate font-heading text-base font-bold leading-tight text-white">{shop.name}</p>
+                        <p className="truncate text-[11px] text-white/85">{shop.reward_title}</p>
+                    </div>
                 </div>
-                <p className="mt-2 text-center font-heading text-lg font-bold">{shop.name}</p>
-                <p className="text-center text-xs text-brand-muted">{shop.reward_title}</p>
-
-                <div className="mt-4 rounded-brand border border-brand-border bg-brand-card p-4 shadow-sm">
-                    <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold">Your stamps</span>
-                        <span className="text-brand-muted">
-                            {filled}/{shop.max_stamps}
-                        </span>
-                    </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-brand-border">
-                        <div className="h-full rounded-full bg-brand-accent" style={{ width: `${(filled / shop.max_stamps) * 100}%` }} />
-                    </div>
-                    <div className="mt-3 grid grid-cols-6 gap-1.5">
-                        {Array.from({ length: shop.max_stamps }, (_, i) => (
-                            <span
-                                key={i}
-                                className={`flex aspect-square items-center justify-center rounded-full ${
-                                    i < filled ? 'bg-brand-accent text-brand-accent-text' : 'bg-brand-border'
-                                }`}
-                            >
-                                {i < filled && <StampIcon icon={stampIcon} className="h-3.5 w-3.5" />}
-                            </span>
-                        ))}
-                    </div>
+            </div>
+            <div className="relative -mt-4 rounded-t-2xl bg-brand-bg px-4 pb-5 pt-1">
+                {/* Same as the customer's stamp card: the count, then the real stamp grid. */}
+                <div className="mt-3 rounded-brand border border-brand-border bg-brand-card p-3">
+                    <p className="font-heading text-base font-bold tabular-nums">
+                        {filled}
+                        <span className="text-xs font-semibold text-brand-muted">/{shop.max_stamps} stamps</span>
+                    </p>
+                    <StampGrid className="mt-2" size="sm" animate={false} total={shop.max_stamps} stamps={filled} icon={stampIcon} />
                 </div>
 
                 <div className="mt-3 flex items-center gap-3 rounded-brand border border-brand-border bg-brand-card px-3 py-2.5 text-xs font-medium shadow-sm">
@@ -347,6 +340,120 @@ function StampTab({ icon, onSelect, currentIcon }) {
     );
 }
 
+/* ---------- Sign-up icon tab ---------- */
+
+/** The small icon between the sign-up form and the footer, grouped by kind of business. */
+function SignupIconTab({ icon, onSelect, currentIcon }) {
+    return (
+        <Panel title="Sign-up icon" description="The small icon on your customer sign-up screen, under the Start my card button. Pick one that fits your business.">
+            {/* How it looks on the sign-up screen, same size as there. */}
+            <div className="mb-5 flex items-center justify-center gap-3 rounded-xl bg-brand-bg py-4" aria-hidden="true">
+                <span className="h-px w-20 bg-gradient-to-r from-transparent to-brand-accent/40" />
+                <SignupIcon icon={icon} className="h-5 w-5 text-brand-accent" />
+                <span className="h-px w-20 bg-gradient-to-l from-transparent to-brand-accent/40" />
+            </div>
+
+            <div className="space-y-5">
+                {SIGNUP_ICON_GROUPS.map((group) => (
+                    <div key={group.label}>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-muted">{group.label}</p>
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-6">
+                            {group.icons.map(([key, label, Icon]) => {
+                                const selected = key === icon;
+
+                                return (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => onSelect(key)}
+                                        aria-pressed={selected}
+                                        className={`relative flex flex-col items-center gap-2 rounded-xl border px-2 py-3 text-xs font-medium transition ${
+                                            selected ? 'border-brand-accent bg-brand-accent/5 ring-2 ring-brand-accent' : 'border-brand-border hover:bg-brand-bg'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                                                selected ? 'bg-brand-accent text-brand-accent-text' : 'bg-brand-bg text-brand-text'
+                                            }`}
+                                        >
+                                            <Icon className="h-5 w-5" />
+                                        </span>
+                                        <span className="text-center text-brand-text">{label}</span>
+                                        {key === currentIcon && (
+                                            <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-600 text-white">
+                                                <LuCheck className="h-2.5 w-2.5" />
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </Panel>
+    );
+}
+
+/* ---------- Logo (in the Banner & logo tab) ---------- */
+
+/**
+ * The shop's logo for the round badge on the customer card page and sign-up
+ * screen. Uploads as soon as a file is picked (no separate save step).
+ */
+function LogoPanel({ logoUrl, error, confirm }) {
+    const input = useRef(null);
+    const [busy, setBusy] = useState(false);
+
+    function upload(file) {
+        if (!file) return;
+        router.post('/dashboard/theme/logo', { logo: file }, { forceFormData: true, preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
+    }
+
+    async function remove() {
+        const ok = await confirm({
+            title: 'Remove your logo?',
+            message: 'Your card page shows the shop icon instead.',
+            confirmLabel: 'Remove logo',
+            danger: true,
+        });
+        if (ok) router.delete('/dashboard/theme/logo', { preserveScroll: true });
+    }
+
+    return (
+        <Panel title="Logo" description="Shown in the round badge at the top of your card page and sign-up screen. A square image works best.">
+            <div className="flex items-center gap-4">
+                {/* Same look as the badge customers see. */}
+                <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-brand-bg bg-brand-card ring-1 ring-brand-border">
+                    {logoUrl ? <img src={logoUrl} alt="Your logo" className="h-full w-full object-cover" /> : <LuStore className="h-9 w-9 text-brand-accent" />}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                    <input
+                        ref={input}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        onChange={(e) => {
+                            upload(e.target.files?.[0]);
+                            e.target.value = '';
+                        }}
+                    />
+                    <button type="button" onClick={() => input.current?.click()} disabled={busy} className={primaryButton}>
+                        <LuImagePlus className="h-4 w-4" /> {busy ? 'Uploading…' : logoUrl ? 'Replace logo' : 'Upload logo'}
+                    </button>
+                    {logoUrl && (
+                        <button type="button" onClick={remove} disabled={busy} className={`${secondaryButton} text-red-600`}>
+                            <LuTrash2 className="h-4 w-4" /> Remove
+                        </button>
+                    )}
+                </div>
+            </div>
+            <FieldError message={error} />
+            {!error && <p className="mt-3 text-xs text-brand-muted">JPG, PNG or WebP · up to 2 MB · at least 120 × 120 px.</p>}
+        </Panel>
+    );
+}
+
 /* ---------- Banner tab ---------- */
 
 function BannerTab({ bannerUrl, shown, file, onFile, error, progress, onRemove, saving }) {
@@ -442,7 +549,9 @@ export default function Theme({
     defaultTheme,
     themeInDashboard,
     stampIcon,
+    signupIcon,
     bannerUrl,
+    logoUrl,
     themes,
     availableFonts,
     radiusPresets,
@@ -451,6 +560,7 @@ export default function Theme({
     const [tab, setTab] = useState('themes');
     const [selected, setSelected] = useState(currentTheme);
     const [icon, setIcon] = useState(stampIcon);
+    const [decoIcon, setDecoIcon] = useState(signupIcon);
     const [bannerFile, setBannerFile] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(null);
     const [fields, setFields] = useState(() => initialFields(customTheme, appliedTheme, availableFonts, radiusPresets));
@@ -460,6 +570,7 @@ export default function Theme({
     // After a save or reset, the editors follow the new saved state.
     useEffect(() => setSelected(currentTheme), [currentTheme]);
     useEffect(() => setIcon(stampIcon), [stampIcon]);
+    useEffect(() => setDecoIcon(signupIcon), [signupIcon]);
     useEffect(
         () => setFields(initialFields(customTheme, appliedTheme, availableFonts, radiusPresets)),
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -484,19 +595,32 @@ export default function Theme({
         themes: selected !== currentTheme,
         customise: JSON.stringify(fields) !== JSON.stringify(initial),
         stamp: icon !== stampIcon,
+        signup: decoIcon !== signupIcon,
         banner: bannerFile !== null,
     }[tab];
 
     const busy = { preserveScroll: true, onStart: () => setSaving(true), onFinish: () => setSaving(false) };
+    const [confirm, confirmDialog] = useConfirm();
 
-    function save() {
+    async function save() {
         if (tab === 'themes') {
-            if (customTheme && !window.confirm('Using a new theme replaces your custom colours. Continue?')) return;
+            if (
+                customTheme &&
+                !(await confirm({
+                    title: 'Use this theme?',
+                    message: 'Using a new theme replaces your custom colours.',
+                    confirmLabel: 'Use this theme',
+                }))
+            ) {
+                return;
+            }
             router.put('/dashboard/theme', { theme: selected }, busy);
         } else if (tab === 'customise') {
             router.put('/dashboard/theme/custom', fields, busy);
         } else if (tab === 'stamp') {
             router.put('/dashboard/theme/stamp-icon', { stamp_icon: icon }, busy);
+        } else if (tab === 'signup') {
+            router.put('/dashboard/theme/signup-icon', { signup_icon: decoIcon }, busy);
         } else {
             // POST + FormData: file uploads can't go through a PUT.
             router.post(
@@ -516,21 +640,36 @@ export default function Theme({
         }
     }
 
-    function removeBanner() {
-        if (!window.confirm('Remove your banner photo? Your card page goes back to the colour banner.')) return;
-        router.delete('/dashboard/theme/banner', busy);
+    async function removeBanner() {
+        const ok = await confirm({
+            title: 'Remove your banner photo?',
+            message: 'Your card page goes back to the colour banner.',
+            confirmLabel: 'Remove photo',
+            danger: true,
+        });
+        if (ok) router.delete('/dashboard/theme/banner', busy);
     }
 
-    const saveLabel = { themes: 'Use this theme', customise: 'Save my colours', stamp: 'Use this icon', banner: 'Upload banner' }[tab];
+    const saveLabel = { themes: 'Use this theme', customise: 'Save my colours', stamp: 'Use this icon', signup: 'Use this icon', banner: 'Upload banner' }[tab];
 
-    function discardCustom() {
-        if (!window.confirm(`Remove your custom colours and go back to ${themes[currentTheme].name} as it was?`)) return;
-        router.delete('/dashboard/theme/custom', busy);
+    async function discardCustom() {
+        const ok = await confirm({
+            title: 'Remove your custom colours?',
+            message: `Your card page goes back to ${themes[currentTheme].name} as it was.`,
+            confirmLabel: 'Remove colours',
+            danger: true,
+        });
+        if (ok) router.delete('/dashboard/theme/custom', busy);
     }
 
-    function resetToDefault() {
-        if (!window.confirm('Go back to the default look for your customer page? Your custom colours are removed too.')) return;
-        router.delete('/dashboard/theme', busy);
+    async function resetToDefault() {
+        const ok = await confirm({
+            title: 'Go back to the default look?',
+            message: 'Your customer page returns to the default theme. Your custom colours are removed too.',
+            confirmLabel: 'Reset to default',
+            danger: true,
+        });
+        if (ok) router.delete('/dashboard/theme', busy);
     }
 
     const setField = (key, value) => setFields((f) => ({ ...f, [key]: value }));
@@ -545,7 +684,7 @@ export default function Theme({
                             title="Preview"
                             description={tab === 'customise' ? `${themes[currentTheme].name} · your colours` : previewTheme.name}
                         >
-                            <PhonePreview theme={previewTheme} shop={shop} stampIcon={previewIcon} bannerUrl={previewBanner} />
+                            <PhonePreview theme={previewTheme} shop={shop} stampIcon={previewIcon} bannerUrl={previewBanner} logoUrl={logoUrl} />
 
                             <button type="button" onClick={save} disabled={!dirty || saving} className={`${primaryButton} mt-5 hidden w-full lg:flex`}>
                                 {saving ? 'Saving…' : dirty ? saveLabel : 'No changes to save'}
@@ -627,17 +766,21 @@ export default function Theme({
                         />
                     )}
                     {tab === 'stamp' && <StampTab icon={icon} onSelect={setIcon} currentIcon={stampIcon} />}
+                    {tab === 'signup' && <SignupIconTab icon={decoIcon} onSelect={setDecoIcon} currentIcon={signupIcon} />}
                     {tab === 'banner' && (
-                        <BannerTab
-                            bannerUrl={bannerUrl}
-                            shown={previewBanner}
-                            file={bannerFile}
-                            onFile={setBannerFile}
-                            error={errors?.banner}
-                            progress={uploadProgress}
-                            onRemove={removeBanner}
-                            saving={saving}
-                        />
+                        <div className="space-y-6">
+                            <BannerTab
+                                bannerUrl={bannerUrl}
+                                shown={previewBanner}
+                                file={bannerFile}
+                                onFile={setBannerFile}
+                                error={errors?.banner}
+                                progress={uploadProgress}
+                                onRemove={removeBanner}
+                                saving={saving}
+                            />
+                            <LogoPanel logoUrl={logoUrl} error={errors?.logo} confirm={confirm} />
+                        </div>
                     )}
                 </div>
             </div>
@@ -660,6 +803,7 @@ export default function Theme({
                     </div>
                 </div>
             )}
+            {confirmDialog}
         </OwnerLayout>
     );
 }

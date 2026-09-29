@@ -258,3 +258,76 @@ test('print data needs a batch or a selection', function () {
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['batch', 'ids']);
 });
+
+// --- Deleting a batch -------------------------------------------------------
+
+test('an admin can delete a batch with all its codes, leaving other batches alone', function () {
+    $doomed = QrBatch::factory()->create();
+    QrCode::factory()->count(3)->create(['qr_batch_id' => $doomed->id]);
+    $kept = QrBatch::factory()->create();
+    QrCode::factory()->count(2)->create(['qr_batch_id' => $kept->id]);
+
+    $this->actingAs(qrAdmin())->delete("/admin/qr-codes/batches/{$doomed->id}")
+        ->assertRedirect('/admin/qr-codes')
+        ->assertSessionHas('status');
+
+    expect(QrBatch::find($doomed->id))->toBeNull()
+        ->and(QrCode::where('qr_batch_id', $doomed->id)->count())->toBe(0)
+        ->and(QrCode::where('qr_batch_id', $kept->id)->count())->toBe(2);
+});
+
+test('a deleted batch\'s stickers show "Nothing found" when scanned', function () {
+    $batch = QrBatch::factory()->create();
+    $qr = QrCode::factory()->mapped('https://example.com/menu')->create(['qr_batch_id' => $batch->id]);
+
+    $this->actingAs(qrAdmin())->delete("/admin/qr-codes/batches/{$batch->id}");
+    auth()->logout();
+
+    $this->get("/qr/{$qr->code}")->assertNotFound()->assertInertia(fn ($page) => $page->component('Qr/NotFound'));
+});
+
+test('only the admin can delete a batch', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    Shop::factory()->create(['user_id' => $owner->id]);
+    $batch = QrBatch::factory()->create();
+    QrCode::factory()->create(['qr_batch_id' => $batch->id]);
+
+    $this->delete("/admin/qr-codes/batches/{$batch->id}")->assertRedirect('/login');
+    $this->actingAs($owner)->delete("/admin/qr-codes/batches/{$batch->id}")->assertForbidden();
+
+    expect(QrCode::count())->toBe(1);
+});
+
+// --- Serial numbers -----------------------------------------------------------
+
+test('each code\'s serial is its position in its batch, in generation order', function () {
+    $first = QrBatch::factory()->create();
+    $firstCodes = QrCode::factory()->count(3)->create(['qr_batch_id' => $first->id]);
+    $second = QrBatch::factory()->create();
+    QrCode::factory()->count(2)->create(['qr_batch_id' => $second->id]);
+
+    $response = $this->actingAs(qrAdmin())->postJson('/admin/qr-codes/print', ['batch' => $first->id])->assertOk();
+
+    expect(collect($response->json('codes'))->pluck('serial')->all())->toBe([1, 2, 3])
+        ->and($response->json('codes.0.code'))->toBe($firstCodes[0]->code);
+});
+
+test('a code printed on its own keeps its serial from the batch', function () {
+    $batch = QrBatch::factory()->create();
+    $codes = QrCode::factory()->count(5)->create(['qr_batch_id' => $batch->id]);
+
+    $response = $this->actingAs(qrAdmin())->postJson('/admin/qr-codes/print', ['ids' => [$codes[3]->id]])->assertOk();
+
+    expect($response->json('codes'))->toHaveCount(1)
+        ->and($response->json('codes.0.serial'))->toBe(4);
+});
+
+test('the QR list shows each code\'s serial', function () {
+    $batch = QrBatch::factory()->create();
+    QrCode::factory()->count(2)->create(['qr_batch_id' => $batch->id]);
+
+    $this->actingAs(qrAdmin())->get('/admin/qr-codes')->assertInertia(fn ($page) => $page
+        ->where('codes.data.0.serial', 1)
+        ->where('codes.data.1.serial', 2)
+    );
+});

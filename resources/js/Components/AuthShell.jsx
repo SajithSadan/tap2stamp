@@ -12,7 +12,7 @@ export const authInputClass =
     'w-full min-w-0 rounded-xl border border-brand-border bg-brand-card px-4 py-3 text-sm text-brand-text outline-none transition placeholder:text-brand-muted/70 focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/15';
 
 export const authButtonClass =
-    'inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-accent px-5 py-3 text-sm font-semibold text-brand-accent-text shadow-sm transition hover:brightness-95 disabled:opacity-50';
+    'inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-accent px-5 py-3 text-sm font-semibold text-brand-accent-text transition hover:brightness-95 disabled:opacity-50';
 
 export function Wordmark({ className = '' }) {
     return (
@@ -22,15 +22,20 @@ export function Wordmark({ className = '' }) {
     );
 }
 
+// While a field has an error, its control gets a red outline (plain inputs,
+// or the bordered box around composite ones like SlugInput).
+const invalidClass =
+    '[&_:is(input,textarea)]:border-red-400 [&_:is(input,textarea):focus]:ring-red-500/15 [&>div]:border-red-400 [&>div:focus-within]:ring-red-500/15';
+
 export function AuthField({ id, label, error, hint, children }) {
     return (
-        <div>
+        <div className={error ? invalidClass : undefined}>
             <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-brand-text">
                 {label}
             </label>
             {children}
             {hint && !error && <p className="mt-1 text-xs text-brand-muted">{hint}</p>}
-            <FieldError message={error} />
+            <FieldError id={`${id}-error`} message={error} />
         </div>
     );
 }

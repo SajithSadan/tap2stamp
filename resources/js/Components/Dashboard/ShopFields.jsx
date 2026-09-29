@@ -4,8 +4,8 @@ import { inputClass } from '@/Components/Dashboard/Ui';
 // Shop setup pieces shared by the admin "Add shop" form and the owner's
 // own shop setup after sign-up (Onboarding/Shop).
 
-export const MIN_STAMPS = 4;
-export const MAX_STAMPS = 12;
+export const MIN_STAMPS = 3;
+export const MAX_STAMPS = 20;
 
 const clamp = (n) => Math.min(MAX_STAMPS, Math.max(MIN_STAMPS, n));
 
@@ -65,17 +65,18 @@ export function CardPreview({ name, slug, maxStamps, reward }) {
     const filled = Math.min(2, stamps);
 
     return (
-        <div className="overflow-hidden rounded-2xl border border-brand-border bg-brand-card shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-brand-border bg-brand-card">
             <div className="bg-gradient-to-br from-brand-deep to-brand-deep/85 px-5 py-6 text-white">
                 <p className="text-xs uppercase tracking-widest text-white/60">Loyalty card</p>
                 <p className="mt-1 truncate font-heading text-xl font-semibold">{name || 'Your shop name'}</p>
             </div>
             <div className="p-5">
-                <div className="grid grid-cols-4 gap-2.5">
+                {/* 4 per row; a part-filled last row is centred rather than hanging left. */}
+                <div className="flex flex-wrap justify-center gap-2.5">
                     {Array.from({ length: stamps }, (_, i) => (
                         <span
                             key={i}
-                            className={`flex aspect-square items-center justify-center rounded-full border-2 ${
+                            className={`flex aspect-square w-[calc((100%-1.875rem)/4)] items-center justify-center rounded-full border-2 ${
                                 i < filled ? 'border-brand-accent bg-brand-accent text-brand-accent-text' : 'border-dashed border-brand-border'
                             }`}
                         >

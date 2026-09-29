@@ -2,6 +2,7 @@ import { router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { LuCircleAlert, LuKeyRound, LuMail, LuTriangleAlert } from 'react-icons/lu';
+import { useConfirm } from '@/Components/ConfirmDialog';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { CopyButton, FieldError, Panel, Switch } from '@/Components/Dashboard/Ui';
 
@@ -75,13 +76,17 @@ export default function Settings({ google }) {
     const { errors } = usePage().props;
     const [saving, setSaving] = useState(false);
     const live = google.enabled && google.configured;
+    const [confirm, confirmDialog] = useConfirm();
 
-    function toggleGoogle(next) {
+    async function toggleGoogle(next) {
         if (!next && google.google_only_owners > 0) {
             const n = google.google_only_owners;
-            const ok = window.confirm(
-                `${n} ${n === 1 ? 'owner signs' : 'owners sign'} in only with Google and won't be able to log in while it's off. Turn Google sign-in off anyway?`,
-            );
+            const ok = await confirm({
+                title: 'Turn off Google sign-in?',
+                message: `${n} ${n === 1 ? 'owner signs' : 'owners sign'} in only with Google and won’t be able to log in while it’s off.`,
+                confirmLabel: 'Turn it off',
+                danger: true,
+            });
             if (!ok) return;
         }
 
@@ -134,6 +139,7 @@ export default function Settings({ google }) {
                     <GoogleSetup google={google} />
                 </MethodRow>
             </Panel>
+            {confirmDialog}
         </AdminLayout>
     );
 }

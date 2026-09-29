@@ -58,7 +58,7 @@ test('settings validation rejects an out-of-range stamp count', function () {
 
     $response = $this->actingAs($owner)->put('/dashboard/settings', [
         'name' => $shop->name,
-        'max_stamps' => 20,
+        'max_stamps' => 21,
         'reward_title' => $shop->reward_title,
     ]);
 
@@ -152,4 +152,22 @@ test('a new shop sees an empty activity list', function () {
 
     $this->actingAs($owner)->get('/dashboard/activity')
         ->assertInertia(fn ($page) => $page->has('activity.data', 0));
+});
+
+test('the Google review and Instagram links must be web addresses, since customers tap them', function (string $field) {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($owner)->put('/dashboard/settings', [
+        'name' => $shop->name,
+        'max_stamps' => $shop->max_stamps,
+        'reward_title' => $shop->reward_title,
+        $field => 'javascript:alert(1)',
+    ])->assertSessionHasErrors($field);
+})->with(['google_review_url', 'instagram_url']);
+
+test('the shop\'s Google review link is on the customer card page', function () {
+    $shop = Shop::factory()->create(['google_review_url' => 'https://g.page/r/example/review']);
+
+    $this->get("/s/{$shop->slug}")->assertInertia(fn ($page) => $page->where('shop.google_review_url', 'https://g.page/r/example/review'));
 });

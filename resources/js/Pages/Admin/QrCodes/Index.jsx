@@ -1,28 +1,263 @@
-import { router, useForm } from '@inertiajs/react';
+import { Link, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
 import {
-    LuDownload,
     LuExternalLink,
     LuImage,
     LuLayers,
     LuLink,
     LuLoaderCircle,
+    LuPalette,
     LuPencil,
     LuPrinter,
     LuQrCode,
     LuScanLine,
     LuSearch,
     LuSparkles,
+    LuTrash2,
     LuUnlink,
     LuX,
 } from 'react-icons/lu';
+import { useConfirm } from '@/Components/ConfirmDialog';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { CopyButton, EmptyState, FieldError, Pagination, Panel, StatTile, inputClass, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
-import { downloadQrPdf, downloadQrPng } from '@/lib/qrPrint';
+import QrDesignStage from '@/Components/QrDesignStage';
+import QrStickerScanner from '@/Components/QrStickerScanner';
+import { canBeBackOf, designLayout, downloadQrPng, openPrintWindow, printQrPdf, stickerSize } from '@/lib/qrPrint';
+import { useQrPreview } from '@/lib/qrRender';
+import { blockAspect } from '@/lib/qrStyle';
 
 const PRESETS = [10, 50, 100, 250, 500, 1000];
+
+// The last print choices (design, layout), remembered per browser - a convenience only.
+const DESIGN_KEY = 'qr_print_design';
+const LAYOUT_KEY = 'qr_print_layout';
+const SIDES_KEY = 'qr_print_sides';
+const BACK_KEY = 'qr_print_back';
+
+function remembered(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
+
+function remember(key, value) {
+    try {
+        value ? localStorage.setItem(key, String(value)) : localStorage.removeItem(key);
+    } catch {
+        // Storage blocked (private mode etc.) - the choice just isn't remembered.
+    }
+}
+
+/** Plain QRs on a sheet: the 4 x 5 grid in qrPrint.js. */
+const PLAIN_PER_SHEET = 20;
+
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** A saved design's thumbnail with its QR in place, for the print dialog. */
+function DesignThumb({ design }) {
+    const qrSrc = useQrPreview(design.style, design.logo_url, 160);
+    return (
+        <QrDesignStage
+            imageUrl={design.image_url}
+            aspect={design.image_height / design.image_width}
+            block={blockAspect(design.style)}
+            qr={{ x: design.qr_x, y: design.qr_y, size: design.qr_size }}
+            qrSrc={qrSrc}
+            serialStyle={design.style}
+            className="rounded"
+        />
+    );
+}
+
+function ChoiceCard({ active, onClick, children }) {
+    return (
+        <button
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={onClick}
+            className={`flex flex-col overflow-hidden rounded-xl text-left transition ${
+                active ? 'ring-2 ring-brand-accent' : 'ring-1 ring-brand-border hover:ring-brand-accent/60'
+            }`}
+        >
+            {children}
+        </button>
+    );
+}
+
+/**
+ * Asked on every Print: which design (or plain QR) and which layout, with
+ * the page count for each. Opens the print view on confirm - inside the
+ * click, so the new tab isn't blocked as a popup.
+ */
+function PrintDialog({ job, designs, initial, onClose, onPrint }) {
+    const [designId, setDesignId] = useState(designs.some((d) => d.id === initial.designId) ? initial.designId : null);
+    const [onePerPage, setOnePerPage] = useState(initial.onePerPage);
+    const [doubleSided, setDoubleSided] = useState(initial.doubleSided);
+    // null = the back is the same as the front.
+    const [backId, setBackId] = useState(initial.backId);
+    const design = designs.find((d) => d.id === designId) ?? null;
+    // Backs must be the same printed size as the front, so they line up.
+    const backChoices = design ? designs.filter((d) => d.id !== design.id && canBeBackOf(design, d)) : [];
+    const backDesign = backChoices.find((d) => d.id === backId) ?? null;
+
+    const sides = doubleSided ? 2 : 1;
+    const perSheet = design ? designLayout(design).perPage : PLAIN_PER_SHEET;
+    const size = design ? stickerSize(design) : null;
+    const pagesFor = (perPage) => Math.ceil(job.count / perPage) * sides;
+    const layouts = [
+        {
+            value: false,
+            label: 'Sheet (A4)',
+            detail: `${perSheet} per page · ${plural(pagesFor(perSheet), 'page')}`,
+            hint: 'Several on each A4 page, with cut lines.',
+        },
+        {
+            value: true,
+            label: 'One per page',
+            detail: `${plural(pagesFor(1), 'page')} · ${size ? `${Math.round(size.w)} × ${Math.round(size.h)} mm each` : 'A4'}`,
+            hint: size ? 'Each page is exactly the sticker’s size.' : 'One large QR per A4 page.',
+        },
+    ];
+    const totalPages = pagesFor(onePerPage ? 1 : perSheet);
+
+    return (
+        <Modal title={`Print ${job.title}`} onClose={onClose} wide>
+            <div className="space-y-6 p-5">
+                <div>
+                    <h3 className="text-sm font-semibold text-brand-text">Design</h3>
+                    <div role="radiogroup" aria-label="Design" className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        <ChoiceCard active={designId === null} onClick={() => setDesignId(null)}>
+                            <div className="flex aspect-[4/3] items-center justify-center bg-brand-bg">
+                                <LuQrCode className="h-10 w-10 text-brand-text" />
+                            </div>
+                            <div className="border-t border-brand-border px-3 py-2">
+                                <p className="text-sm font-semibold text-brand-text">Plain QR</p>
+                                <p className="text-xs text-brand-muted">No artwork</p>
+                            </div>
+                        </ChoiceCard>
+                        {designs.map((d) => {
+                            const s = stickerSize(d);
+                            return (
+                                <ChoiceCard key={d.id} active={designId === d.id} onClick={() => setDesignId(d.id)}>
+                                    <div className="flex aspect-[4/3] items-center justify-center bg-brand-bg p-2">
+                                        <div className="h-full" style={{ aspectRatio: `${d.image_width} / ${d.image_height}`, maxWidth: '100%' }}>
+                                            <DesignThumb design={d} />
+                                        </div>
+                                    </div>
+                                    <div className="border-t border-brand-border px-3 py-2">
+                                        <p className="truncate text-sm font-semibold text-brand-text">{d.name}</p>
+                                        <p className="text-xs tabular-nums text-brand-muted">
+                                            {d.preset && <span className="capitalize">{d.preset} · </span>}
+                                            {Math.round(s.w / 10)} × {Math.round(s.h / 10)} cm
+                                        </p>
+                                    </div>
+                                </ChoiceCard>
+                            );
+                        })}
+                    </div>
+                    {designs.length === 0 && (
+                        <p className="mt-2 text-xs text-brand-muted">
+                            Want your artwork around the QR?{' '}
+                            <Link href="/admin/qr-codes/designs/create" className="font-semibold text-brand-accent hover:underline">
+                                Create a sticker design
+                            </Link>
+                            .
+                        </p>
+                    )}
+                </div>
+
+                <div>
+                    <h3 className="text-sm font-semibold text-brand-text">Layout</h3>
+                    <div role="radiogroup" aria-label="Layout" className="mt-2 grid gap-3 sm:grid-cols-2">
+                        {layouts.map((l) => (
+                            <ChoiceCard key={l.label} active={onePerPage === l.value} onClick={() => setOnePerPage(l.value)}>
+                                <div className="px-4 py-3">
+                                    <p className="text-sm font-semibold text-brand-text">{l.label}</p>
+                                    <p className="mt-0.5 text-xs tabular-nums text-brand-text">{l.detail}</p>
+                                    <p className="mt-1 text-xs text-brand-muted">{l.hint}</p>
+                                </div>
+                            </ChoiceCard>
+                        ))}
+                    </div>
+                </div>
+
+                <div>
+                    <h3 className="text-sm font-semibold text-brand-text">Sides</h3>
+                    <div role="radiogroup" aria-label="Sides" className="mt-2 grid gap-3 sm:grid-cols-2">
+                        {[
+                            [false, 'Single-sided', 'Front only.'],
+                            [true, 'Double-sided', 'A back side for every sticker, printed right after its front.'],
+                        ].map(([value, label, hint]) => (
+                            <ChoiceCard key={label} active={doubleSided === value} onClick={() => setDoubleSided(value)}>
+                                <div className="px-4 py-3">
+                                    <p className="text-sm font-semibold text-brand-text">{label}</p>
+                                    <p className="mt-1 text-xs text-brand-muted">{hint}</p>
+                                </div>
+                            </ChoiceCard>
+                        ))}
+                    </div>
+
+                    {doubleSided && (
+                        <div className="mt-3">
+                            <p className="text-xs font-semibold text-brand-text">Back side</p>
+                            <div role="radiogroup" aria-label="Back side" className="mt-1.5 flex flex-wrap gap-2">
+                                {[{ id: null, name: 'Same as front' }, ...backChoices].map((d) => {
+                                    const active = (backDesign?.id ?? null) === d.id;
+                                    return (
+                                        <button
+                                            key={d.id ?? 'same'}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={active}
+                                            onClick={() => setBackId(d.id)}
+                                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                                                active ? 'bg-brand-accent/10 text-brand-text ring-2 ring-brand-accent' : 'text-brand-muted ring-1 ring-brand-border hover:text-brand-text'
+                                            }`}
+                                        >
+                                            {d.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <p className="mt-1.5 text-xs text-brand-muted">
+                                Each back carries the same code’s QR as its front.
+                                {design && backChoices.length === 0 && ' Other designs need the same print size to be used as a back.'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <p className="flex items-start gap-2 text-xs text-brand-muted">
+                    <LuPrinter className="mt-px h-3.5 w-3.5 shrink-0" />
+                    <span>
+                        The print dialog opens in a new tab. Print at 100% (Actual size), not “Fit to page”, so sizes come out exact.
+                        {doubleSided && (
+                            <strong className="font-semibold text-brand-text"> Turn on two-sided printing, flip on long edge.</strong>
+                        )}
+                    </span>
+                </p>
+
+                <div className="flex justify-end gap-2 border-t border-brand-border pt-4">
+                    <button type="button" onClick={onClose} className={secondaryButton}>
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onPrint({ design, onePerPage, doubleSided, backDesign: doubleSided ? backDesign : null })}
+                        className={primaryButton}
+                    >
+                        <LuPrinter className="h-4 w-4" /> Print {plural(job.count, 'code')} · {plural(totalPages, 'page')}
+                    </button>
+                </div>
+            </div>
+        </Modal>
+    );
+}
 
 const iconButton =
     'inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-muted transition-colors hover:bg-brand-bg hover:text-brand-text disabled:opacity-40';
@@ -131,9 +366,21 @@ function GeneratePanel({ maxPerBatch }) {
     );
 }
 
-function BatchesPanel({ batches, activeBatch, printing, onView, onPrint }) {
+function BatchesPanel({ batches, activeBatch, printing, onView, onPrint, onDelete, lastDesign, lastOnePerPage, lastDoubleSided }) {
     return (
-        <Panel title="Batches" description="Print a whole batch as an A4 sheet of stickers." bodyClassName="">
+        <Panel
+            title="Batches"
+            description="Click Print… to choose the design and layout."
+            bodyClassName=""
+            action={
+                // The choices the print dialog will start with (the last ones used).
+                <p className="flex items-center gap-1.5 rounded-lg bg-brand-bg px-2.5 py-1.5 text-xs text-brand-muted ring-1 ring-brand-border">
+                    <LuPalette className="h-3.5 w-3.5 shrink-0 text-brand-accent" />
+                    Prints with <strong className="font-semibold text-brand-text">{lastDesign?.name ?? 'Plain QR'}</strong> · {lastOnePerPage ? 'One per page' : 'Sheet (A4)'}
+                    {lastDoubleSided && ' · Double-sided'}
+                </p>
+            }
+        >
             {batches.length === 0 ? (
                 <EmptyState icon={LuLayers} title="No batches yet">
                     Generate your first codes to create a batch.
@@ -153,6 +400,17 @@ function BatchesPanel({ batches, activeBatch, printing, onView, onPrint }) {
                                             {batch.created_at} · {batch.mapped_count}/{batch.codes_count} mapped
                                         </p>
                                     </button>
+                                    <div className="flex shrink-0 items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => onDelete(batch)}
+                                        disabled={!!printing}
+                                        aria-label={`Delete ${batch.label}`}
+                                        title="Delete this batch and its codes"
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-muted transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                                    >
+                                        <LuTrash2 className="h-4 w-4" />
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => onPrint(batch)}
@@ -160,8 +418,9 @@ function BatchesPanel({ batches, activeBatch, printing, onView, onPrint }) {
                                         className={`${secondaryButton} shrink-0 px-2.5 py-1.5 text-xs`}
                                     >
                                         {busy ? <LuLoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <LuPrinter className="h-3.5 w-3.5" />}
-                                        {busy && printing.total ? `${printing.done}/${printing.total}` : 'PDF'}
+                                        {busy && printing.total ? `${printing.done}/${printing.total}` : 'Print…'}
                                     </button>
+                                    </div>
                                 </div>
                                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-brand-bg">
                                     <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${percent}%` }} />
@@ -175,7 +434,7 @@ function BatchesPanel({ batches, activeBatch, printing, onView, onPrint }) {
     );
 }
 
-function Modal({ title, onClose, children }) {
+function Modal({ title, onClose, wide = false, children }) {
     useEffect(() => {
         const onKey = (e) => e.key === 'Escape' && onClose();
         window.addEventListener('keydown', onKey);
@@ -190,7 +449,7 @@ function Modal({ title, onClose, children }) {
                 aria-modal="true"
                 aria-label={title}
                 onClick={(e) => e.stopPropagation()}
-                className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border border-brand-border bg-brand-card shadow-xl sm:max-w-lg sm:rounded-2xl"
+                className={`max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border border-brand-border bg-brand-card shadow-xl sm:rounded-2xl ${wide ? 'sm:max-w-2xl' : 'sm:max-w-lg'}`}
             >
                 <div className="flex items-center justify-between border-b border-brand-border px-5 py-4">
                     <h2 className="font-heading text-lg font-semibold text-brand-text">{title}</h2>
@@ -205,7 +464,7 @@ function Modal({ title, onClose, children }) {
 }
 
 /** One code up close: preview, its permanent link, the mapping form and downloads. */
-function QrDetails({ qr, onClose, onPdf }) {
+function QrDetails({ qr, design, onClose, onPdf, confirm }) {
     const [preview, setPreview] = useState(null);
     const form = useForm({ destination_url: qr.destination_url ?? '' });
 
@@ -220,8 +479,14 @@ function QrDetails({ qr, onClose, onPdf }) {
         form.put(`/admin/qr-codes/${qr.id}`, { preserveScroll: true, preserveState: true, onSuccess: onClose });
     }
 
-    function unmap() {
-        if (!window.confirm(`Unmap ${qr.code}? Anyone scanning it will see "Nothing found" until it's mapped again.`)) return;
+    async function unmap() {
+        const ok = await confirm({
+            title: `Unmap ${qr.code}?`,
+            message: 'Anyone scanning it will see “Nothing found” until it’s mapped again.',
+            confirmLabel: 'Unmap',
+            danger: true,
+        });
+        if (!ok) return;
 
         router.put(`/admin/qr-codes/${qr.id}`, { destination_url: '' }, { preserveScroll: true, preserveState: true, onSuccess: onClose });
     }
@@ -288,12 +553,13 @@ function QrDetails({ qr, onClose, onPdf }) {
 
                 <div className="grid grid-cols-2 gap-2 border-t border-brand-border pt-5">
                     <button type="button" onClick={() => onPdf(qr)} className={secondaryButton}>
-                        <LuPrinter className="h-4 w-4" /> PDF
+                        <LuPrinter className="h-4 w-4" /> Print…
                     </button>
-                    <button type="button" onClick={() => downloadQrPng(qr)} className={secondaryButton}>
+                    <button type="button" onClick={() => downloadQrPng(qr, design)} className={secondaryButton}>
                         <LuImage className="h-4 w-4" /> PNG
                     </button>
                 </div>
+                <p className="-mt-3 text-center text-xs text-brand-muted">{design ? `On the “${design.name}” design.` : 'Plain QR.'}</p>
             </div>
         </Modal>
     );
@@ -309,17 +575,29 @@ function RowActions({ qr, onEdit, onPdf }) {
             >
                 <LuPencil className="h-3.5 w-3.5" /> {qr.destination_url ? 'Edit' : 'Map'}
             </button>
-            <button type="button" onClick={() => onPdf(qr)} aria-label={`Download ${qr.code} as PDF`} title="PDF" className={iconButton}>
-                <LuDownload className="h-4 w-4" />
+            <button type="button" onClick={() => onPdf(qr)} aria-label={`Print ${qr.code}`} title="Print" className={iconButton}>
+                <LuPrinter className="h-4 w-4" />
             </button>
         </div>
     );
 }
 
-export default function Index({ codes, batches, stats, filters, maxPerBatch }) {
+export default function Index({ codes, batches, stats, filters, maxPerBatch, designs }) {
     const [search, setSearch] = useState(filters.search ?? '');
+    // The last print choices, pre-selected in the print dialog next time.
+    const [designId, setDesignId] = useState(() => Number(remembered(DESIGN_KEY)) || null);
+    const [onePerPage, setOnePerPage] = useState(() => remembered(LAYOUT_KEY) === 'page');
+    const [doubleSided, setDoubleSided] = useState(() => remembered(SIDES_KEY) === 'double');
+    const [backId, setBackId] = useState(() => Number(remembered(BACK_KEY)) || null);
+    // A remembered design that has since been deleted falls back to plain.
+    const design = designs.find((d) => d.id === designId) ?? null;
+    // What the print dialog is about to print: { key, title, count, load }.
+    const [printJob, setPrintJob] = useState(null);
+    const [confirm, confirmDialog] = useConfirm();
     const [selected, setSelected] = useState(() => new Set());
     const [editing, setEditing] = useState(null);
+    // The in-app camera scanner: scan a sticker to open its "Map this sticker" screen.
+    const [scanning, setScanning] = useState(false);
     const [printing, setPrinting] = useState(null);
     const [printError, setPrintError] = useState(null);
     const firstRender = useRef(true);
@@ -363,43 +641,120 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch }) {
         });
     }
 
-    async function makePdf(key, load) {
+    // Opens the print view: the tab is opened right in the click (so it isn't
+    // blocked as a popup), then filled with the PDF, which brings up the print dialog.
+    async function makePdf({ key, load }, options) {
         setPrintError(null);
+        const win = openPrintWindow();
         setPrinting({ key, done: 0, total: 0 });
 
         try {
             const { title, codes: list } = await load();
-            await downloadQrPdf({ title, codes: list, onProgress: (done, total) => setPrinting({ key, done, total }) });
+            await printQrPdf({ title, codes: list, ...options, onProgress: (done, total) => setPrinting({ key, done, total }) }, win);
         } catch {
-            setPrintError("Couldn't build the PDF. Please try again.");
+            win?.close();
+            setPrintError("Couldn't build the print. Please try again.");
         } finally {
             setPrinting(null);
         }
     }
 
+    /** The print dialog's "Print": remember the choices, close the dialog, open the print view. */
+    function confirmPrint(options) {
+        const job = printJob;
+        setPrintJob(null);
+        setDesignId(options.design?.id ?? null);
+        setOnePerPage(options.onePerPage);
+        setDoubleSided(options.doubleSided);
+        setBackId(options.backDesign?.id ?? null);
+        remember(DESIGN_KEY, options.design?.id);
+        remember(LAYOUT_KEY, options.onePerPage ? 'page' : null);
+        remember(SIDES_KEY, options.doubleSided ? 'double' : null);
+        remember(BACK_KEY, options.backDesign?.id);
+        makePdf(job, options);
+    }
+
+    // Each Print button opens the dialog first; the codes are only fetched once you confirm.
     const printBatch = (batch) =>
-        makePdf(`batch-${batch.id}`, async () => (await axios.post('/admin/qr-codes/print', { batch: batch.id })).data);
+        setPrintJob({
+            key: `batch-${batch.id}`,
+            title: batch.label,
+            count: batch.codes_count,
+            load: async () => (await axios.post('/admin/qr-codes/print', { batch: batch.id })).data,
+        });
 
     const printSelected = () =>
-        makePdf('selected', async () => (await axios.post('/admin/qr-codes/print', { ids: [...selected] })).data);
+        setPrintJob({
+            key: 'selected',
+            title: `${selected.size} selected`,
+            count: selected.size,
+            load: async () => (await axios.post('/admin/qr-codes/print', { ids: [...selected] })).data,
+        });
+
+    /**
+     * Deletes a batch and all its codes. Printed stickers from it stop working,
+     * so it always asks - and if any code is mapped (probably in use), you
+     * have to type DELETE.
+     */
+    async function deleteBatch(batch) {
+        const mapped = batch.mapped_count > 0;
+        const ok = await confirm({
+            title: `Delete ${batch.label}?`,
+            message:
+                `This deletes the batch and its ${plural(batch.codes_count, 'code')}. Any stickers already printed from it will stop working (they’ll show “Nothing found”). This can’t be undone.` +
+                (mapped ? `\n\n${batch.mapped_count} of these codes are mapped, so they’re probably in use.` : ''),
+            confirmLabel: 'Delete batch',
+            danger: true,
+            requireText: mapped ? 'DELETE' : null,
+        });
+        if (!ok) return;
+
+        router.delete(`/admin/qr-codes/batches/${batch.id}`, {
+            preserveScroll: true,
+            // Selected codes may have been in that batch.
+            onSuccess: () => setSelected(new Set()),
+        });
+    }
 
     // A single code is already on the page - no round trip needed.
-    const printOne = (qr) => makePdf(`code-${qr.id}`, async () => ({ title: `QR ${qr.code}`, codes: [qr] }));
+    const printOne = (qr) => {
+        setEditing(null);
+        setPrintJob({ key: `code-${qr.id}`, title: `QR ${qr.code}`, count: 1, load: async () => ({ title: `QR ${qr.code}`, codes: [qr] }) });
+    };
 
     const activeBatch = batches.find((b) => b.id === filters.batch);
 
     return (
-        <AdminLayout title="QR codes" description="Generate printable QR stickers in bulk, then point each one wherever you like.">
+        <AdminLayout
+            title="QR codes"
+            description="Generate printable QR stickers in bulk, then point each one wherever you like."
+            actions={
+                <div className="flex flex-wrap gap-2">
+                    <Link href="/admin/qr-codes/designs" className={secondaryButton}>
+                        <LuPalette className="h-4 w-4" /> Sticker designs
+                    </Link>
+                    <button type="button" onClick={() => setScanning(true)} className={primaryButton}>
+                        <LuScanLine className="h-4 w-4" /> Scan sticker
+                    </button>
+                </div>
+            }
+        >
             <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-                <StatTile icon={LuQrCode} label="Total codes" value={stats.total} />
-                <StatTile icon={LuLink} label="Mapped" value={stats.mapped} hint="Redirecting to a URL" />
-                <StatTile icon={LuUnlink} label="Unmapped" value={stats.unmapped} hint='Show "Nothing found"' />
-                <StatTile icon={LuLayers} label="Batches" value={stats.batches} />
+                <StatTile compact icon={LuQrCode} label="Total codes" value={stats.total} />
+                <StatTile compact icon={LuLink} label="Mapped" value={stats.mapped} hint="Redirecting to a URL" />
+                <StatTile compact icon={LuUnlink} label="Unmapped" value={stats.unmapped} hint='Show "Nothing found"' />
+                <StatTile compact icon={LuLayers} label="Batches" value={stats.batches} />
             </div>
 
             <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
                 <GeneratePanel maxPerBatch={maxPerBatch} />
-                <BatchesPanel batches={batches} activeBatch={filters.batch} printing={printing} onView={(id) => applyFilters({ batch: id, page: null })} onPrint={printBatch} />
+                <BatchesPanel batches={batches} activeBatch={filters.batch} printing={printing} onView={(id) => applyFilters({ batch: id, page: null })}
+                    onPrint={printBatch}
+                    onDelete={deleteBatch}
+                    lastDesign={design}
+                    lastOnePerPage={onePerPage}
+                    lastDoubleSided={doubleSided}
+                />
             </div>
 
             {printError && (
@@ -467,7 +822,7 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch }) {
                                 </button>
                                 <button type="button" onClick={printSelected} disabled={!!printing} className={`${primaryButton} ml-auto px-3 py-1.5 text-xs`}>
                                     {printing?.key === 'selected' ? <LuLoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <LuPrinter className="h-3.5 w-3.5" />}
-                                    {printing?.key === 'selected' && printing.total ? `Building ${printing.done}/${printing.total}…` : 'Print selected (PDF)'}
+                                    {printing?.key === 'selected' && printing.total ? `Building ${printing.done}/${printing.total}…` : 'Print selected…'}
                                 </button>
                             </>
                         ) : (
@@ -481,7 +836,7 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch }) {
                                     disabled={!!printing}
                                     className={`${primaryButton} ml-auto px-3 py-1.5 text-xs`}
                                 >
-                                    <LuPrinter className="h-3.5 w-3.5" /> Print this batch
+                                    <LuPrinter className="h-3.5 w-3.5" /> Print this batch…
                                 </button>
                             </>
                         )}
@@ -601,7 +956,21 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch }) {
                 <Pagination paginator={codes} />
             </Panel>
 
-            {editing && <QrDetails qr={editing} onClose={() => setEditing(null)} onPdf={printOne} />}
+            {editing && <QrDetails qr={editing} design={design} onClose={() => setEditing(null)} onPdf={printOne} confirm={confirm} />}
+
+            {confirmDialog}
+
+            {scanning && <QrStickerScanner onClose={() => setScanning(false)} />}
+
+            {printJob && (
+                <PrintDialog
+                    job={printJob}
+                    designs={designs}
+                    initial={{ designId, onePerPage, doubleSided, backId }}
+                    onClose={() => setPrintJob(null)}
+                    onPrint={confirmPrint}
+                />
+            )}
         </AdminLayout>
     );
 }

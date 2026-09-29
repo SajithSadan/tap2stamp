@@ -1,6 +1,8 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { LuLogOut } from 'react-icons/lu';
+import { useState } from 'react';
+import { LuLogOut, LuScanLine } from 'react-icons/lu';
 import { Wordmark } from '@/Components/AuthShell';
+import QrStickerScanner from '@/Components/QrStickerScanner';
 import { SidebarLinks, TabLinks, useNavigation } from '@/Components/Dashboard/NavMenu';
 import { navSurface, sideLinkClass, StatusBanner } from '@/Components/Dashboard/Ui';
 import TechsaFooter from '@/Components/TechsaFooter';
@@ -14,6 +16,7 @@ export default function AdminLayout({ title, description, actions, children }) {
     const { props } = usePage();
     const email = props.auth?.user?.email;
     const nav = useNavigation();
+    const [scanning, setScanning] = useState(false);
 
     return (
         <>
@@ -71,11 +74,35 @@ export default function AdminLayout({ title, description, actions, children }) {
                 </main>
 
                 {/* Mobile bottom tabs - same soft navy as the desktop sidebar,
-                    reaching down under the home indicator (safe-area padding). */}
-                <nav className="no-scrollbar fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto bg-brand-deep-soft pb-[env(safe-area-inset-bottom)] text-white lg:hidden">
-                    <TabLinks items={nav.main} scroll={nav.main.length > 5} />
-                </nav>
+                    reaching down under the home indicator (safe-area padding).
+                    A raised Scan button sits in the middle (menu split around it)
+                    to open the sticker scanner from anywhere in the admin. */}
+                {nav.main.length <= 5 ? (
+                    <nav className="fixed inset-x-0 bottom-0 z-20 flex bg-brand-deep-soft pb-[env(safe-area-inset-bottom)] text-white lg:hidden">
+                        <TabLinks items={nav.main.slice(0, Math.ceil(nav.main.length / 2))} />
+                        <div className="relative flex flex-1 flex-col items-center justify-end pb-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setScanning(true)}
+                                aria-label="Scan a sticker"
+                                className="absolute -top-6 flex h-14 w-14 items-center justify-center rounded-full bg-brand-accent text-brand-accent-text ring-4 ring-brand-bg transition active:scale-95"
+                            >
+                                <LuScanLine className="h-6 w-6" />
+                            </button>
+                            <span className="text-[10px] font-medium text-white/60" aria-hidden="true">
+                                Scan
+                            </span>
+                        </div>
+                        <TabLinks items={nav.main.slice(Math.ceil(nav.main.length / 2))} />
+                    </nav>
+                ) : (
+                    <nav className="no-scrollbar fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto bg-brand-deep-soft pb-[env(safe-area-inset-bottom)] text-white lg:hidden">
+                        <TabLinks items={nav.main} scroll />
+                    </nav>
+                )}
             </div>
+
+            {scanning && <QrStickerScanner onClose={() => setScanning(false)} />}
         </>
     );
 }

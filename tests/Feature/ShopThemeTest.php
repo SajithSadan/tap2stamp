@@ -239,3 +239,32 @@ test('shops without a stamp icon show the default tick, including in My Cards', 
     expect($icons[$shop->id])->toBe('check');
     expect($icons[$coffeeShop->id])->toBe('coffee');
 });
+
+// --- Sign-up screen icon ------------------------------------------------------
+
+test('an owner can choose the sign-up screen icon, separately from the stamp icon', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id, 'stamp_icon' => 'check']);
+
+    $this->actingAs($owner)->put('/dashboard/theme/signup-icon', ['signup_icon' => 'scissors'])->assertRedirect('/dashboard/theme');
+
+    expect($shop->fresh()->signup_icon)->toBe('scissors')
+        ->and($shop->fresh()->stamp_icon)->toBe('check');
+    $this->get("/s/{$shop->slug}")->assertInertia(fn ($page) => $page->where('shop.signup_icon', 'scissors'));
+    $this->actingAs($owner)->get('/dashboard/theme')->assertInertia(fn ($page) => $page->where('signupIcon', 'scissors'));
+});
+
+test('an unknown sign-up icon is rejected', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($owner)->put('/dashboard/theme/signup-icon', ['signup_icon' => 'rocket'])->assertSessionHasErrors('signup_icon');
+
+    expect($shop->fresh()->signup_icon)->toBeNull();
+});
+
+test('shops that never chose a sign-up icon show the neutral sparkles, not coffee beans', function () {
+    $shop = Shop::factory()->create(['signup_icon' => null]);
+
+    $this->get("/s/{$shop->slug}")->assertInertia(fn ($page) => $page->where('shop.signup_icon', 'sparkles'));
+});

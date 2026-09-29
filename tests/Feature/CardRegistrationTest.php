@@ -31,7 +31,8 @@ test('the card page renders with the shop props', function () {
         ->where('shop.slug', 'artisan-cafe')
         ->where('shop.name', 'Artisan Cafe')
         ->where('shop.instagram_url', 'https://instagram.com/demo')
-        ->missing('shop.google_review_url')
+        // Shown as the "Review" button next to Instagram.
+        ->has('shop.google_review_url')
     );
 });
 

@@ -2,6 +2,7 @@ import { router, useForm, usePage } from '@inertiajs/react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { LuKeyRound, LuPlus, LuSmartphone, LuTrash2, LuUserCog } from 'react-icons/lu';
+import { useConfirm } from '@/Components/ConfirmDialog';
 import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
 import { Avatar, EmptyState, FieldError, inputClass, Panel, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
 
@@ -49,7 +50,7 @@ function ResetPinForm({ member, onDone }) {
     );
 }
 
-function StaffMembers({ members }) {
+function StaffMembers({ members, confirm }) {
     const form = useForm({ name: '', pin: '' });
     const [resetting, setResetting] = useState(null);
 
@@ -58,10 +59,14 @@ function StaffMembers({ members }) {
         form.post('/dashboard/staff-members', { preserveScroll: true, onSuccess: () => form.reset() });
     }
 
-    function remove(member) {
-        if (!window.confirm(`Remove ${member.name}? They won't be able to sign in any more. Their past stamps stay in your activity.`)) {
-            return;
-        }
+    async function remove(member) {
+        const ok = await confirm({
+            title: `Remove ${member.name}?`,
+            message: 'They won’t be able to sign in any more. Their past stamps stay in your activity.',
+            confirmLabel: 'Remove',
+            danger: true,
+        });
+        if (!ok) return;
 
         router.delete(`/dashboard/staff-members/${member.id}`, { preserveScroll: true });
     }
@@ -150,7 +155,7 @@ function StaffMembers({ members }) {
     );
 }
 
-function StaffDevices({ devices }) {
+function StaffDevices({ devices, confirm }) {
     const { flash } = usePage().props;
     const [setupQr, setSetupQr] = useState(null);
     const form = useForm({ name: '' });
@@ -171,8 +176,14 @@ function StaffDevices({ devices }) {
         form.post('/dashboard/staff-devices', { preserveScroll: true, onSuccess: () => form.reset() });
     }
 
-    function revoke(device) {
-        if (!window.confirm(`Revoke ${device.name}? It will stop working straight away.`)) return;
+    async function revoke(device) {
+        const ok = await confirm({
+            title: `Revoke ${device.name}?`,
+            message: 'It will stop working straight away. You can add it again later with a new setup QR.',
+            confirmLabel: 'Revoke',
+            danger: true,
+        });
+        if (!ok) return;
 
         router.delete(`/dashboard/staff-devices/${device.id}`, { preserveScroll: true });
     }
@@ -244,12 +255,15 @@ function StaffDevices({ devices }) {
 }
 
 export default function Staff({ shop, staffMembers, staffDevices }) {
+    const [confirm, confirmDialog] = useConfirm();
+
     return (
         <OwnerLayout shop={shop} title="Staff" description="Your team and the devices they scan cards on.">
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <StaffMembers members={staffMembers} />
-                <StaffDevices devices={staffDevices} />
+                <StaffMembers members={staffMembers} confirm={confirm} />
+                <StaffDevices devices={staffDevices} confirm={confirm} />
             </div>
+            {confirmDialog}
         </OwnerLayout>
     );
 }

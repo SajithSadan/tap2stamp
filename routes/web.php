@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\QrCodeController;
+use App\Http\Controllers\Admin\QrDesignController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShopOwnerController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\MyCardsController;
 use App\Http\Controllers\QrRedirectController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ShopBannerController;
+use App\Http\Controllers\ShopLogoController;
 use App\Http\Controllers\ShopOnboardingController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\StaffDeviceController;
@@ -95,6 +97,16 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/qr-codes', [QrCodeController::class, 'index'])->name('qr-codes.index');
     Route::post('/qr-codes', [QrCodeController::class, 'store'])->name('qr-codes.store');
     Route::post('/qr-codes/print', [QrCodeController::class, 'printData'])->name('qr-codes.print');
+    Route::delete('/qr-codes/batches/{qrBatch}', [QrCodeController::class, 'destroyBatch'])->name('qr-codes.batches.destroy');
+
+    // Sticker designs: a background image + where the QR goes on it, picked at print time.
+    Route::get('/qr-codes/designs', [QrDesignController::class, 'index'])->name('qr-codes.designs.index');
+    Route::get('/qr-codes/designs/create', [QrDesignController::class, 'create'])->name('qr-codes.designs.create');
+    Route::get('/qr-codes/designs/{qrDesign}/edit', [QrDesignController::class, 'edit'])->name('qr-codes.designs.edit');
+    Route::post('/qr-codes/designs', [QrDesignController::class, 'store'])->name('qr-codes.designs.store');
+    Route::put('/qr-codes/designs/{qrDesign}', [QrDesignController::class, 'update'])->name('qr-codes.designs.update');
+    Route::delete('/qr-codes/designs/{qrDesign}', [QrDesignController::class, 'destroy'])->name('qr-codes.designs.destroy');
+
     Route::put('/qr-codes/{qrCode}', [QrCodeController::class, 'update'])->name('qr-codes.update');
 
     // App-wide switches (API keys themselves stay in .env).
@@ -117,6 +129,7 @@ Route::get('/qr/{code}', [QrRedirectController::class, 'show'])
 // sent here by shop.ready on every dashboard route below.
 Route::middleware(['auth', 'role:owner'])->group(function () {
     Route::get('/onboarding', [ShopOnboardingController::class, 'create'])->name('onboarding.create');
+    Route::post('/onboarding/business', [ShopOnboardingController::class, 'validateBusiness'])->middleware('throttle:30,1')->name('onboarding.business');
     Route::post('/onboarding', [ShopOnboardingController::class, 'store'])->middleware('throttle:10,1')->name('onboarding.store');
 });
 
@@ -136,9 +149,12 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::put('/theme/custom', [DashboardController::class, 'updateCustomTheme'])->name('theme.custom');
     Route::delete('/theme/custom', [DashboardController::class, 'resetCustomTheme'])->name('theme.custom.reset');
     Route::put('/theme/stamp-icon', [DashboardController::class, 'updateStampIcon'])->name('theme.stamp-icon');
+    Route::put('/theme/signup-icon', [DashboardController::class, 'updateSignupIcon'])->name('theme.signup-icon');
     // POST, not PUT: file uploads need a real multipart POST.
     Route::post('/theme/banner', [ShopBannerController::class, 'update'])->name('theme.banner');
     Route::delete('/theme/banner', [ShopBannerController::class, 'destroy'])->name('theme.banner.destroy');
+    Route::post('/theme/logo', [ShopLogoController::class, 'update'])->name('theme.logo');
+    Route::delete('/theme/logo', [ShopLogoController::class, 'destroy'])->name('theme.logo.destroy');
 
     Route::post('/staff-members', [StaffMemberController::class, 'store'])->name('staff-members.store');
     Route::put('/staff-members/{staffMember}/pin', [StaffMemberController::class, 'updatePin'])->name('staff-members.pin');

@@ -7,7 +7,7 @@ import BottomNav from '@/Components/BottomNav';
 import { LuStore } from 'react-icons/lu';
 import IconBadge from '@/Components/IconBadge';
 import OfflineBanner from '@/Components/OfflineBanner';
-import { StampIcon } from '@/lib/stampIcons';
+import StampGrid from '@/Components/StampGrid';
 import { CUSTOMER_UUID_KEY } from '@/lib/storage';
 
 function SkeletonTile() {
@@ -105,27 +105,8 @@ function ShopCardTile({ uuid, card }) {
                         </div>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                        {Array.from({ length: card.max_stamps }, (_, i) => i + 1).map((i) => {
-                            const filled = i <= card.stamps;
-
-                            return (
-                                <motion.span
-                                    key={i}
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    transition={{ delay: i * 0.02 }}
-                                    className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold"
-                                    style={{
-                                        background: filled ? 'var(--color-brand-accent)' : 'var(--color-brand-border)',
-                                        color: filled ? 'var(--color-brand-accent-text)' : 'var(--color-brand-muted)',
-                                    }}
-                                >
-                                    {filled && <StampIcon icon={card.stamp_icon} className="h-3 w-3" />}
-                                </motion.span>
-                            );
-                        })}
-                    </div>
+                    {/* Same stamps as the card page, smaller. */}
+                    <StampGrid className="mt-3" align="start" size="sm" animate={false} total={card.max_stamps} stamps={card.stamps} icon={card.stamp_icon} />
 
                     <p className="mt-2 text-xs font-medium text-brand-muted">
                         {card.stamps}/{card.max_stamps} stamps

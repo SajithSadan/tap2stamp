@@ -8,10 +8,12 @@ use App\Http\Requests\PrintQrCodesRequest;
 use App\Http\Requests\UpdateQrCodeRequest;
 use App\Models\QrBatch;
 use App\Models\QrCode;
+use App\Models\QrDesign;
 use App\Services\QrCodeGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,7 +25,7 @@ class QrCodeController extends Controller
         $batch = $request->integer('batch') ?: null;
         $status = in_array($request->query('status'), ['mapped', 'unmapped'], true) ? $request->query('status') : null;
 
-        $codes = QrCode::with('batch')
+        $codes = QrCode::with('batch')->withSerial()
             ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('destination_url', 'like', "%{$search}%")))
@@ -43,6 +45,7 @@ class QrCodeController extends Controller
                 'destination_url' => $qr->destination_url,
                 'batch_id' => $qr->qr_batch_id,
                 'batch_label' => $qr->batch->label(),
+                'serial' => (int) $qr->serial,
                 'mapped_at' => $qr->mapped_at?->diffForHumans(),
                 'created_at' => $qr->created_at->format('j M Y'),
             ]);
@@ -75,6 +78,8 @@ class QrCodeController extends Controller
                 'status' => $status,
             ],
             'maxPerBatch' => QrCodeGenerator::MAX_PER_BATCH,
+            // Sticker designs to print with (managed on the designs page).
+            'designs' => QrDesign::latest('id')->get()->map->toClient(),
         ]);
     }
 
@@ -100,12 +105,31 @@ class QrCodeController extends Controller
         return back()->with('status', $url ? "{$qrCode->code} now points to {$url}." : "{$qrCode->code} is unmapped.");
     }
 
+    /**
+     * Deletes a whole batch and every code in it. Stickers already printed
+     * from it stop working (they show "Nothing found"), so the page asks
+     * for confirmation - and for typing DELETE when any code is mapped.
+     */
+    public function destroyBatch(QrBatch $qrBatch): RedirectResponse
+    {
+        $count = $qrBatch->codes()->count();
+        $label = $qrBatch->label();
+
+        DB::transaction(function () use ($qrBatch) {
+            $qrBatch->codes()->delete();
+            $qrBatch->delete();
+        });
+
+        return redirect()->route('admin.qr-codes.index')
+            ->with('status', "Deleted {$label} and its {$count} ".($count === 1 ? 'code' : 'codes').'.');
+    }
+
     /** Codes + scan links for the client-side PDF (the server never builds the PDF itself). */
     public function printData(PrintQrCodesRequest $request): JsonResponse
     {
-        $codes = QrCode::query()
+        $codes = QrCode::query()->withSerial()
             ->when($request->filled('batch'), fn ($q) => $q->where('qr_batch_id', $request->integer('batch')))
-            ->when(! $request->filled('batch'), fn ($q) => $q->whereIn('id', $request->input('ids', [])))
+            ->when(! $request->filled('batch'), fn ($q) => $q->whereIn('qr_codes.id', $request->input('ids', [])))
             ->orderByDesc('qr_batch_id')
             ->orderBy('id')
             ->limit(QrCodeGenerator::MAX_PER_BATCH)
@@ -118,6 +142,8 @@ class QrCodeController extends Controller
             'codes' => $codes->map(fn (QrCode $qr) => [
                 'code' => $qr->code,
                 'scan_url' => $qr->scanUrl(),
+                // Its position in its batch, for designs that print a serial number.
+                'serial' => (int) $qr->serial,
             ]),
         ]);
     }

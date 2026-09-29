@@ -8,6 +8,7 @@ use App\Models\CustomerShopCard;
 use App\Models\Review;
 use App\Models\Shop;
 use App\Services\CustomerRegistrar;
+use App\Support\SignupIcons;
 use App\Support\StampIcons;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
@@ -29,13 +30,16 @@ class CardController extends Controller
                 'name' => $shop->name,
                 'reward_title' => $shop->reward_title,
                 'max_stamps' => $shop->max_stamps,
-                // Public marketing link - safe to show before registration,
-                // unlike wifi credentials which stay in cardPayload() below.
-                // No google_review_url here: reviews are collected in-app
-                // and saved to our own DB, never posted externally.
+                // Public links - safe to show before registration, unlike
+                // wifi credentials which stay in cardPayload() below. The
+                // Google link sits alongside the in-app rating (RatingTile),
+                // for customers who want to review the shop on Google too.
                 'instagram_url' => $shop->instagram_url,
+                'google_review_url' => $shop->google_review_url,
                 'stamp_icon' => StampIcons::resolve($shop->stamp_icon),
+                'signup_icon' => SignupIcons::resolve($shop->signup_icon),
                 'banner_url' => $shop->bannerUrl(),
+                'logo_url' => $shop->logoUrl(),
             ],
             // The look the owner picked on /dashboard/theme (or the default).
             'theme' => $shop->appliedTheme(),

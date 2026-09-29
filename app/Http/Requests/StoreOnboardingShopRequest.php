@@ -2,30 +2,21 @@
 
 namespace App\Http\Requests;
 
-use App\Support\ShopContact;
-use Illuminate\Foundation\Http\FormRequest;
+use App\Models\Shop;
 
-class StoreOnboardingShopRequest extends FormRequest
+/**
+ * Shop setup, final submit: step 1's business details plus step 2's
+ * loyalty card.
+ */
+class StoreOnboardingShopRequest extends ValidateOnboardingBusinessRequest
 {
-    public function authorize(): bool
-    {
-        // Route already gated to role:owner.
-        return true;
-    }
-
-    protected function prepareForValidation(): void
-    {
-        $this->merge(ShopContact::normalise($this->all()));
-    }
-
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:150'],
+            ...parent::rules(),
             'slug' => ['required', 'string', 'max:150', 'alpha_dash', 'unique:shops,slug'],
-            'max_stamps' => ['required', 'integer', 'between:4,12'],
+            'max_stamps' => Shop::maxStampsRules(),
             'reward_title' => ['required', 'string', 'max:150'],
-            ...ShopContact::rules(),
         ];
     }
 
@@ -33,7 +24,7 @@ class StoreOnboardingShopRequest extends FormRequest
     {
         return [
             'slug.unique' => 'Another shop already uses this link. Try adding your town, e.g. corner-bakery-leeds.',
-            ...ShopContact::messages(),
+            ...parent::messages(),
         ];
     }
 }

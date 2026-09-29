@@ -33,12 +33,30 @@ class Shop extends Model
         'theme_custom',
         'theme_in_dashboard',
         'stamp_icon',
+        'signup_icon',
         'banner_path',
+        'logo_path',
         'google_review_url',
         'instagram_url',
         'wifi_ssid',
         'wifi_password',
     ];
+
+    /** Stamps-for-a-reward range. Keep in sync with MIN_STAMPS / MAX_STAMPS in Components/Dashboard/ShopFields.jsx. */
+    public const MIN_STAMPS = 3;
+
+    public const MAX_STAMPS = 20;
+
+    /**
+     * The one validation rule for `max_stamps`, shared by onboarding, the
+     * owner's Settings and the admin "Add shop" form.
+     *
+     * @return list<string>
+     */
+    public static function maxStampsRules(): array
+    {
+        return ['required', 'integer', 'between:'.self::MIN_STAMPS.','.self::MAX_STAMPS];
+    }
 
     protected function casts(): array
     {
@@ -84,6 +102,12 @@ class Shop extends Model
     public function bannerUrl(): ?string
     {
         return $this->banner_path ? Storage::disk('uploads')->url($this->banner_path) : null;
+    }
+
+    /** The shop's logo for the round badge on the card page (null = the store icon). */
+    public function logoUrl(): ?string
+    {
+        return $this->logo_path ? Storage::disk('uploads')->url($this->logo_path) : null;
     }
 
     public function owner(): BelongsTo

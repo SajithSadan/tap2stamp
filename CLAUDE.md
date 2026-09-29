@@ -52,9 +52,14 @@ just say the feedback goes to the shop, nothing about where it may or may not en
 - Table: `reviews` (`customer_id`, `shop_id`, `rating` 1-5, `comment` nullable, timestamps;
   unique `customer_id+shop_id` — resubmitting updates the existing review, not a duplicate).
 - Card page: `App\Models\Review`, `ReviewController::store()`
-  (`POST /s/{shop:slug}/card/{customer:uuid}/review`), `RatingTile.jsx` (star UI). `shops.
-  google_review_url` still exists in the DB (unused by the customer-facing UI now) in case a
-  future admin view wants it as a reference link.
+  (`POST /s/{shop:slug}/card/{customer:uuid}/review`), `RatingTile.jsx` (star UI).
+  **One rating flow, no separate Google button**: the card page's quick-action row is
+  **Follow** (Instagram) · **Rate** · **Wi-Fi** (each only when set up); Rate / Wi-Fi open a
+  panel under the row. Rating saves to our `reviews` table; then, if the shop set
+  `shops.google_review_url` (Settings, `url:http,https`), a **"Post it on Google too"** button
+  copies the comment and opens the shop's Google review page. Google only accepts reviews from
+  the customer's own account (no API posts for them), and it's offered after **every** rating,
+  good or bad - showing it only for high ratings is "review gating", against Google's rules.
 - The tile is deliberately **not** labelled "Google Review" — nothing is posted automatically,
   so calling it that would overpromise. Labelled "Rate your visit" / "Update your rating"
   instead.
@@ -289,15 +294,34 @@ owner-approved device.
 - **Stamp icon**: `shops.stamp_icon` (null = tick), keys in `App\Support\StampIcons::KEYS`,
   mapped to react-icons in `resources/js/lib/stampIcons.jsx` - **keep the two lists in sync**.
   Shown in filled stamps on `Card.jsx` and `MyCards.jsx` (`MyCardsController` sends it per card).
+  Icons are **solid** (Phosphor fill, plus 4 solid game-icons Phosphor lacks). Every stamp grid
+  (card page, My Cards, Theme preview) is drawn by `Components/StampGrid.jsx`: pressed-ink
+  filled stamps (accent gradient, inner ring, fixed per-stamp tilt), dashed empty slots with a
+  ghost icon, balanced rows (`stampColumns()`) as a real grid (every row starts from the left).
+  **Every slot is a stamp** - no slot is drawn as the reward: the reward comes *after* the last
+  stamp ("Free coffee after 6 stamps"), so a gift in slot 6 read as "only 5 needed".
+- **Sign-up icon**: `shops.signup_icon` (null = neutral `sparkles`), the small decorative icon
+  under the registration form (`RegistrationModal` `signupIcon` prop), picked on Theme →
+  Sign-up icon. Separate from the stamp icon, from its own set of solid game-icons (same style
+  and size as the old hard-coded coffee beans), grouped by business type. Keys in
+  `App\Support\SignupIcons::KEYS` ↔ `resources/js/lib/signupIcons.jsx` — **keep in sync**.
 - **Banner image** (Theme page → Banner tab, `ShopBannerController`): `shops.banner_path` on
   the **`uploads` disk** (`config/filesystems.php`), which writes straight into
   `public/uploads` - not the `public` disk, because that needs `artisan storage:link` and
   Hostinger has no SSH. URLs are relative (`/uploads/...`); if the host's web root isn't
   the project's `public/`, set `UPLOADS_ROOT`. JPG/PNG/WebP only (never SVG), ≤ 4 MB,
   ≥ 600×200, stored under a random name; replacing or removing deletes the old file.
-  Read it via `Shop::bannerUrl()`. Shown as the card page header (`Card.jsx`) and, blurred
-  and darkened, as the registration backdrop (`RegistrationModal` `bannerUrl` prop).
-  `public/uploads` is gitignored.
+  Read it via `Shop::bannerUrl()`. It fills the card page header (`Card.jsx`), under a dark
+  bottom fade, with the logo (rounded square), shop name and reward inside it bottom-left - no
+  motion; no banner = the theme's colour gradient in the same layout. The page content then
+  overlaps it as a sheet with rounded top corners. Blurred and darkened, it's also the
+  registration backdrop (`RegistrationModal` `bannerUrl` prop). `public/uploads` is gitignored.
+- **Logo** (Theme → Banner & logo, `ShopLogoController`, `shops.logo_path`, same `uploads` disk
+  under `logos/{shop}`, JPG/PNG/WebP ≤ 2 MB, ≥ 120×120, uploads on pick): shown in the round
+  badge in the card page header and on the sign-up screen (`Shop::logoUrl()`, `logo_url`)
+  instead of the store icon; no logo = the store icon. Card page sections are solid panels
+  (`SURFACE` in `Card.jsx`, hairline border, no shadows). Don't bring back blurred backdrops,
+  glows or translucent panels over the plain page - the user found them smoky.
 
 ## Bulk QR stickers (additive — admin only)
 
@@ -310,7 +334,12 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
   maps a sticker by **scanning it while logged in**: `QrRedirectController` renders
   `Admin/QrCodes/Scan` for an admin instead of redirecting. Everyone else (incl. owners) gets
   the normal redirect / Nothing found. Login uses `redirect()->intended()` so an admin bounced
-  to `/login` returns to where they were.
+  to `/login` returns to where they were. The admin can also scan **inside the app**: "Scan
+  sticker" (QR codes page) / "Scan next sticker" (mapping screen) / the raised **Scan** button
+  in the middle of the admin's phone footer (`AdminLayout`, menu split around it) open
+  `Components/QrStickerScanner.jsx` (html5-qrcode, like the staff scanner), which accepts only
+  this site's `/qr/{code}` links and visits that page; a typed code works as a fallback.
+  Camera access needs https (or localhost).
 - **Codes**: 6 random chars from `QrCodeGenerator::ALPHABET` (no 0/O/1/I), unguessable rather
   than sequential. Shown in the admin UI only. `QrCodeGenerator::generate()` is the only place codes are made: it skips
   existing codes and tops up, and the unique index is the final guarantee. Max
@@ -320,7 +349,51 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
   `Pages/Qr/NotFound.jsx` with a 404 status. Unknown codes are never echoed back.
 - **Admin**: `/admin/qr-codes` (`Admin\QrCodeController`): generate, search/filter
   (batch, mapped/unmapped), map/unmap (`url:http,https` only — the URL is redirected to),
-  select + print. Success messages use the shared `flash.status`.
+  select + print. Success messages use the shared `flash.status`. **Delete batch**
+  (`DELETE /admin/qr-codes/batches/{qrBatch}`) removes the batch and all its codes in one
+  transaction — printed stickers from it then show "Nothing found", so the page confirms, and
+  asks to type DELETE when any code in it is mapped.
+- **Sticker designs** (`/admin/qr-codes/designs`, `Admin\QrDesignController`, `qr_designs`
+  table): a background image (JPG/PNG/WebP ≤ 5 MB, on the `uploads` disk under `qr-designs/`)
+  + where the QR "block" goes, stored as **fractions of the image** (`qr_x`/`qr_size` of its
+  width, `qr_y` of its height) + the printed sticker `width_mm` + **`style`** (JSON: colours,
+  dot/corner shapes, frame/quiet zone/radius, centre text or logo (`logo_path`, ≤ 1 MB),
+  caption above/below, font, error correction, `box_ratio` = the QR box's own height / width,
+  null = auto). The QR itself always stays **square** — in a wider/taller box it's centred at the
+  largest size that fits (never stretched: that breaks scanning). `App\Support\QrStyle` validates/normalises it
+  (null = plain defaults; a centre forces ECC `H`) and has the block geometry
+  (`blockAspect`, `qrFraction`) — **keep it in sync with `resources/js/lib/qrStyle.js`**.
+  `SaveQrDesignRequest` checks the block sits on the image and the QR itself prints ≥ 15 mm.
+  Pages: `Designs.jsx` (grid) and `DesignEditor.jsx` (top toolbar for the design as a whole:
+  name, width, QR size, centring, replace background, print stats; canvas; right-hand tabs for
+  styling: Colours / Shape / Frame / Middle / Caption / Safety; "Test print" PDF). **One renderer**, `lib/qrRender.js` (canvas), draws the block for the editor,
+  thumbnails, PDF and PNG, so what you see is what prints; `QrDesignStage.jsx` does the drag /
+  corner-resize / arrow keys. Every Print button on the QR page opens a **print dialog**
+  (`PrintDialog` in `Admin/QrCodes/Index.jsx`): pick the design (thumbnail cards, or Plain QR)
+  and the layout (with page counts); the last choices are remembered in localStorage and
+  pre-selected. Layouts: a **sheet** (A4, as many as fit, header + cut
+  lines) or **one per page** — for a design, each PDF page *is* the sticker (page size =
+  exactly its W × H, artwork edge to edge, nothing else); plain QRs go one per A4 page at
+  140 mm. The editor's "Test print" is always one sticker-size page.
+  **Double-sided** (dialog option, remembered): every page is followed by its back page with
+  the same codes' QRs — on the same design, or another design of the **same print size**
+  (`canBeBackOf()`); sheet backs are mirrored left-to-right so a long-edge flip lines each
+  back up behind its front. 100 codes one-per-page = 200 pages.
+- **Print sizes**: each design has an exact size — a preset from `QrDesign::PRESETS` (**Stand
+  90 × 140 mm**, **Table 60 × 60 mm**; the server fills in the numbers, never trusting the
+  browser's) or custom `width_mm` × `height_mm` (null height = follow the artwork). Designs
+  always print at that exact size (2 stands / 12 table cards per A4 sheet); the artwork is
+  fitted inside, never stretched (`artRect()` in `qrPrint.js` ↔ `QrDesign::artWidthMm()` —
+  keep in sync; the QR's position and the 15 mm check are relative to the artwork).
+- **Serial numbers**: a design can print each code's serial (style `serial_*`: on/off, prefix,
+  size, distance from the bottom, colour) at the bottom centre of the artwork. The serial is
+  the code's **position in its batch** (`QrCode::scopeWithSerial()`, a correlated count in the
+  same query — no extra queries), formatted by `formatSerial()` as 001, 002 …, so a reprint
+  of one code keeps its number. Drawn as PDF text (helvetica/times/courier for the design's
+  font) and on the PNG canvas.
+- **Print view**: every Print button opens the PDF in a new tab with the print dialog
+  (`openPrintWindow()` in the click, then `printQrPdf()`), falling back to a download if
+  popups are blocked. Print at **100% / Actual size** or the sizes won't be exact.
 - **PDF**: built **client-side** with jsPDF (`resources/js/lib/qrPrint.js`, lazy-loaded) from
   `POST /admin/qr-codes/print` JSON — A4, 4×5 grid, code printed under each QR. No
   server-side PDF library, for the Hostinger CPU/memory limits and to avoid dompdf's attack
@@ -354,7 +427,13 @@ as it's set up (no approval step).
   (`PUT /dashboard/settings/contact`) so the main settings form still saves for older shops.
   The admin Shops grid shows Contact + Location columns.
 - **Shop setup**: `/onboarding` (`ShopOnboardingController`, `Pages/Onboarding/Shop.jsx`)
-  creates the owner's one shop. `EnsureOwnerHasShop` (alias `shop.ready`) on the whole
+  creates the owner's one shop, in two steps: "Your business" (name, contact, location — checked
+  by `POST /onboarding/business`, which creates nothing but keeps the validated step on the account
+  as `users.onboarding_draft` (JSON, hidden) so a reload, failed submit, logout or another
+  device resumes on step 2 with it filled in; cleared in the same transaction that creates
+  the shop) then "Loyalty card"
+  (link, stamps, reward + preview). The final `POST /onboarding` re-validates everything and
+  sends the owner back to step 1 if that's where an error is. `EnsureOwnerHasShop` (alias `shop.ready`) on the whole
   dashboard group sends an owner without a shop there — every dashboard action assumes
   `auth()->user()->shop` exists. Shared form pieces with the admin "Add shop":
   `Components/Dashboard/ShopFields.jsx`.
@@ -424,7 +503,7 @@ Plus (staff accounts, see above) `staff_members` (`shop_id`, `name` unique per s
 `pin_hash`, `deactivated_at`), `staff_devices.staff_member_id` + `staff_signed_in_at`, and
 `stamp_logs.staff_member_id` (nullable FK).
 Plus `users.google_id` (nullable, unique) with `users.password` now nullable (Google-only
-owners), and `qr_batches` / `qr_codes` (see "Bulk QR stickers").
+owners), `users.onboarding_draft` (nullable JSON, shop setup in progress), and `qr_batches` / `qr_codes` / `qr_designs` (see "Bulk QR stickers").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to texts from **that one shop**, unticked by default,
 and customers can register without it. `CustomerRegistrar` only ever turns it on: an unticked
@@ -479,6 +558,10 @@ box on a repeat registration is not a withdrawal. There's no opt-out UI and no S
   `resources/js/Pages/Dev/Themes/Show.jsx`). Shared UI in `resources/js/Components/`. No Blade
   `@extends`/`@yield` layouts for app pages — `resources/views/app.blade.php` is the single
   Inertia root template.
+- **No browser dialogs**: never `alert()` / `confirm()` / `prompt()`. Use
+  `useConfirm()` from `Components/ConfirmDialog.jsx` (`await confirm({ title, message,
+  confirmLabel, danger, requireText })`, render `{confirmDialog}`); `requireText: 'DELETE'` for
+  hard-to-undo actions.
 - **Icons**: use `react-icons` for every icon. Don't hand-write inline `<svg>` icons. The only
   exception is artwork that `react-icons` doesn't have, such as the country flags in
   `RegistrationModal.jsx`.

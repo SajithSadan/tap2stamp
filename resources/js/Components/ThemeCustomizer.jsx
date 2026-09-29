@@ -1,5 +1,6 @@
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
+import { useConfirm } from '@/Components/ConfirmDialog';
 
 const COLOR_FIELDS = [
     ['page_bg', 'Page background'],
@@ -105,10 +106,11 @@ export default function ThemeCustomizer({
         }
     }
 
-    function destroy() {
-        if (window.confirm('Delete this custom theme? This can\'t be undone.')) {
-            form.delete(`/dev/custom-themes/${slug}`);
-        }
+    const [confirm, confirmDialog] = useConfirm();
+
+    async function destroy() {
+        const ok = await confirm({ title: 'Delete this custom theme?', message: 'This can’t be undone.', confirmLabel: 'Delete theme', danger: true });
+        if (ok) form.delete(`/dev/custom-themes/${slug}`);
     }
 
     return (
@@ -228,6 +230,7 @@ export default function ThemeCustomizer({
                     </button>
                 )}
             </div>
+            {confirmDialog}
         </form>
     );
 }

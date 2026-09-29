@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
-import { GiCoffeeBeans } from 'react-icons/gi';
 import { LuArrowRight, LuCheck, LuChevronDown, LuCreditCard, LuStore, LuUser } from 'react-icons/lu';
 import TechsaFooter from '@/Components/TechsaFooter';
+import { SignupIcon } from '@/lib/signupIcons';
 
 // Inline SVG flags: Windows doesn't render flag emoji (it shows "GB" letters instead).
 function UkFlag(props) {
@@ -202,7 +202,7 @@ function Backdrop({ bannerUrl }) {
 // Placeholder until shops get their own slogan field - pass `slogan` to override.
 const DEFAULT_SLOGAN = ['Great coffee', 'Good vibes', 'Together'];
 
-export default function RegistrationModal({ shopName, bannerUrl, slogan = DEFAULT_SLOGAN, submitting, errors, onSubmit }) {
+export default function RegistrationModal({ shopName, bannerUrl, logoUrl = null, signupIcon = null, slogan = DEFAULT_SLOGAN, submitting, errors, onSubmit }) {
     const [name, setName] = useState('');
     const [country, setCountry] = useState(COUNTRIES[0]);
     const [phoneDigits, setPhoneDigits] = useState('');
@@ -253,8 +253,9 @@ export default function RegistrationModal({ shopName, bannerUrl, slogan = DEFAUL
                     transition={{ delay: 0.1, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                     className="flex w-full flex-1 flex-col items-center justify-center pb-5 pt-[max(1.5rem,env(safe-area-inset-top))] text-center sm:flex-none sm:pb-6 sm:pt-0"
                 >
-                    <span className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-card text-brand-accent shadow-[0_10px_30px_rgba(0,0,0,0.45)] ring-4 ring-white/10">
-                        <LuStore className="h-9 w-9" />
+                    {/* The shop's logo (Theme → Banner & logo), else the store icon. */}
+                    <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-brand-card text-brand-accent shadow-[0_10px_30px_rgba(0,0,0,0.45)] ring-4 ring-white/10">
+                        {logoUrl ? <img src={logoUrl} alt="" className="h-full w-full object-cover" /> : <LuStore className="h-9 w-9" />}
                     </span>
                     <h1 id="register-title" className="mt-4 font-heading text-4xl font-semibold leading-tight text-white">
                         {shopName}
@@ -392,7 +393,9 @@ export default function RegistrationModal({ shopName, bannerUrl, slogan = DEFAUL
                         <Reveal index={4} className="mt-5">
                             <div className="flex items-center justify-center gap-3" aria-hidden="true">
                                 <span className="h-px w-20 bg-gradient-to-r from-transparent to-brand-accent/40" />
-                                <GiCoffeeBeans className="h-5 w-5 text-brand-accent" />
+                                {/* The shop's own sign-up icon (Theme → Sign-up icon), so it fits the
+                                    business - same size as the original coffee beans. */}
+                                <SignupIcon icon={signupIcon} className="h-5 w-5 text-brand-accent" />
                                 <span className="h-px w-20 bg-gradient-to-l from-transparent to-brand-accent/40" />
                             </div>
                         </Reveal>

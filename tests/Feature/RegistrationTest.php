@@ -151,10 +151,90 @@ test('shop setup validates the link, stamps and reward', function (array $overri
 })->with([
     'slug taken' => [['slug' => 'taken'], 'slug'],
     'slug with spaces' => [['slug' => 'my shop'], 'slug'],
-    'too few stamps' => [['max_stamps' => 3], 'max_stamps'],
-    'too many stamps' => [['max_stamps' => 13], 'max_stamps'],
+    'too few stamps' => [['max_stamps' => 2], 'max_stamps'],
+    'too many stamps' => [['max_stamps' => 21], 'max_stamps'],
     'no reward' => [['reward_title' => ''], 'reward_title'],
 ]);
+
+test('the business step checks the business details without saving anything', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $business = array_diff_key(validShop(), array_flip(['slug', 'max_stamps', 'reward_title']));
+
+    $this->actingAs($owner)->from('/onboarding')->post('/onboarding/business', $business)
+        ->assertRedirect('/onboarding')
+        ->assertSessionHasNoErrors();
+
+    expect(Shop::count())->toBe(0);
+});
+
+test('the business step rejects bad business details', function (array $overrides, string $field) {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    $this->actingAs($owner)->from('/onboarding')->post('/onboarding/business', validShop($overrides))
+        ->assertRedirect('/onboarding')
+        ->assertSessionHasErrors($field);
+})->with([
+    'no name' => [['name' => ''], 'name'],
+    'bad phone' => [['contact_phone' => '12345'], 'contact_phone'],
+    'no town' => [['town' => ''], 'town'],
+]);
+
+test('a passed business step is kept as a draft, so a reload resumes on the loyalty card step', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    $this->actingAs($owner)->post('/onboarding/business', validShop())->assertSessionHasNoErrors();
+
+    $this->actingAs($owner)->get('/onboarding')->assertInertia(fn ($page) => $page
+        ->component('Onboarding/Shop')
+        ->where('draft.name', 'The Coffee Corner')
+        ->where('draft.contact_phone', '+447700900123')
+        ->where('draft.postcode', 'LS1 4AP')
+        ->missing('draft.slug')
+    );
+});
+
+test('a failed business step leaves no draft, and creating the shop clears it', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    $this->actingAs($owner)->post('/onboarding/business', validShop(['town' => '']))->assertSessionHasErrors('town');
+    $this->actingAs($owner)->get('/onboarding')->assertInertia(fn ($page) => $page->where('draft', null));
+
+    $this->actingAs($owner)->post('/onboarding/business', validShop());
+    expect($owner->fresh()->onboarding_draft)->not->toBeNull();
+
+    $this->actingAs($owner)->post('/onboarding', validShop())->assertRedirect('/dashboard');
+
+    expect($owner->fresh()->onboarding_draft)->toBeNull();
+});
+
+test('the business draft survives logging out and back in', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    $this->actingAs($owner)->post('/onboarding/business', validShop());
+    $this->post('/logout');
+    $this->flushSession();
+
+    $this->actingAs($owner->fresh())->get('/onboarding')->assertInertia(fn ($page) => $page
+        ->where('draft.name', 'The Coffee Corner')
+        ->where('draft.town', 'Leeds')
+    );
+});
+
+test('the business step does not check the loyalty card fields', function () {
+    Shop::factory()->create(['slug' => 'taken']);
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    $this->actingAs($owner)->post('/onboarding/business', validShop(['slug' => 'taken', 'reward_title' => '']))
+        ->assertSessionHasNoErrors();
+});
+
+test('shop setup accepts any stamp count from 3 to 20', function (int $stamps) {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    $this->actingAs($owner)->post('/onboarding', validShop(['max_stamps' => $stamps]))->assertRedirect('/dashboard');
+
+    expect(Shop::sole()->max_stamps)->toBe($stamps);
+})->with([3, 20]);
 
 test('admins and guests cannot use shop setup', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin]);
@@ -162,6 +242,7 @@ test('admins and guests cannot use shop setup', function () {
     $this->get('/onboarding')->assertRedirect('/login');
     $this->actingAs($admin)->get('/onboarding')->assertForbidden();
     $this->actingAs($admin)->post('/onboarding', validShop())->assertForbidden();
+    $this->actingAs($admin)->post('/onboarding/business', validShop())->assertForbidden();
 
     expect(Shop::count())->toBe(0);
 });
