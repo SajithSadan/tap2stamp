@@ -1,7 +1,7 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { LuLogOut, LuStore } from 'react-icons/lu';
 import { SidebarLinks, TabLinks, useNavigation } from '@/Components/Dashboard/NavMenu';
-import { navSurface, sideLinkClass, StatusBanner } from '@/Components/Dashboard/Ui';
+import { navSurface, sideLinkClass, StatusBanner, useSidebarColors } from '@/Components/Dashboard/Ui';
 import TechsaFooter from '@/Components/TechsaFooter';
 import { useDocumentTheme } from '@/lib/theme';
 
@@ -17,6 +17,8 @@ export default function OwnerLayout({ shop, title, description, actions, childre
 
     // Owner opted in on the Theme page: the dashboard wears the shop's theme too.
     useDocumentTheme(shop.dashboard_theme);
+    // Otherwise the admin's sidebar colours (Admin → Settings) apply, as in the admin panel.
+    useSidebarColors(!shop.dashboard_theme);
 
     return (
         <>
@@ -26,12 +28,12 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                 {/* Desktop sidebar - soft navy (the theme's deep colour), same surface as the mobile tab bar. */}
                 <aside className={`fixed inset-y-0 left-0 z-20 hidden w-64 flex-col lg:flex ${navSurface}`}>
                     <div className="flex items-center gap-3 px-5 py-5">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.08] text-brand-accent">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-nav-text/[0.08] text-brand-accent">
                             <LuStore className="h-5 w-5" />
                         </span>
                         <div className="min-w-0">
-                            <p className="truncate font-heading text-lg font-semibold leading-tight text-white">{shop.name}</p>
-                            <p className="text-xs text-white/55">Owner dashboard</p>
+                            <p className="truncate font-heading text-lg font-semibold leading-tight text-nav-text">{shop.name}</p>
+                            <p className="text-xs text-nav-text/55">Owner dashboard</p>
                         </div>
                     </div>
 
@@ -39,13 +41,13 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                         <SidebarLinks items={nav.main} />
                     </nav>
 
-                    <div className="space-y-1 border-t border-white/[0.08] px-3 py-3">
+                    <div className="space-y-1 border-t border-nav-text/[0.08] px-3 py-3">
                         <SidebarLinks items={nav.footer} />
                         <Link href="/logout" method="post" as="button" className={`${sideLinkClass(false)} w-full`}>
                             <LuLogOut className="h-[18px] w-[18px]" />
                             Log out
                         </Link>
-                        {email && <p className="truncate px-3 pt-1 text-xs text-white/45">{email}</p>}
+                        {email && <p className="truncate px-3 pt-1 text-xs text-nav-text/45">{email}</p>}
                     </div>
                 </aside>
 
@@ -84,7 +86,7 @@ export default function OwnerLayout({ shop, title, description, actions, childre
 
                 {/* Mobile bottom tabs - same soft navy as the desktop sidebar, reaching down under the
                     home indicator. Scroll sideways on the narrowest phones rather than squashing 7 labels. */}
-                <nav className="no-scrollbar fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto bg-brand-deep-soft pb-[env(safe-area-inset-bottom)] text-white lg:hidden">
+                <nav className="no-scrollbar fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto bg-nav pb-[env(safe-area-inset-bottom)] text-nav-text lg:hidden">
                     <TabLinks items={nav.main} scroll />
                 </nav>
             </div>

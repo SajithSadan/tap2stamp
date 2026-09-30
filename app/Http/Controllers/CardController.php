@@ -40,6 +40,7 @@ class CardController extends Controller
                 'signup_icon' => SignupIcons::resolve($shop->signup_icon),
                 'banner_url' => $shop->bannerUrl(),
                 'logo_url' => $shop->logoUrl(),
+                'header_style' => $shop->headerStyle(),
             ],
             // The look the owner picked on /dashboard/theme (or the default).
             'theme' => $shop->appliedTheme(),

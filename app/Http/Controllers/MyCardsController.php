@@ -23,6 +23,8 @@ class MyCardsController extends Controller
                 'stamps' => $card->current_stamps,
                 'max_stamps' => $card->shop->max_stamps,
                 'rewards_claimed' => $card->rewards_claimed,
+                // Each card wears its own shop's look, like on the shop's card page.
+                'theme' => $card->shop->appliedTheme(),
             ])
             ->values();
 

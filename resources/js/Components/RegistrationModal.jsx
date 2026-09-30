@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
-import { LuArrowRight, LuCheck, LuChevronDown, LuCreditCard, LuStore, LuUser } from 'react-icons/lu';
+import { LuArrowRight, LuCheck, LuChevronDown, LuCreditCard, LuGift, LuUser } from 'react-icons/lu';
 import TechsaFooter from '@/Components/TechsaFooter';
 import { SignupIcon } from '@/lib/signupIcons';
 
@@ -170,8 +170,8 @@ function Reveal({ index, children, className = '' }) {
     );
 }
 
-// Dark backdrop - the shop's banner photo blurred (like a café seen through glass), or soft
-// accent glows without one. Hides the card page behind instead of blurring it through.
+// Flat dark backdrop: the shop's banner photo under a solid dark tint, or the plain deep brand
+// colour without one. No blur or glows - they read as smoky. Hides the card page behind.
 function Backdrop({ bannerUrl }) {
     return (
         <motion.div
@@ -186,23 +186,15 @@ function Backdrop({ bannerUrl }) {
         >
             {bannerUrl && (
                 <>
-                    {/* scale-110 hides the blur's soft transparent edges. */}
-                    <img src={bannerUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover blur-md" />
-                    <div className="absolute inset-0 bg-black/55" />
+                    <img src={bannerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-black/60" />
                 </>
             )}
-            <div className="absolute -left-24 -top-20 h-80 w-80 rounded-full bg-brand-accent/35 blur-3xl" />
-            <div className="absolute -right-24 bottom-10 h-80 w-72 rounded-full bg-brand-accent/20 blur-3xl" />
-            <div className="absolute left-1/2 top-1/2 hidden h-[28rem] w-[28rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-accent/15 blur-3xl sm:block" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.5)_100%)]" />
         </motion.div>
     );
 }
 
-// Placeholder until shops get their own slogan field - pass `slogan` to override.
-const DEFAULT_SLOGAN = ['Great coffee', 'Good vibes', 'Together'];
-
-export default function RegistrationModal({ shopName, bannerUrl, logoUrl = null, signupIcon = null, slogan = DEFAULT_SLOGAN, submitting, errors, onSubmit }) {
+export default function RegistrationModal({ shopName, bannerUrl, logoUrl = null, signupIcon = null, rewardTitle, submitting, errors, onSubmit }) {
     const [name, setName] = useState('');
     const [country, setCountry] = useState(COUNTRIES[0]);
     const [phoneDigits, setPhoneDigits] = useState('');
@@ -253,21 +245,18 @@ export default function RegistrationModal({ shopName, bannerUrl, logoUrl = null,
                     transition={{ delay: 0.1, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                     className="flex w-full flex-1 flex-col items-center justify-center pb-5 pt-[max(1.5rem,env(safe-area-inset-top))] text-center sm:flex-none sm:pb-6 sm:pt-0"
                 >
-                    {/* The shop's logo (Theme → Banner & logo), else the store icon. */}
-                    <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-brand-card text-brand-accent shadow-[0_10px_30px_rgba(0,0,0,0.45)] ring-4 ring-white/10">
-                        {logoUrl ? <img src={logoUrl} alt="" className="h-full w-full object-cover" /> : <LuStore className="h-9 w-9" />}
-                    </span>
-                    <h1 id="register-title" className="mt-4 font-heading text-4xl font-semibold leading-tight text-white">
+                    {/* The shop's own logo (Theme → Banner & logo) only - no placeholder icon. */}
+                    {logoUrl && (
+                        <img src={logoUrl} alt="" className="mb-4 h-20 w-20 rounded-2xl bg-brand-card object-cover" />
+                    )}
+                    <h1 id="register-title" className="font-heading text-4xl font-semibold leading-tight text-white">
                         {shopName}
                     </h1>
-                    {slogan.length > 0 && (
-                        <p className="mt-1.5 flex w-full flex-wrap items-center justify-center gap-x-2 px-7 text-xs tracking-[0.12em] text-white/70">
-                            {slogan.map((part, i) => (
-                                <span key={part} className="flex items-center gap-x-2 whitespace-nowrap">
-                                    {i > 0 && <span aria-hidden="true">•</span>}
-                                    {part}
-                                </span>
-                            ))}
+                    {/* reward_title already reads as the full offer ("Free coffee after 6 stamps"). */}
+                    {rewardTitle && (
+                        <p className="mt-2 flex items-center gap-1.5 px-6 text-sm text-white/80">
+                            <LuGift className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            {rewardTitle}
                         </p>
                     )}
                 </motion.div>

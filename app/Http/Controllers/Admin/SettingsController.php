@@ -33,7 +33,27 @@ class SettingsController extends Controller
                     ->whereNull('password')
                     ->count(),
             ],
+            'sidebar' => Setting::get(Setting::SIDEBAR_COLORS),
         ]);
+    }
+
+    /** Sidebar + mobile tab bar colours for every dashboard (admin, and owners on the standard look). */
+    public function updateSidebar(Request $request): RedirectResponse
+    {
+        $hex = ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'];
+        $colors = $request->validate(['bg' => $hex, 'text' => $hex]);
+
+        $colors = array_map(fn ($c) => $c ? strtoupper($c) : null, $colors + ['bg' => null, 'text' => null]);
+
+        if ($colors['bg'] === null && $colors['text'] === null) {
+            Setting::where('key', Setting::SIDEBAR_COLORS)->delete();
+
+            return back()->with('status', 'Sidebar colours are back to the default.');
+        }
+
+        Setting::set(Setting::SIDEBAR_COLORS, $colors);
+
+        return back()->with('status', 'Sidebar colours saved.');
     }
 
     public function updateGoogle(Request $request): RedirectResponse

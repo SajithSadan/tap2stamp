@@ -60,7 +60,7 @@ export default function RatingTile({ shopSlug, uuid, existingReview, googleRevie
 
     if (saved) {
         return (
-            <div className={`rounded-brand p-4 text-center ${surface}`}>
+            <div className={`rounded-2xl p-4 text-center ${surface}`}>
                 <p className="flex items-center justify-center gap-1.5 text-sm font-semibold text-brand-text">
                     <LuCircleCheck className="h-4 w-4 text-brand-accent" /> Thanks for rating us!
                 </p>
@@ -86,7 +86,7 @@ export default function RatingTile({ shopSlug, uuid, existingReview, googleRevie
     const displayRating = hoverRating || rating;
 
     return (
-        <div className={`rounded-brand p-4 ${surface}`}>
+        <div className={`rounded-2xl p-4 ${surface}`}>
             <div className="flex justify-center gap-1" role="radiogroup" aria-label="Rating out of 5 stars">
                 {[1, 2, 3, 4, 5].map((value) => (
                     <motion.button

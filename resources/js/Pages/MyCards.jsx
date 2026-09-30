@@ -2,13 +2,14 @@ import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
 import QRCode from 'qrcode';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import BottomNav from '@/Components/BottomNav';
 import { LuStore } from 'react-icons/lu';
 import IconBadge from '@/Components/IconBadge';
 import OfflineBanner from '@/Components/OfflineBanner';
 import StampGrid from '@/Components/StampGrid';
-import { CUSTOMER_UUID_KEY } from '@/lib/storage';
+import { CUSTOMER_UUID_KEY, LAST_SHOP_SLUG_KEY } from '@/lib/storage';
+import { themeVars, useDocumentTheme, useThemeFonts } from '@/lib/theme';
 
 function SkeletonTile() {
     return (
@@ -86,9 +87,11 @@ function ShopCardTile({ uuid, card }) {
     }, [uuid, card.shop_id]);
 
     const rewardReady = card.stamps >= card.max_stamps;
+    useThemeFonts(card.theme);
 
     return (
-        <>
+        // The shop's own theme, scoped to its tile (and its QR lightbox).
+        <div style={card.theme ? themeVars(card.theme) : undefined} className="font-sans">
             <div className="relative flex items-stretch gap-3 overflow-hidden rounded-2xl border border-brand-border bg-brand-card p-4 shadow-sm">
                 {/* Spine stripe - a plain white rounded rectangle didn't read as
                     a "card" the way a physical loyalty card does. */}
@@ -134,7 +137,7 @@ function ShopCardTile({ uuid, card }) {
             </div>
 
             <AnimatePresence>{lightboxOpen && <QrLightbox card={card} qrSrc={qrSrc} onClose={() => setLightboxOpen(false)} />}</AnimatePresence>
-        </>
+        </div>
     );
 }
 
@@ -162,6 +165,18 @@ export default function MyCards() {
             .catch(() => setLoadError(true))
             .finally(() => setLoading(false));
     }, []);
+
+    // The page wears the theme of the shop the customer came from (the "My Card" tab), so
+    // switching tabs doesn't jump back to the site's default look.
+    const [lastSlug] = useState(() => {
+        try {
+            return window.localStorage.getItem(LAST_SHOP_SLUG_KEY);
+        } catch {
+            return null;
+        }
+    });
+    const pageTheme = useMemo(() => (cards?.find((c) => c.shop_slug === lastSlug) ?? cards?.[0])?.theme ?? null, [cards, lastSlug]);
+    useDocumentTheme(pageTheme);
 
     const isEmpty = !loading && !loadError && (!uuid || cards?.length === 0);
 

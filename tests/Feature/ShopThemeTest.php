@@ -268,3 +268,34 @@ test('shops that never chose a sign-up icon show the neutral sparkles, not coffe
 
     $this->get("/s/{$shop->slug}")->assertInertia(fn ($page) => $page->where('shop.signup_icon', 'sparkles'));
 });
+
+test('the card header uses the defaults until the owner changes them', function () {
+    $shop = Shop::factory()->create();
+
+    $this->get("/s/{$shop->slug}")->assertInertia(fn ($page) => $page->where('shop.header_style', ['text_color' => '#FFFFFF', 'tint' => 30, 'shadow' => false]));
+});
+
+test('an owner can set the header text colour, banner darkness and title shadow', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($owner)
+        ->put('/dashboard/theme/header', ['text_color' => '#1a1a1a', 'tint' => 0, 'shadow' => true])
+        ->assertRedirect('/dashboard/theme');
+
+    $style = ['text_color' => '#1A1A1A', 'tint' => 0, 'shadow' => true];
+    expect($shop->fresh()->header_style)->toBe($style);
+    $this->get("/s/{$shop->slug}")->assertInertia(fn ($page) => $page->where('shop.header_style', $style));
+    $this->get('/dashboard/theme')->assertInertia(fn ($page) => $page->component('Dashboard/Theme')->where('headerStyle', $style));
+});
+
+test('an invalid header style is rejected', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($owner)
+        ->put('/dashboard/theme/header', ['text_color' => 'white', 'tint' => 95, 'shadow' => 'maybe'])
+        ->assertSessionHasErrors(['text_color', 'tint', 'shadow']);
+
+    expect($shop->fresh()->header_style)->toBeNull();
+});

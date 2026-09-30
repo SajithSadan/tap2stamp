@@ -10,9 +10,11 @@ import RegistrationModal from '@/Components/RegistrationModal';
 import RatingTile from '@/Components/RatingTile';
 import { HiSparkles } from 'react-icons/hi2';
 import { FaInstagram } from 'react-icons/fa6';
-import { IoStar } from 'react-icons/io5';
-import { LuStore, LuWifi } from 'react-icons/lu';
-import { PiGiftFill } from 'react-icons/pi';
+import { IoStarOutline } from 'react-icons/io5';
+import { LuScan, LuWifi } from 'react-icons/lu';
+import { PiStorefrontFill } from 'react-icons/pi';
+import { StampIcon } from '@/lib/stampIcons';
+import { headerTextStyle, headerTintStyle } from '@/lib/headerStyle';
 import { CUSTOMER_UUID_KEY, LAST_SHOP_SLUG_KEY } from '@/lib/storage';
 import StampGrid from '@/Components/StampGrid';
 import { useDocumentTheme } from '@/lib/theme';
@@ -42,12 +44,22 @@ function copyToClipboard(text) {
 /** Section panels: solid, with a hairline border and no shadow. */
 const SURFACE = 'border border-brand-border bg-brand-card';
 
-/** A quick-action button (Follow / Review / Wi-Fi): icon + one word, equal widths in a row. */
-const actionClass = 'flex items-center justify-center gap-2 rounded-brand py-2.5 text-sm font-semibold text-brand-text transition active:scale-[0.98]';
+/** A quick-action tile (Follow / Rate / Wi-Fi): icon over one word, equal widths in a row. */
+const actionClass = 'flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3.5 text-[13px] font-medium text-brand-text transition active:scale-[0.98]';
+
+const GENERIC_STAMP_ICONS = ['check', 'star', 'heart', 'sparkles', 'gift'];
+
+function HeaderIcon({ icon }) {
+    return GENERIC_STAMP_ICONS.includes(icon) ? (
+        <PiStorefrontFill className="h-8 w-8 text-brand-accent" aria-hidden="true" />
+    ) : (
+        <StampIcon icon={icon} className="h-8 w-8 text-brand-accent" aria-hidden="true" />
+    );
+}
 
 function SkeletonCard({ surface }) {
     return (
-        <div className={`animate-pulse rounded-brand p-4 ${surface}`}>
+        <div className={`animate-pulse rounded-2xl p-5 ${surface}`}>
             <div className="h-3 w-28 rounded bg-brand-border" />
             <div className="mt-3 h-2 w-full rounded-full bg-brand-border" />
             <div className="mt-4 grid grid-cols-6 gap-2">
@@ -109,6 +121,7 @@ export default function Card({ shop, theme }) {
     const [celebrate, setCelebrate] = useState(false);
     const [redeemedToast, setRedeemedToast] = useState(false);
     const [loadError, setLoadError] = useState(false);
+    const [qrOpen, setQrOpen] = useState(false);
 
     const prevStampsRef = useRef(0);
     const wasReadyRef = useRef(false);
@@ -181,7 +194,7 @@ export default function Card({ shop, theme }) {
             return;
         }
 
-        QRCode.toDataURL(`TOKEN:${card.uuid}|SHOP:${card.shop_id}`, { margin: 1, width: 240 })
+        QRCode.toDataURL(`TOKEN:${card.uuid}|SHOP:${card.shop_id}`, { margin: 1, width: 480 })
             .then(setQrSrc)
             .catch(() => setQrSrc(null));
     }, [card]);
@@ -360,44 +373,124 @@ export default function Card({ shop, theme }) {
             </AnimatePresence>
 
             <div className="min-h-screen bg-brand-bg pb-24">
-                {/* Banner photo (Theme → Banner & logo), else the theme gradient, with the logo,
-                    name and reward inside it on a dark fade. No motion. */}
+                {/* Solid deep-brand band (or the banner photo under a solid tint) with the logo,
+                    name and reward. The progress card overlaps its bottom edge. No motion. */}
                 <header className="relative overflow-hidden bg-brand-deep">
-                    {shop.banner_url ? (
+                    {shop.banner_url && (
                         <>
                             <img src={shop.banner_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/5" />
+                            {/* Tint strength set by the owner (Theme → Banner & logo). */}
+                            <div className="absolute inset-0 bg-black" style={headerTintStyle(shop.header_style)} />
                         </>
-                    ) : (
-                        <div className="absolute inset-0 bg-gradient-to-br from-brand-accent to-brand-deep" />
                     )}
 
-                    <div className="relative mx-auto flex max-w-sm items-end gap-3 px-4 pb-8 pt-24 sm:pt-28">
-                        <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-2 ring-white/90">
+                    <div className="relative mx-auto flex max-w-sm items-center gap-3.5 px-4 pb-20 pt-24">
+                        <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
                             {shop.logo_url ? (
                                 <img src={shop.logo_url} alt={`${shop.name} logo`} className="h-full w-full object-cover" />
                             ) : (
-                                <LuStore className="h-7 w-7 text-brand-accent" />
+                                // No logo: the shop's stamp icon (a coffee cup, scissors...), or a
+                                // storefront when the stamp icon is a generic one (tick, star...).
+                                <HeaderIcon icon={shop.stamp_icon} />
                             )}
                         </span>
-                        <div className="min-w-0">
-                            <h1 className="line-clamp-2 font-heading text-xl font-bold leading-tight text-white">{shop.name}</h1>
-                            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-white/85">
-                                <PiGiftFill className="h-4 w-4 shrink-0" aria-hidden="true" />
-                                <span className="truncate">{shop.reward_title}</span>
-                            </p>
+                        <div className="min-w-0" style={headerTextStyle(shop.header_style)}>
+                            <h1 className="line-clamp-2 font-heading text-2xl font-semibold leading-tight">{shop.name}</h1>
+                            <p className="mt-0.5 truncate text-sm opacity-80">{shop.reward_title}</p>
                         </div>
                     </div>
                 </header>
 
-                {/* Content sheet over the header's bottom edge; every section evenly spaced. */}
-                <main className="relative -mt-4 space-y-3 rounded-t-3xl bg-brand-bg px-4 pt-4 [&>*]:mx-auto [&>*]:max-w-sm">
+                <main className="relative -mt-12 space-y-3 px-4 [&>*]:mx-auto [&>*]:max-w-sm">
+
+                    {loading && <SkeletonCard surface={surface} />}
+
+                    {loadError && !loading && (
+                        <div className={`rounded-2xl p-5 text-center ${surface}`}>
+                            <p className="text-sm text-brand-muted">We couldn't load your card just now.</p>
+                            <button onClick={loadCard} className="mt-3 rounded-brand bg-brand-accent px-4 py-2 text-sm font-semibold text-brand-accent-text">
+                                Try again
+                            </button>
+                        </div>
+                    )}
+
+                    {card && (
+                        <motion.section
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`relative rounded-2xl p-5 ${surface}`}
+                        >
+                            {celebrate && <Celebration />}
+
+                            <AnimatePresence>
+                                {rewardReady && (
+                                    <motion.p
+                                        initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                                        animate={{ opacity: 1, height: 'auto', marginBottom: 12 }}
+                                        exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                                        className="flex items-center gap-2 overflow-hidden rounded-brand bg-brand-accent px-3 py-2.5 text-xs font-semibold text-brand-accent-text"
+                                    >
+                                        <HiSparkles className="h-4 w-4 shrink-0" />
+                                        Reward unlocked — show this screen to staff!
+                                    </motion.p>
+                                )}
+                            </AnimatePresence>
+
+                            <p className="text-sm text-brand-muted">Your progress</p>
+                            <div className="mt-0.5 flex items-center justify-between gap-3">
+                                <p className="tabular-nums text-brand-text">
+                                    <span className="text-4xl font-bold tracking-tight">{card.stamps}</span>
+                                    <span className="text-lg font-medium text-brand-muted"> / {card.max_stamps}</span>
+                                </p>
+                                {!rewardReady && (
+                                    <span className="rounded-full bg-brand-accent/10 px-3 py-1 text-[13px] font-medium text-brand-accent">
+                                        {card.max_stamps - card.stamps} to go
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-brand-border">
+                                <motion.div
+                                    className="h-full rounded-full bg-brand-accent"
+                                    initial={false}
+                                    animate={{ width: `${Math.min(100, (card.stamps / card.max_stamps) * 100)}%` }}
+                                    transition={{ duration: 0.5 }}
+                                />
+                            </div>
+
+                            <StampGrid className="mt-4" total={card.max_stamps} stamps={card.stamps} previous={previousStamps} icon={shop.stamp_icon} />
+
+                            {card.rewards_claimed > 0 && (
+                                <p className="mt-3 text-center text-xs text-brand-muted">{card.rewards_claimed} rewards claimed</p>
+                            )}
+                        </motion.section>
+                    )}
+
+                    {card && qrSrc && (
+                        <section className={`flex items-center gap-4 rounded-2xl p-5 ${surface}`}>
+                            <button type="button" onClick={() => setQrOpen(true)} className="shrink-0" aria-label="Enlarge QR code">
+                                <img src={qrSrc} alt="Your loyalty card QR code" className="h-32 w-32" />
+                            </button>
+                            <div className="min-w-0">
+                                <p className="text-base font-semibold text-brand-text">Scan to collect</p>
+                                <p className="mt-1 text-sm leading-snug text-brand-muted">Show this code at the counter after each visit.</p>
+                                <button
+                                    type="button"
+                                    onClick={() => setQrOpen(true)}
+                                    className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand-accent"
+                                >
+                                    <LuScan className="h-4 w-4" aria-hidden="true" /> Tap to enlarge
+                                </button>
+                            </div>
+                        </section>
+                    )}
+
                     {/* Quick actions: only the ones the shop has set up. */}
                     {(shop.instagram_url || card) && (
                         <div className="grid auto-cols-fr grid-flow-col gap-2">
                             {shop.instagram_url && (
                                 <a href={shop.instagram_url} target="_blank" rel="noopener noreferrer" className={`${actionClass} ${surface}`}>
-                                    <FaInstagram className="h-[18px] w-[18px] text-[#E4405F]" aria-hidden="true" /> Follow
+                                    <FaInstagram className="h-5 w-5 text-[#E4405F]" aria-hidden="true" /> Follow
                                 </a>
                             )}
                             {/* One rating: saved to the shop, then optionally posted on Google too. */}
@@ -408,7 +501,7 @@ export default function Card({ shop, theme }) {
                                     aria-expanded={panel === 'rate'}
                                     className={`${actionClass} ${surface} ${panel === 'rate' ? 'ring-2 ring-brand-accent' : ''}`}
                                 >
-                                    <IoStar className="h-[18px] w-[18px] text-[#F5B400]" aria-hidden="true" /> {card.review ? 'Rated' : 'Rate'}
+                                    <IoStarOutline className="h-5 w-5 text-[#F5B400]" aria-hidden="true" /> {card.review ? 'Rated' : 'Rate us'}
                                 </button>
                             )}
                             {card?.wifi_ssid && (
@@ -418,7 +511,7 @@ export default function Card({ shop, theme }) {
                                     aria-expanded={panel === 'wifi'}
                                     className={`${actionClass} ${surface} ${panel === 'wifi' ? 'ring-2 ring-brand-accent' : ''}`}
                                 >
-                                    <LuWifi className="h-[18px] w-[18px] text-brand-accent" aria-hidden="true" /> Wi-Fi
+                                    <LuWifi className="h-5 w-5 text-brand-text" aria-hidden="true" /> Wi-Fi
                                 </button>
                             )}
                         </div>
@@ -429,7 +522,7 @@ export default function Card({ shop, theme }) {
                     )}
 
                     {panel === 'wifi' && card?.wifi_ssid && (
-                        <div className={`space-y-2 rounded-brand p-3 text-sm ${surface}`}>
+                        <div className={`space-y-2 rounded-2xl p-4 text-sm ${surface}`}>
                             <p className="flex justify-between gap-3">
                                 <span className="text-brand-muted">Network</span>
                                 <span className="truncate font-medium text-brand-text">{card.wifi_ssid}</span>
@@ -451,64 +544,26 @@ export default function Card({ shop, theme }) {
                             )}
                         </div>
                     )}
-
-                    {loading && <SkeletonCard surface={surface} />}
-
-                    {loadError && !loading && (
-                        <div className={`rounded-brand p-4 text-center ${surface}`}>
-                            <p className="text-sm text-brand-muted">We couldn't load your card just now.</p>
-                            <button onClick={loadCard} className="mt-3 rounded-brand bg-brand-accent px-4 py-2 text-sm font-semibold text-brand-accent-text">
-                                Try again
-                            </button>
-                        </div>
-                    )}
-
-                    {card && (
-                        <motion.section
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`relative rounded-brand p-4 ${surface}`}
-                        >
-                            {celebrate && <Celebration />}
-
-                            <AnimatePresence>
-                                {rewardReady && (
-                                    <motion.p
-                                        initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-                                        animate={{ opacity: 1, height: 'auto', marginBottom: 12 }}
-                                        exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                                        className="flex items-center gap-2 overflow-hidden rounded-brand bg-brand-accent px-3 py-2.5 text-xs font-semibold text-brand-accent-text"
-                                    >
-                                        <HiSparkles className="h-4 w-4 shrink-0" />
-                                        Reward unlocked — show this screen to staff!
-                                    </motion.p>
-                                )}
-                            </AnimatePresence>
-
-                            <p className="flex items-baseline justify-between">
-                                <span className="font-heading text-2xl font-bold tabular-nums text-brand-text">
-                                    {card.stamps}
-                                    <span className="text-base font-semibold text-brand-muted">/{card.max_stamps} stamps</span>
-                                </span>
-                                {card.rewards_claimed > 0 && <span className="text-xs text-brand-muted">{card.rewards_claimed} claimed</span>}
-                            </p>
-
-                            <StampGrid className="mt-3" total={card.max_stamps} stamps={card.stamps} previous={previousStamps} icon={shop.stamp_icon} />
-
-                            {qrSrc && (
-                                <>
-                                    <img
-                                        src={qrSrc}
-                                        alt="Your loyalty card QR code"
-                                        className="mx-auto mt-4 h-40 w-40 rounded-brand border border-brand-border bg-white p-2"
-                                    />
-                                    <p className="mt-1.5 text-center text-xs text-brand-muted">Show to staff</p>
-                                </>
-                            )}
-                        </motion.section>
-                    )}
                 </main>
             </div>
+
+            {/* Full-screen QR for the staff scanner: plain white, big and easy to read. */}
+            <AnimatePresence>
+                {qrOpen && qrSrc && (
+                    <motion.button
+                        type="button"
+                        onClick={() => setQrOpen(false)}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-white px-8"
+                        aria-label="Close QR code"
+                    >
+                        <img src={qrSrc} alt="Your loyalty card QR code" className="w-full max-w-xs" />
+                        <p className="text-sm text-neutral-500">Tap anywhere to close</p>
+                    </motion.button>
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {showModal && (
@@ -518,6 +573,7 @@ export default function Card({ shop, theme }) {
                         bannerUrl={shop.banner_url}
                         logoUrl={shop.logo_url}
                         signupIcon={shop.signup_icon}
+                        rewardTitle={shop.reward_title}
                         submitting={submitting}
                         errors={errors}
                         onSubmit={handleRegister}

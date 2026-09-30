@@ -291,12 +291,6 @@ async function buildQrPdf({ title, codes, design = null, onePerPage = false, dou
     return doc;
 }
 
-/** Builds the PDF and downloads it. */
-export async function downloadQrPdf(options) {
-    const doc = await buildQrPdf(options);
-    doc.save(fileName(options.title));
-}
-
 /**
  * Opens a blank tab straight away - it has to happen in the click itself,
  * or the browser's popup blocker stops it - to show the print view in once

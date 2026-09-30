@@ -112,6 +112,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     // App-wide switches (API keys themselves stay in .env).
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
     Route::put('/settings/google', [SettingsController::class, 'updateGoogle'])->name('settings.google');
+    Route::put('/settings/sidebar', [SettingsController::class, 'updateSidebar'])->name('settings.sidebar');
 });
 
 // Public landing link inside every printed QR sticker. Redirects to the
@@ -148,6 +149,7 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::put('/theme/dashboard', [DashboardController::class, 'updateDashboardTheme'])->name('theme.dashboard');
     Route::put('/theme/custom', [DashboardController::class, 'updateCustomTheme'])->name('theme.custom');
     Route::delete('/theme/custom', [DashboardController::class, 'resetCustomTheme'])->name('theme.custom.reset');
+    Route::put('/theme/header', [DashboardController::class, 'updateHeaderStyle'])->name('theme.header');
     Route::put('/theme/stamp-icon', [DashboardController::class, 'updateStampIcon'])->name('theme.stamp-icon');
     Route::put('/theme/signup-icon', [DashboardController::class, 'updateSignupIcon'])->name('theme.signup-icon');
     // POST, not PUT: file uploads need a real multipart POST.

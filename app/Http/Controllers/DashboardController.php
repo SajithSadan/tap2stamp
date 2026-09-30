@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ActionType;
 use App\Http\Requests\UpdateShopContactRequest;
+use App\Http\Requests\UpdateShopHeaderStyleRequest;
 use App\Http\Requests\UpdateShopSettingsRequest;
 use App\Http\Requests\UpdateShopThemeCustomRequest;
 use App\Http\Requests\UpdateShopThemeRequest;
@@ -15,6 +16,7 @@ use App\Models\StaffDevice;
 use App\Models\StaffMember;
 use App\Models\StampLog;
 use App\Support\CuratedFonts;
+use App\Support\HeaderStyle;
 use App\Support\ShopContact;
 use App\Support\SignupIcons;
 use App\Support\StampIcons;
@@ -220,6 +222,8 @@ class DashboardController extends Controller
             'themeInDashboard' => $shop->theme_in_dashboard,
             'stampIcon' => StampIcons::resolve($shop->stamp_icon),
             'signupIcon' => SignupIcons::resolve($shop->signup_icon),
+            'headerStyle' => $shop->headerStyle(),
+            'maxTint' => HeaderStyle::MAX_TINT,
             'bannerUrl' => $shop->bannerUrl(),
             'logoUrl' => $shop->logoUrl(),
             'themes' => ThemeCatalog::all(),
@@ -255,6 +259,14 @@ class DashboardController extends Controller
     public function resetCustomTheme(Request $request): RedirectResponse
     {
         $request->user()->shop->update(['theme_custom' => null]);
+
+        return redirect()->route('dashboard.theme');
+    }
+
+    /** Shop name / reward colour, banner tint and title shadow on the card page header. */
+    public function updateHeaderStyle(UpdateShopHeaderStyleRequest $request): RedirectResponse
+    {
+        $request->user()->shop->update(['header_style' => HeaderStyle::resolve($request->validated())]);
 
         return redirect()->route('dashboard.theme');
     }

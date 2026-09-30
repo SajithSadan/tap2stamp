@@ -3,6 +3,7 @@
 use App\Models\Customer;
 use App\Models\CustomerShopCard;
 use App\Models\Shop;
+use App\Support\ThemeCatalog;
 
 test('the my-cards page renders', function () {
     $this->get('/my-cards')->assertOk()->assertInertia(fn ($page) => $page->component('MyCards'));
@@ -26,6 +27,20 @@ test('it returns every shop card for the customer', function () {
     $response->assertJsonCount(2, 'cards');
     $response->assertJsonFragment(['shop_name' => 'Artisan Cafe', 'stamps' => 3, 'max_stamps' => 6]);
     $response->assertJsonFragment(['shop_name' => 'Urban Barber', 'stamps' => 1, 'max_stamps' => 8]);
+});
+
+test('each card carries its own shop\'s theme', function () {
+    $customer = Customer::factory()->create();
+    $themed = Shop::factory()->create(['theme' => array_keys(ThemeCatalog::all())[1]]);
+    $plain = Shop::factory()->create(['theme' => null]);
+
+    CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $themed->id]);
+    CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $plain->id]);
+
+    $cards = collect($this->getJson("/my-cards/{$customer->uuid}")->assertOk()->json('cards'))->keyBy('shop_id');
+
+    expect($cards[$themed->id]['theme'])->toEqual($themed->appliedTheme())
+        ->and($cards[$plain->id]['theme'])->toEqual(ThemeCatalog::forShop(null, null));
 });
 
 test('a card from another customer is never included', function () {

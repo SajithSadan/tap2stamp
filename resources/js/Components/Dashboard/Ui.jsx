@@ -5,22 +5,43 @@ import { LuCheck, LuChevronLeft, LuChevronRight, LuCircleAlert, LuCircleCheck, L
 // Small building blocks shared by the owner dashboard and admin pages.
 
 /**
- * Sidebar surface: the theme's deep colour tinted with its accent, with a
- * faint accent glow at the top (bg-brand-nav in app.css). The mobile tab bar
- * uses the same base colour, bg-brand-deep-soft.
+ * Sidebar surface: the nav colour (Admin → Settings, else the theme's deep colour
+ * tinted with its accent), with a faint accent glow at the top (bg-brand-nav in
+ * app.css). The mobile tab bar uses the same base colour, bg-nav.
  */
-export const navSurface = 'bg-brand-nav text-white shadow-[inset_-1px_0_0_rgb(255_255_255/0.06)]';
+export const navSurface = 'bg-brand-nav text-nav-text shadow-[inset_-1px_0_0_rgb(255_255_255/0.06)]';
 
-/** A sidebar link on navSurface: muted white, active = translucent mint pill. */
+/**
+ * Applies the admin's sidebar colours (shared `sidebarColors` prop) while mounted.
+ * Pass enabled=false to keep the default/theme look (an owner using their shop theme).
+ */
+export function useSidebarColors(enabled = true) {
+    const { sidebarColors } = usePage().props;
+    const bg = enabled ? sidebarColors?.bg : null;
+    const text = enabled ? sidebarColors?.text : null;
+
+    useEffect(() => {
+        const root = document.documentElement;
+        if (bg) root.style.setProperty('--nav-bg', bg);
+        if (text) root.style.setProperty('--nav-text', text);
+
+        return () => {
+            root.style.removeProperty('--nav-bg');
+            root.style.removeProperty('--nav-text');
+        };
+    }, [bg, text]);
+}
+
+/** A sidebar link on navSurface: muted nav text, active = translucent accent pill. */
 export function sideLinkClass(active) {
     return `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-        active ? 'bg-brand-accent/15 text-white ring-1 ring-inset ring-brand-accent/25 [&>svg]:text-brand-accent' : 'text-white/65 hover:bg-white/[0.06] hover:text-white'
+        active ? 'bg-brand-accent/15 text-nav-text ring-1 ring-inset ring-brand-accent/25 [&>svg]:text-brand-accent' : 'text-nav-text/65 hover:bg-nav-text/[0.06] hover:text-nav-text'
     }`;
 }
 
 /** A mobile bottom-tab link on navSurface. */
 export function tabLinkClass(active) {
-    return `flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${active ? 'text-brand-accent' : 'text-white/60 hover:text-white'}`;
+    return `flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${active ? 'text-brand-accent' : 'text-nav-text/60 hover:text-nav-text'}`;
 }
 
 /** How long a success message stays before fading out (hovering pauses it). */

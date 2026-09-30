@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
+import { PiGiftFill } from 'react-icons/pi';
 import { StampIcon, stampColumns, stampTilt } from '@/lib/stampIcons';
 
 // The stamps on a loyalty card, drawn like a real stamp card. Every slot is a
-// stamp to collect (the reward comes after the last one, so no slot is shown
-// as the reward):
+// stamp to collect; the last one shows a gift (the stamp that fills the card):
 //  - filled stamps look pressed in ink: accent gradient, soft inner ring,
 //    each icon tilted a little differently (the same on every visit);
 //  - empty ones are dashed slots with a faint ghost of the icon.
@@ -45,6 +45,9 @@ export default function StampGrid({ total, stamps, icon, previous = stamps, size
         >
             {Array.from({ length: total }, (_, i) => i + 1).map((i) => {
                 const filled = i <= stamps;
+                // The last slot shows a gift: the stamp that completes the card.
+                const last = i === total;
+                const emptyClass = last ? 'border-2 border-brand-accent/40 bg-brand-accent/10' : 'border-2 border-dashed border-brand-border';
 
                 return (
                     <motion.div
@@ -52,7 +55,7 @@ export default function StampGrid({ total, stamps, icon, previous = stamps, size
                         initial={animate ? { scale: 0, opacity: 0 } : false}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ delay: i * 0.03, type: 'spring', stiffness: 400, damping: 20 }}
-                        className={`flex aspect-square items-center justify-center rounded-full ${filled ? '' : 'border-2 border-dashed border-brand-border'}`}
+                        className={`flex aspect-square items-center justify-center rounded-full ${filled ? '' : emptyClass}`}
                         style={filled ? INK : undefined}
                     >
                         {filled ? (
@@ -63,8 +66,10 @@ export default function StampGrid({ total, stamps, icon, previous = stamps, size
                                 animate={i > previous ? { scale: [0.2, 1.35, 1] } : { scale: 1 }}
                                 transition={{ duration: 0.5 }}
                             >
-                                <StampIcon icon={icon} className={ICON} />
+                                {last ? <PiGiftFill className={ICON} /> : <StampIcon icon={icon} className={ICON} />}
                             </motion.span>
+                        ) : last ? (
+                            <PiGiftFill className={`${ICON} text-brand-accent`} />
                         ) : (
                             // A faint ghost of the icon: the slot waiting to be stamped.
                             <StampIcon icon={icon} className={`${ICON} text-brand-muted opacity-20`} />

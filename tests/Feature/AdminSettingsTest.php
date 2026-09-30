@@ -82,3 +82,46 @@ test('Google cannot be turned on without the keys', function () {
 test('the switch needs a true or false value', function () {
     $this->actingAs(settingsAdmin())->put('/admin/settings/google', ['enabled' => 'maybe'])->assertSessionHasErrors('enabled');
 });
+
+test('the admin can set the sidebar colours, shared with every dashboard page', function () {
+    $admin = settingsAdmin();
+
+    $this->actingAs($admin)->put('/admin/settings/sidebar', ['bg' => '#1a2b3c', 'text' => '#fafafa'])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect(Setting::get(Setting::SIDEBAR_COLORS))->toBe(['bg' => '#1A2B3C', 'text' => '#FAFAFA']);
+
+    $this->get('/admin/settings')->assertInertia(fn ($page) => $page
+        ->where('sidebar', ['bg' => '#1A2B3C', 'text' => '#FAFAFA'])
+        ->where('sidebarColors', ['bg' => '#1A2B3C', 'text' => '#FAFAFA']));
+});
+
+test('one sidebar colour can stay on the default', function () {
+    $this->actingAs(settingsAdmin())->put('/admin/settings/sidebar', ['bg' => null, 'text' => '#FFEEDD'])->assertSessionHasNoErrors();
+
+    expect(Setting::get(Setting::SIDEBAR_COLORS))->toBe(['bg' => null, 'text' => '#FFEEDD']);
+});
+
+test('clearing both sidebar colours goes back to the default look', function () {
+    Setting::set(Setting::SIDEBAR_COLORS, ['bg' => '#111111', 'text' => '#EEEEEE']);
+
+    $this->actingAs(settingsAdmin())->put('/admin/settings/sidebar', ['bg' => null, 'text' => null])->assertSessionHasNoErrors();
+
+    expect(Setting::get(Setting::SIDEBAR_COLORS))->toBeNull();
+});
+
+test('sidebar colours must be hex codes', function () {
+    $this->actingAs(settingsAdmin())->put('/admin/settings/sidebar', ['bg' => 'red', 'text' => '#12345'])->assertSessionHasErrors(['bg', 'text']);
+
+    expect(Setting::get(Setting::SIDEBAR_COLORS))->toBeNull();
+});
+
+test('an owner cannot change the sidebar colours', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($owner)->put('/admin/settings/sidebar', ['bg' => '#000000'])->assertForbidden();
+
+    expect(Setting::get(Setting::SIDEBAR_COLORS))->toBeNull();
+});

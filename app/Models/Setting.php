@@ -13,6 +13,9 @@ class Setting extends Model
     /** Whether owners may sign up / log in with Google (also needs the .env keys). */
     public const GOOGLE_AUTH = 'google_auth_enabled';
 
+    /** Dashboard sidebar / tab bar colours ({bg, text} hex, either null = default look). */
+    public const SIDEBAR_COLORS = 'sidebar_colors';
+
     protected $fillable = [
         'key',
         'value',

@@ -40,12 +40,18 @@
        instead of turning milky. Mixed from the live theme variables, so it
        follows a shop's theme too. */
     --color-brand-deep-soft: color-mix(in oklab, var(--color-brand-deep) 93%, var(--color-brand-accent));
+
+    /* Dashboard sidebar + mobile tab bar (bg-nav, text-nav-text). --nav-bg / --nav-text are
+       set from Admin → Settings (useSidebarColors); unset = brand-deep-soft with white text. */
+    --color-nav: var(--nav-bg, color-mix(in oklab, var(--color-brand-deep) 93%, var(--color-brand-accent)));
+    --color-nav-text: var(--nav-text, #ffffff);
 }
 
-/* Dashboard sidebar surface: solid brand-deep-soft with a faint accent glow
+/* Dashboard sidebar surface: solid nav colour with a faint accent glow
    in the top corner for depth. Fully opaque - no white wash. */
 @utility bg-brand-nav {
-    background-color: var(--color-brand-deep-soft);
+    /* --nav-bg read here (not via --color-nav, resolved at :root) so a preview can set it on itself. */
+    background-color: var(--nav-bg, var(--color-brand-deep-soft));
     background-image: radial-gradient(
         120% 50% at 0% 0%,
         color-mix(in oklab, var(--color-brand-accent) 16%, transparent),

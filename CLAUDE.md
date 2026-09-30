@@ -258,11 +258,13 @@ owner-approved device.
 - `shops.theme` (nullable slug) is set on `/dashboard/theme` (`Dashboard/Theme.jsx`: filters,
   live phone preview, `PUT /dashboard/theme` validated with `Rule::in` the catalog keys).
   `ThemeCatalog::forShop()` falls back to the default for null/unknown slugs.
-- Applied **only on the customer card page** (`/s/{slug}`, incl. the registration sheet):
+- Applied on the **customer card page** (`/s/{slug}`, incl. the registration sheet):
   `CardController::show()` passes `theme`, `Card.jsx` calls `useDocumentTheme()` from
   `resources/js/lib/theme.js`, which re-points the `--color-brand-*`, `--radius-brand` and font
-  variables on `<html>` and loads the theme's Google Fonts. The owner dashboard, staff app and
-  cross-shop `/my-cards` keep the default look.
+  variables on `<html>` and loads the theme's Google Fonts. And on **`/my-cards`**:
+  `MyCardsController` sends each card's `theme`; the page wears the last-visited shop's theme
+  (`LAST_SHOP_SLUG_KEY`, else the first card's) and each tile is scoped to its own shop's theme
+  via `themeVars()`. The owner dashboard (unless opted in) and staff app keep the default look.
 - Because themes can be dark, customer-page code must not use `brand-text` as a "dark"
   colour (it's light on dark themes). For always-dark brand surfaces (card banner,
   registration backdrop, owner/admin sidebar, sign-up panel) use **`brand-deep`** — the theme's
@@ -298,8 +300,11 @@ owner-approved device.
   (card page, My Cards, Theme preview) is drawn by `Components/StampGrid.jsx`: pressed-ink
   filled stamps (accent gradient, inner ring, fixed per-stamp tilt), dashed empty slots with a
   ghost icon, balanced rows (`stampColumns()`) as a real grid (every row starts from the left).
-  **Every slot is a stamp** - no slot is drawn as the reward: the reward comes *after* the last
-  stamp ("Free coffee after 6 stamps"), so a gift in slot 6 read as "only 5 needed".
+  **Every slot is a stamp**; the **last slot shows a gift** (user's choice, 2026-09-30): empty =
+  accent-tinted circle with a gift, filled = ink stamp with a gift. It's still the Nth stamp
+  that fills the card - the reward is claimed on the scan after it.
+  Card page header with no logo shows the shop's stamp icon (storefront for generic ones:
+  check/star/heart/sparkles/gift).
 - **Sign-up icon**: `shops.signup_icon` (null = neutral `sparkles`), the small decorative icon
   under the registration form (`RegistrationModal` `signupIcon` prop), picked on Theme →
   Sign-up icon. Separate from the stamp icon, from its own set of solid game-icons (same style
@@ -311,15 +316,30 @@ owner-approved device.
   Hostinger has no SSH. URLs are relative (`/uploads/...`); if the host's web root isn't
   the project's `public/`, set `UPLOADS_ROOT`. JPG/PNG/WebP only (never SVG), ≤ 4 MB,
   ≥ 600×200, stored under a random name; replacing or removing deletes the old file.
-  Read it via `Shop::bannerUrl()`. It fills the card page header (`Card.jsx`), under a dark
-  bottom fade, with the logo (rounded square), shop name and reward inside it bottom-left - no
-  motion; no banner = the theme's colour gradient in the same layout. The page content then
-  overlaps it as a sheet with rounded top corners. Blurred and darkened, it's also the
-  registration backdrop (`RegistrationModal` `bannerUrl` prop). `public/uploads` is gitignored.
+  Read it via `Shop::bannerUrl()`. It fills the card page header (`Card.jsx`), under a solid
+  dark tint, with the logo (white rounded square), shop name and reward beside it - no motion;
+  no banner = plain `brand-deep`. No location / member number (we don't have them). Below it,
+  in order: the progress card (overlapping the header: count, "N to go", bar, stamps), the QR
+  card (tap to enlarge full-screen white), then the Follow / Rate us / Wi-Fi tiles. Under a solid dark tint (no blur, no
+  glows), it's also the registration backdrop (`RegistrationModal` `bannerUrl` prop; no
+  banner = plain `brand-deep`). The sign-up header shows the logo (only if uploaded - no
+  placeholder icon), shop name and the reward title as a plain line (no pill). `public/uploads` is gitignored.
+- **Header text** (Theme → Banner & logo → Header text, `PUT /dashboard/theme/header`):
+  `shops.header_style` (JSON, null = defaults) = title/reward `text_color`, banner `tint`
+  (0-80 % black over the photo) and title `shadow`. `App\Support\HeaderStyle` validates +
+  resolves it (read via `Shop::headerStyle()`); `resources/js/lib/headerStyle.js` applies it on
+  `Card.jsx` and the Theme page's phone preview — **keep the defaults in sync**. For banners
+  where white text doesn't read.
+- **Sidebar colours** (admin, app-wide): Admin → Settings → Sidebar colours
+  (`PUT /admin/settings/sidebar`) stores `Setting::SIDEBAR_COLORS` = `{bg, text}` (either null =
+  default); shared to every page as `sidebarColors`. `useSidebarColors()` (`Dashboard/Ui.jsx`)
+  sets `--nav-bg` / `--nav-text` on `<html>`, read by `bg-brand-nav`, `bg-nav` and
+  `text-nav-text` (`app.css`). Sidebar / tab-bar code must use those, never `text-white` or
+  `bg-brand-deep-soft`. Owners who put their shop theme on the dashboard keep their theme's colours.
 - **Logo** (Theme → Banner & logo, `ShopLogoController`, `shops.logo_path`, same `uploads` disk
   under `logos/{shop}`, JPG/PNG/WebP ≤ 2 MB, ≥ 120×120, uploads on pick): shown in the round
   badge in the card page header and on the sign-up screen (`Shop::logoUrl()`, `logo_url`)
-  instead of the store icon; no logo = the store icon. Card page sections are solid panels
+  instead of the store icon; no logo = the store icon on the card page, nothing on sign-up. Card page sections are solid panels
   (`SURFACE` in `Card.jsx`, hairline border, no shadows). Don't bring back blurred backdrops,
   glows or translucent panels over the plain page - the user found them smoky.
 
@@ -504,6 +524,7 @@ Plus (staff accounts, see above) `staff_members` (`shop_id`, `name` unique per s
 `stamp_logs.staff_member_id` (nullable FK).
 Plus `users.google_id` (nullable, unique) with `users.password` now nullable (Google-only
 owners), `users.onboarding_draft` (nullable JSON, shop setup in progress), and `qr_batches` / `qr_codes` / `qr_designs` (see "Bulk QR stickers").
+Plus `shops.header_style` (nullable JSON, card page header text/tint/shadow).
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to texts from **that one shop**, unticked by default,
 and customers can register without it. `CustomerRegistrar` only ever turns it on: an unticked

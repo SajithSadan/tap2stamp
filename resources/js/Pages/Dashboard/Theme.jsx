@@ -8,6 +8,7 @@ import { SIGNUP_ICON_GROUPS, SignupIcon } from '@/lib/signupIcons';
 import StampGrid from '@/Components/StampGrid';
 import { STAMP_ICONS } from '@/lib/stampIcons';
 import { CUSTOM_COLOR_FIELDS, fontNameOf, themeVars, useThemeFonts, withCustomisation } from '@/lib/theme';
+import { HEADER_STYLE_DEFAULTS, headerTextStyle, headerTintStyle } from '@/lib/headerStyle';
 
 const CATEGORY_LABELS = {
     cafe: 'Cafe',
@@ -32,7 +33,7 @@ const TABS = [
  * utilities - so setting the theme's variables on it shows exactly what
  * customers will see.
  */
-function PhonePreview({ theme, shop, stampIcon, bannerUrl, logoUrl }) {
+function PhonePreview({ theme, shop, stampIcon, bannerUrl, logoUrl, headerStyle }) {
     const filled = Math.min(3, shop.max_stamps);
 
     return (
@@ -40,23 +41,21 @@ function PhonePreview({ theme, shop, stampIcon, bannerUrl, logoUrl }) {
             style={themeVars(theme)}
             className="relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[2rem] border-[6px] border-neutral-900 bg-brand-bg font-sans text-brand-text shadow-xl"
         >
-            {/* Same header as the card page: photo (or colour) with logo, name and reward inside it. */}
+            {/* Same header as the card page: photo under the owner's tint (or the deep colour), logo, name and reward. */}
             <div className="relative overflow-hidden bg-brand-deep">
-                {bannerUrl ? (
+                {bannerUrl && (
                     <>
                         <img src={bannerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/5" />
+                        <div className="absolute inset-0 bg-black" style={headerTintStyle(headerStyle)} />
                     </>
-                ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-brand-accent to-brand-deep" />
                 )}
-                <div className="relative flex items-end gap-3 px-4 pb-7 pt-20">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-2 ring-white/90">
+                <div className="relative flex items-center gap-3 px-4 pb-7 pt-16">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white">
                         {logoUrl ? <img src={logoUrl} alt="" className="h-full w-full object-cover" /> : <LuStore className="h-6 w-6 text-brand-accent" />}
                     </span>
-                    <div className="min-w-0">
-                        <p className="truncate font-heading text-base font-bold leading-tight text-white">{shop.name}</p>
-                        <p className="truncate text-[11px] text-white/85">{shop.reward_title}</p>
+                    <div className="min-w-0" style={headerTextStyle(headerStyle)}>
+                        <p className="truncate font-heading text-base font-bold leading-tight">{shop.name}</p>
+                        <p className="truncate text-[11px] opacity-80">{shop.reward_title}</p>
                     </div>
                 </div>
             </div>
@@ -454,6 +453,63 @@ function LogoPanel({ logoUrl, error, confirm }) {
     );
 }
 
+/* ---------- Header text (in the Banner & logo tab) ---------- */
+
+/** Shop name / reward colour, banner tint and title shadow - so the header reads on any photo. */
+function HeaderPanel({ style, onChange, saved, maxTint, hasBanner, errors }) {
+    const [saving, setSaving] = useState(false);
+    const dirty = JSON.stringify(style) !== JSON.stringify(saved);
+    const set = (key, value) => onChange({ ...style, [key]: value });
+
+    return (
+        <Panel title="Header text" description="Make your shop name readable on your banner. Changes show in the preview.">
+            <div className="space-y-4">
+                <ColorField label="Title colour" value={style.text_color} onChange={(v) => set('text_color', v)} error={errors.text_color} />
+
+                <div className={hasBanner ? '' : 'opacity-50'}>
+                    <label className="flex items-center justify-between gap-3">
+                        <span className="text-sm text-brand-text">Banner darkness</span>
+                        <span className="text-xs tabular-nums text-brand-muted">{style.tint}%</span>
+                    </label>
+                    <input
+                        type="range"
+                        min={0}
+                        max={maxTint}
+                        step={5}
+                        value={style.tint}
+                        disabled={!hasBanner}
+                        onChange={(e) => set('tint', Number(e.target.value))}
+                        aria-label="Banner darkness"
+                        className="mt-2 w-full accent-brand-accent"
+                    />
+                    {!hasBanner && <p className="text-xs text-brand-muted">Upload a banner photo to use this.</p>}
+                    <FieldError message={errors.tint} />
+                </div>
+
+                <Switch checked={style.shadow} onChange={(v) => set('shadow', v)} label="Title shadow" description="A soft shadow behind the text." />
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                        type="button"
+                        disabled={!dirty || saving}
+                        onClick={() =>
+                            router.put('/dashboard/theme/header', style, { preserveScroll: true, onStart: () => setSaving(true), onFinish: () => setSaving(false) })
+                        }
+                        className={primaryButton}
+                    >
+                        {saving ? 'Saving…' : 'Save header'}
+                    </button>
+                    {JSON.stringify(style) !== JSON.stringify(HEADER_STYLE_DEFAULTS) && (
+                        <button type="button" onClick={() => onChange(HEADER_STYLE_DEFAULTS)} disabled={saving} className={secondaryButton}>
+                            <LuRotateCcw className="h-4 w-4" /> Defaults
+                        </button>
+                    )}
+                </div>
+            </div>
+        </Panel>
+    );
+}
+
 /* ---------- Banner tab ---------- */
 
 function BannerTab({ bannerUrl, shown, file, onFile, error, progress, onRemove, saving }) {
@@ -550,6 +606,8 @@ export default function Theme({
     themeInDashboard,
     stampIcon,
     signupIcon,
+    headerStyle,
+    maxTint,
     bannerUrl,
     logoUrl,
     themes,
@@ -561,6 +619,7 @@ export default function Theme({
     const [selected, setSelected] = useState(currentTheme);
     const [icon, setIcon] = useState(stampIcon);
     const [decoIcon, setDecoIcon] = useState(signupIcon);
+    const [header, setHeader] = useState(headerStyle);
     const [bannerFile, setBannerFile] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(null);
     const [fields, setFields] = useState(() => initialFields(customTheme, appliedTheme, availableFonts, radiusPresets));
@@ -571,6 +630,8 @@ export default function Theme({
     useEffect(() => setSelected(currentTheme), [currentTheme]);
     useEffect(() => setIcon(stampIcon), [stampIcon]);
     useEffect(() => setDecoIcon(signupIcon), [signupIcon]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => setHeader(headerStyle), [JSON.stringify(headerStyle)]);
     useEffect(
         () => setFields(initialFields(customTheme, appliedTheme, availableFonts, radiusPresets)),
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -684,7 +745,7 @@ export default function Theme({
                             title="Preview"
                             description={tab === 'customise' ? `${themes[currentTheme].name} · your colours` : previewTheme.name}
                         >
-                            <PhonePreview theme={previewTheme} shop={shop} stampIcon={previewIcon} bannerUrl={previewBanner} logoUrl={logoUrl} />
+                            <PhonePreview theme={previewTheme} shop={shop} stampIcon={previewIcon} bannerUrl={previewBanner} logoUrl={logoUrl} headerStyle={header} />
 
                             <button type="button" onClick={save} disabled={!dirty || saving} className={`${primaryButton} mt-5 hidden w-full lg:flex`}>
                                 {saving ? 'Saving…' : dirty ? saveLabel : 'No changes to save'}
@@ -779,6 +840,7 @@ export default function Theme({
                                 onRemove={removeBanner}
                                 saving={saving}
                             />
+                            <HeaderPanel style={header} onChange={setHeader} saved={headerStyle} maxTint={maxTint} hasBanner={Boolean(previewBanner)} errors={errors ?? {}} />
                             <LogoPanel logoUrl={logoUrl} error={errors?.logo} confirm={confirm} />
                         </div>
                     )}

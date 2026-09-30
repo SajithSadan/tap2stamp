@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Setting;
 use App\Support\Navigation;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -49,6 +50,8 @@ class HandleInertiaRequests extends Middleware
             // Sidebar / tab-bar menu from App\Support\Navigation - only the
             // items this user's role may open. Lazy: skipped for guests.
             'navigation' => fn () => $request->user() ? Navigation::for($request->user(), $request) : null,
+            // Admin → Settings sidebar colours ({bg, text}, null = default look).
+            'sidebarColors' => fn () => $request->user() ? Setting::get(Setting::SIDEBAR_COLORS) : null,
             // One-time reveal values (generated owner password, staff device
             // token) are flashed to the session rather than stored, so a page
             // refresh never shows them a second time.

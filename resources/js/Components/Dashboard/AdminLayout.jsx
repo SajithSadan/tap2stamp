@@ -4,7 +4,7 @@ import { LuLogOut, LuScanLine } from 'react-icons/lu';
 import { Wordmark } from '@/Components/AuthShell';
 import QrStickerScanner from '@/Components/QrStickerScanner';
 import { SidebarLinks, TabLinks, useNavigation } from '@/Components/Dashboard/NavMenu';
-import { navSurface, sideLinkClass, StatusBanner } from '@/Components/Dashboard/Ui';
+import { navSurface, sideLinkClass, StatusBanner, useSidebarColors } from '@/Components/Dashboard/Ui';
 import TechsaFooter from '@/Components/TechsaFooter';
 
 /**
@@ -17,6 +17,7 @@ export default function AdminLayout({ title, description, actions, children }) {
     const email = props.auth?.user?.email;
     const nav = useNavigation();
     const [scanning, setScanning] = useState(false);
+    useSidebarColors();
 
     return (
         <>
@@ -26,20 +27,20 @@ export default function AdminLayout({ title, description, actions, children }) {
                 {/* Desktop sidebar - soft navy, same surface as the mobile tab bar. */}
                 <aside className={`fixed inset-y-0 left-0 z-20 hidden w-64 flex-col lg:flex ${navSurface}`}>
                     <div className="px-5 py-5">
-                        <Wordmark className="text-2xl text-white" />
+                        <Wordmark className="text-2xl text-nav-text" />
                     </div>
 
                     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
                         <SidebarLinks items={nav.main} />
                     </nav>
 
-                    <div className="space-y-1 border-t border-white/[0.08] px-3 py-3">
+                    <div className="space-y-1 border-t border-nav-text/[0.08] px-3 py-3">
                         <SidebarLinks items={nav.footer} />
                         <Link href="/logout" method="post" as="button" className={`${sideLinkClass(false)} w-full`}>
                             <LuLogOut className="h-[18px] w-[18px]" />
                             Log out
                         </Link>
-                        {email && <p className="truncate px-3 pt-1 text-xs text-white/45">{email}</p>}
+                        {email && <p className="truncate px-3 pt-1 text-xs text-nav-text/45">{email}</p>}
                     </div>
                 </aside>
 
@@ -78,7 +79,7 @@ export default function AdminLayout({ title, description, actions, children }) {
                     A raised Scan button sits in the middle (menu split around it)
                     to open the sticker scanner from anywhere in the admin. */}
                 {nav.main.length <= 5 ? (
-                    <nav className="fixed inset-x-0 bottom-0 z-20 flex bg-brand-deep-soft pb-[env(safe-area-inset-bottom)] text-white lg:hidden">
+                    <nav className="fixed inset-x-0 bottom-0 z-20 flex bg-nav pb-[env(safe-area-inset-bottom)] text-nav-text lg:hidden">
                         <TabLinks items={nav.main.slice(0, Math.ceil(nav.main.length / 2))} />
                         <div className="relative flex flex-1 flex-col items-center justify-end pb-2.5">
                             <button
@@ -89,14 +90,14 @@ export default function AdminLayout({ title, description, actions, children }) {
                             >
                                 <LuScanLine className="h-6 w-6" />
                             </button>
-                            <span className="text-[10px] font-medium text-white/60" aria-hidden="true">
+                            <span className="text-[10px] font-medium text-nav-text/60" aria-hidden="true">
                                 Scan
                             </span>
                         </div>
                         <TabLinks items={nav.main.slice(Math.ceil(nav.main.length / 2))} />
                     </nav>
                 ) : (
-                    <nav className="no-scrollbar fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto bg-brand-deep-soft pb-[env(safe-area-inset-bottom)] text-white lg:hidden">
+                    <nav className="no-scrollbar fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto bg-nav pb-[env(safe-area-inset-bottom)] text-nav-text lg:hidden">
                         <TabLinks items={nav.main} scroll />
                     </nav>
                 )}

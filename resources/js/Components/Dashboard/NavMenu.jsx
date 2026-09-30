@@ -38,7 +38,7 @@ export function SidebarLinks({ items }) {
     return items.map((item, i) => (
         <Fragment key={item.href}>
             {item.group && item.group !== items[i - 1]?.group && (
-                <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-white/40 first:pt-0">{item.group}</p>
+                <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-nav-text/40 first:pt-0">{item.group}</p>
             )}
             <NavLink item={item} className={sideLinkClass(item.active)} iconClass="h-[18px] w-[18px]" />
         </Fragment>
