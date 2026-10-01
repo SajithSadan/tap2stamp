@@ -14,7 +14,6 @@ class StoreOnboardingShopRequest extends ValidateOnboardingBusinessRequest
     {
         return [
             ...parent::rules(),
-            'slug' => ['required', 'string', 'max:150', 'alpha_dash', 'unique:shops,slug'],
             'max_stamps' => Shop::maxStampsRules(),
             'reward_title' => ['required', 'string', 'max:150'],
         ];
@@ -23,7 +22,6 @@ class StoreOnboardingShopRequest extends ValidateOnboardingBusinessRequest
     public function messages(): array
     {
         return [
-            'slug.unique' => 'Another shop already uses this link. Try adding your town, e.g. corner-bakery-leeds.',
             ...parent::messages(),
         ];
     }

@@ -34,7 +34,37 @@ class SettingsController extends Controller
                     ->count(),
             ],
             'sidebar' => Setting::get(Setting::SIDEBAR_COLORS),
+            'bank' => Setting::get(Setting::BANK_DETAILS),
         ]);
+    }
+
+    /**
+     * Where shops send bank transfers for orders we arrange with them. Shown
+     * to owners on their unpaid orders, with the order's reference.
+     */
+    public function updateBank(Request $request): RedirectResponse
+    {
+        $bank = $request->validate([
+            'account_name' => ['nullable', 'string', 'max:100'],
+            'sort_code' => ['nullable', 'string', 'regex:/^\d{2}-?\d{2}-?\d{2}$/'],
+            'account_number' => ['nullable', 'string', 'regex:/^\d{8}$/'],
+            'bank_name' => ['nullable', 'string', 'max:100'],
+        ], [
+            'sort_code.regex' => 'Enter a sort code like 12-34-56.',
+            'account_number.regex' => 'Enter the 8-digit account number.',
+        ]);
+
+        if (blank($bank['account_name'] ?? null) && blank($bank['sort_code'] ?? null) && blank($bank['account_number'] ?? null)) {
+            Setting::where('key', Setting::BANK_DETAILS)->delete();
+
+            return back()->with('status', 'Bank details removed.');
+        }
+
+        $digits = preg_replace('/\D/', '', (string) ($bank['sort_code'] ?? ''));
+        $bank['sort_code'] = $digits ? implode('-', str_split($digits, 2)) : null;
+        Setting::set(Setting::BANK_DETAILS, $bank);
+
+        return back()->with('status', 'Bank details saved.');
     }
 
     /** Sidebar + mobile tab bar colours for every dashboard (admin, and owners on the standard look). */

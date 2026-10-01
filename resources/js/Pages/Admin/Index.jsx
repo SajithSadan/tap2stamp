@@ -6,6 +6,7 @@ import {
     LuCopy,
     LuExternalLink,
     LuKeyRound,
+    LuPackageCheck,
     LuPlus,
     LuSettings,
     LuStore,
@@ -143,6 +144,7 @@ function StatusChips({ value, onChange, counts }) {
         ["quiet", "Quiet"],
         ["not_started", "Not started"],
         ["no_owner", "No owner"],
+        ["no_display", "Display not ordered"],
     ];
 
     return (
@@ -224,6 +226,39 @@ function buildColumns(origin) {
             enableGlobalFilter: false,
             meta: { label: "Status", csv: (s) => STATUS[s.status].label },
             cell: ({ getValue }) => <StatusBadge status={getValue()} />,
+        },
+        {
+            // Counter display ordered (paid online, or recorded by an admin).
+            id: "display",
+            accessorFn: (s) => orUndefined(s.product_ordered_at),
+            header: "Display",
+            enableGlobalFilter: false,
+            sortDescFirst: true,
+            sortUndefined: "last",
+            meta: {
+                label: "Counter display",
+                csv: (s) =>
+                    s.product_ordered_label
+                        ? `Ordered ${s.product_ordered_label}`
+                        : s.product_awaiting
+                          ? "Awaiting payment"
+                          : "Not ordered",
+            },
+            cell: ({ row: { original: s } }) =>
+                s.product_ordered_label ? (
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        <LuPackageCheck className="h-3.5 w-3.5" />
+                        {s.product_ordered_label}
+                    </span>
+                ) : s.product_awaiting ? (
+                    <span className="whitespace-nowrap rounded-full bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-700">
+                        Awaiting payment
+                    </span>
+                ) : (
+                    <span className="whitespace-nowrap text-xs text-brand-muted">
+                        Not ordered
+                    </span>
+                ),
         },
         {
             id: "owner",
@@ -506,7 +541,10 @@ function buildColumns(origin) {
 
 /* ---------- Page ---------- */
 
-export default function Index({ shops, quietDays }) {
+/** Not ordered the primary product, and not arranged with us either - the ones to call. */
+const needsDisplay = (s) => !s.product_ordered_at && !s.product_awaiting;
+
+export default function Index({ shops, quietDays, primaryProduct }) {
     const { flash } = usePage().props;
     const [status, setStatus] = useState("all");
 
@@ -519,6 +557,7 @@ export default function Index({ shops, quietDays }) {
             quiet: shops.filter((s) => s.status === "quiet").length,
             not_started: shops.filter((s) => s.status === "not_started").length,
             no_owner: shops.filter((s) => !s.owner_email).length,
+            no_display: shops.filter(needsDisplay).length,
         }),
         [shops],
     );
@@ -526,6 +565,7 @@ export default function Index({ shops, quietDays }) {
     const rows = useMemo(() => {
         if (status === "all") return shops;
         if (status === "no_owner") return shops.filter((s) => !s.owner_email);
+        if (status === "no_display") return shops.filter(needsDisplay);
 
         return shops.filter((s) => s.status === status);
     }, [shops, status]);
@@ -533,7 +573,11 @@ export default function Index({ shops, quietDays }) {
     return (
         <AdminLayout
             title="Shops"
-            description={`Every shop on TaDa Tap and the owner who runs it. Quiet = no stamps for ${quietDays} days.`}
+            description={
+                status === "no_display" && primaryProduct
+                    ? `Shops that haven't ordered the ${primaryProduct} (and have no order awaiting payment) - with their contact details to follow up.`
+                    : `Every shop on TaDa Tap and the owner who runs it. Quiet = no stamps for ${quietDays} days.`
+            }
             actions={
                 <Link href="/admin/shops/create" className={primaryButton}>
                     <LuPlus className="h-4 w-4" /> Add shop

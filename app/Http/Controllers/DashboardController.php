@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ActionType;
+use App\Enums\OrderStatus;
 use App\Http\Requests\UpdateShopContactRequest;
 use App\Http\Requests\UpdateShopHeaderStyleRequest;
 use App\Http\Requests\UpdateShopSettingsRequest;
@@ -10,11 +11,15 @@ use App\Http\Requests\UpdateShopThemeCustomRequest;
 use App\Http\Requests\UpdateShopThemeRequest;
 use App\Models\CustomerShopCard;
 use App\Models\CustomTheme;
+use App\Models\Order;
+use App\Models\Product;
 use App\Models\Review;
+use App\Models\Setting;
 use App\Models\Shop;
 use App\Models\StaffDevice;
 use App\Models\StaffMember;
 use App\Models\StampLog;
+use App\Services\StripeGateway;
 use App\Support\CuratedFonts;
 use App\Support\HeaderStyle;
 use App\Support\ShopContact;
@@ -24,10 +29,11 @@ use App\Support\ThemeCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Owner dashboard sections. Every action reads auth()->user()->shop - there's
@@ -37,13 +43,21 @@ class DashboardController extends Controller
 {
     private const CHART_DAYS = 14;
 
-    public function index(Request $request): Response
+    public function index(Request $request, StripeGateway $stripe): Response
     {
         $shop = $request->user()->shop;
         $maxStamps = $shop->max_stamps;
 
         return Inertia::render('Dashboard/Overview', [
             'shop' => $this->shopSummary($shop),
+            'orderOffer' => $this->orderOffer($shop, $stripe),
+            // After ordering: the latest order still on its way (until delivered),
+            // or one waiting for their bank transfer.
+            'activeOrder' => $this->openOrders($shop)
+                ->whereNull('delivered_at')
+                ->latest()
+                ->first()
+                ?->summary(),
             'stats' => [
                 'customer_count' => $shop->cards()->count(),
                 'new_customers_7d' => $shop->cards()->where('created_at', '>=', now()->subDays(7))->count(),
@@ -118,7 +132,7 @@ class DashboardController extends Controller
             });
 
             fclose($output);
-        }, $shop->slug.'-customers-'.now()->format('Y-m-d').'.csv', [
+        }, (Str::slug($shop->name) ?: 'shop').'-customers-'.now()->format('Y-m-d').'.csv', [
             'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
@@ -183,7 +197,7 @@ class DashboardController extends Controller
 
         // Which device (if any) each staff member is signed in on right now.
         $signedInOn = $devices
-            ->filter(fn (StaffDevice $device) => !$device->revoked_at && $device->activeStaffMember())
+            ->filter(fn (StaffDevice $device) => ! $device->revoked_at && $device->activeStaffMember())
             ->mapWithKeys(fn (StaffDevice $device) => [$device->staff_member_id => $device->name]);
 
         return Inertia::render('Dashboard/Staff', [
@@ -233,7 +247,7 @@ class DashboardController extends Controller
                 'wifi_ssid' => $shop->wifi_ssid,
                 'wifi_password' => $shop->wifi_password,
             ],
-            'contact' => $shop->only(ShopContact::FIELDS),
+            'contact' => $shop->contactDetails(),
         ]);
     }
 
@@ -356,11 +370,71 @@ class DashboardController extends Controller
         return redirect()->route('dashboard.theme');
     }
 
+    /** Order more (any product on sale, any quantity) and follow each order's progress. */
+    public function orders(Request $request, StripeGateway $stripe): Response
+    {
+        $shop = $request->user()->shop;
+
+        return Inertia::render('Dashboard/Orders', [
+            'shop' => $this->shopSummary($shop),
+            'products' => Product::active()
+                ->orderByDesc('is_featured')
+                ->orderBy('name')
+                ->get(['id', 'name', 'description', 'price_pence', 'price_tiers']),
+            // Paid, or arranged with us and waiting for their transfer. Not
+            // abandoned Stripe checkouts or cancelled orders.
+            'orders' => $this->openOrders($shop)
+                ->latest()
+                ->get()
+                ->map(fn (Order $order) => $order->summary()),
+            // Where to send a bank transfer (Admin → Settings), shown on unpaid orders.
+            'bankDetails' => Setting::get(Setting::BANK_DETAILS),
+            'canPayOnline' => $stripe->configured(),
+            'deliveryAddress' => $shop->deliveryAddress(),
+            'maxQuantity' => Order::MAX_QUANTITY,
+        ]);
+    }
+
+    /** The shop's real orders: paid, or arranged by us and awaiting payment. */
+    private function openOrders(Shop $shop)
+    {
+        return $shop->orders()->where(fn ($q) => $q
+            ->where('status', OrderStatus::Paid)
+            ->orWhere(fn ($pending) => $pending->where('status', OrderStatus::Pending)->where('payment_method', '!=', 'stripe')));
+    }
+
+    /**
+     * "What's next? Order your counter display" - offered until the shop has
+     * ordered (online, or recorded by the admin), then never again.
+     */
+    private function orderOffer(Shop $shop, StripeGateway $stripe): ?array
+    {
+        // Also not while an order we arranged with them waits for their transfer.
+        $arranged = $shop->orders()->where('status', OrderStatus::Pending)->where('payment_method', '!=', 'stripe')->exists();
+        $product = $shop->product_ordered_at || $arranged ? null : Product::featured();
+
+        if (! $product) {
+            return null;
+        }
+
+        return [
+            'product_id' => $product->id,
+            'name' => $product->name,
+            'description' => $product->description,
+            ...$product->pricing(),
+            'delivery_address' => $shop->deliveryAddress(),
+            // No Stripe keys yet: show the offer, but ask them to get in touch.
+            'can_pay_online' => $stripe->configured(),
+        ];
+    }
+
     private function shopSummary(Shop $shop): array
     {
         return [
             'id' => $shop->id,
-            'slug' => $shop->slug,
+            // The card link only reaches the owner's pages if the admin allows it.
+            'slug' => $shop->show_card_link ? $shop->slug : null,
+            'show_card_link' => $shop->show_card_link,
             'name' => $shop->name,
             'google_review_url' => $shop->google_review_url,
             // Read by OwnerLayout on every section; null keeps the default look.

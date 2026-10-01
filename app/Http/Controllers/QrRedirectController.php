@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\QrCode;
+use App\Models\Shop;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,6 +31,8 @@ class QrRedirectController extends Controller
                     'batch_label' => $qrCode->batch->label(),
                     'mapped_at' => $qrCode->mapped_at?->diffForHumans(),
                 ],
+                // For "map to a shop": picking one fills in its card link.
+                'shops' => Shop::orderBy('name')->get(['id', 'name', 'slug']),
             ])->toResponse($request);
         }
 

@@ -88,9 +88,12 @@ export function CardPreview({ name, slug, maxStamps, reward }) {
                     <LuGift className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
                     <p className="text-sm text-brand-text">{reward || 'Your reward'}</p>
                 </div>
-                <p className="mt-3 truncate text-center font-mono text-xs text-brand-muted">
-                    {window.location.host}/s/{slug || 'your-shop'}
-                </p>
+                {/* Admin "Add shop" shows the link; owner sign-up doesn't (slug undefined). */}
+                {slug !== undefined && (
+                    <p className="mt-3 truncate text-center font-mono text-xs text-brand-muted">
+                        {window.location.host}/s/{slug || 'your-shop'}
+                    </p>
+                )}
             </div>
         </div>
     );

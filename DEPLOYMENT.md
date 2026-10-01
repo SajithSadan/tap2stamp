@@ -173,6 +173,15 @@ ADMIN_PASSWORD=...
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=/auth/google/callback
+
+# "Find address" on the shop address forms (findaddress.io). Server-side only;
+# leave blank to hide it - owners then type the address.
+FINDADDRESS_API_KEY=...
+
+# Owners ordering the counter display online (section 5.4). Leave blank to
+# hide online ordering - the admin can still record bank transfer / cash orders.
+STRIPE_SECRET=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
 Keep `APP_KEY` safe and never change it after going live — it encrypts sessions and cookies.
@@ -213,6 +222,56 @@ $app->usePublicPath(__DIR__);
 
 $app->handleRequest(Request::capture());
 ```
+
+### 5.4 Stripe (online orders)
+
+Owners pay for the counter display on Stripe's own checkout page, so only the **secret key**
+and a **webhook** are needed — no card details ever touch our server.
+
+1. Sign up / log in at **dashboard.stripe.com** and finish activating the account (business
+   details, bank account for payouts). Until then use **Test mode** keys (`sk_test_…`) and the
+   test card `4242 4242 4242 4242`.
+2. **Developers → API keys** → copy the **Secret key** into `STRIPE_SECRET`.
+3. **Developers → Webhooks → Add destination**:
+
+   | Setting          | Value                                                                  |
+   | ---------------- | ---------------------------------------------------------------------- |
+   | Events from      | Your account                                                           |
+   | Payload style    | **Snapshot** (the full event — not "Thin")                             |
+   | API version      | leave the default                                                      |
+   | Events           | `checkout.session.completed` and `checkout.session.async_payment_succeeded` |
+   | Destination type | Webhook endpoint                                                       |
+   | Endpoint URL     | `https://app.tadatap.co.uk/stripe/webhook` (your app domain, HTTPS)    |
+
+   Then open the endpoint, reveal its **Signing secret** (`whsec_…`) and put it in
+   `STRIPE_WEBHOOK_SECRET`.
+4. Test and live mode are **separate** in Stripe — each has its own secret key, webhook and
+   signing secret. If you test first, create the webhook in Test mode too, and switch both
+   `.env` values together when going live.
+5. **Check it**: make a test payment, then Stripe → the endpoint → **Event deliveries** should
+   show **200**. A **400** means `STRIPE_WEBHOOK_SECRET` doesn't match that endpoint. The order
+   shows as paid under Admin → Orders.
+
+`.env` on the server:
+
+```dotenv
+STRIPE_SECRET=sk_live_...        # Developers → API keys → Secret key
+STRIPE_WEBHOOK_SECRET=whsec_...  # the webhook endpoint's signing secret
+```
+
+The webhook confirms a payment even if the owner closes the tab before coming back from
+Stripe; the page they return to confirms it too, whichever comes first. Prices are set in the
+app (Admin → Orders → Products), not in Stripe.
+
+**Testing locally**: Stripe can't reach `localhost`. Either skip the webhook (the return page
+still confirms payments), or install the Stripe CLI and run
+
+```bash
+stripe listen --forward-to http://localhost:8000/stripe/webhook
+```
+
+and put the `whsec_…` it prints into your **local** `.env` as `STRIPE_WEBHOOK_SECRET`, with
+your `sk_test_…` key as `STRIPE_SECRET`.
 
 ## 6. First deploy
 
@@ -271,3 +330,5 @@ Then check on a phone and a computer:
 | `/deploy/migrate` returns 403                 | Token differs between `.env` and the GitHub secret, or the call wasn't over `https://`.           |
 | Card doesn't update live after a scan         | `VITE_PUSHER_*` secrets missing at build time, or `PUSHER_*` wrong in `.env`.                      |
 | Camera won't start on the staff scanner       | The site isn't on HTTPS.                                                                          |
+| Owner's "Order now" button is missing         | `STRIPE_SECRET` is empty — the banner then says "get in touch" instead.                           |
+| Paid, but the order still says "Awaiting payment" | Webhook not set up, wrong `STRIPE_WEBHOOK_SECRET`, or test/live keys mixed. Stripe → Webhooks shows each delivery attempt. |

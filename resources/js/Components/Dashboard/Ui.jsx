@@ -101,9 +101,9 @@ export const primaryButton =
 export const secondaryButton =
     'inline-flex items-center justify-center gap-2 rounded-xl border border-brand-border bg-brand-card px-3.5 py-2 text-sm font-medium text-brand-text transition-colors hover:bg-brand-bg disabled:opacity-50';
 
-export function Panel({ title, description, action, children, className = '', bodyClassName = 'p-5' }) {
+export function Panel({ id, title, description, action, children, className = '', bodyClassName = 'p-5' }) {
     return (
-        <section className={`min-w-0 rounded-2xl border border-brand-border bg-brand-card shadow-sm ${className}`}>
+        <section id={id} className={`min-w-0 scroll-mt-24 rounded-2xl border border-brand-border bg-brand-card shadow-sm ${className}`}>
             {(title || action) && (
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border px-5 py-4">
                     <div>

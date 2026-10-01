@@ -15,7 +15,8 @@ function navUser(UserRole $role): User
     $user = User::factory()->create(['role' => $role]);
 
     if ($role === UserRole::Owner) {
-        Shop::factory()->create(['user_id' => $user->id]);
+        // Card link allowed, so the full owner menu (incl. "Customer page") shows.
+        Shop::factory()->create(['user_id' => $user->id, 'show_card_link' => true]);
     }
 
     return $user;
@@ -65,9 +66,9 @@ test('the current page is marked active, including its sub-pages', function () {
         ->and($active('/admin/settings'))->toBe(['Settings']);
 });
 
-test('the owner footer links to their own customer page in a new tab', function () {
+test('the owner footer links to their own customer page in a new tab, when the admin allows it', function () {
     $owner = User::factory()->create(['role' => UserRole::Owner]);
-    Shop::factory()->create(['user_id' => $owner->id, 'slug' => 'corner-bakery']);
+    Shop::factory()->create(['user_id' => $owner->id, 'slug' => 'corner-bakery', 'show_card_link' => true]);
 
     $this->actingAs($owner)->get('/dashboard')->assertInertia(fn ($page) => $page
         ->where('navigation.footer.0.label', 'Customer page')
@@ -117,4 +118,15 @@ test('the registry only uses real routes and known roles', function () {
             ->and($item['roles'])->not->toBeEmpty()
             ->each->toBeInstanceOf(UserRole::class);
     }
+});
+
+test('by default the owner gets no customer page link', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    Shop::factory()->create(['user_id' => $owner->id, 'slug' => 'corner-bakery']);
+
+    $this->actingAs($owner)->get('/dashboard')->assertInertia(fn ($page) => $page
+        ->where('navigation.footer', [])
+        ->where('shop.slug', null)
+        ->where('shop.show_card_link', false)
+    );
 });

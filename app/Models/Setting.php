@@ -16,6 +16,9 @@ class Setting extends Model
     /** Dashboard sidebar / tab bar colours ({bg, text} hex, either null = default look). */
     public const SIDEBAR_COLORS = 'sidebar_colors';
 
+    /** Where shops send bank transfers for orders ({account_name, sort_code, account_number}). */
+    public const BANK_DETAILS = 'bank_details';
+
     protected $fillable = [
         'key',
         'value',

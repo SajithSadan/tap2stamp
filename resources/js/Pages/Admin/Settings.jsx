@@ -1,7 +1,7 @@
-import { router, usePage } from '@inertiajs/react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
-import { LuCircleAlert, LuKeyRound, LuLayoutDashboard, LuMail, LuRotateCcw, LuSettings, LuStore, LuTriangleAlert } from 'react-icons/lu';
+import { LuCircleAlert, LuKeyRound, LuLandmark, LuLayoutDashboard, LuMail, LuRotateCcw, LuSettings, LuStore, LuTriangleAlert } from 'react-icons/lu';
 import { useConfirm } from '@/Components/ConfirmDialog';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { CopyButton, FieldError, navSurface, Panel, primaryButton, secondaryButton, sideLinkClass, Switch } from '@/Components/Dashboard/Ui';
@@ -161,7 +161,55 @@ function SidebarColors({ saved, errors }) {
     );
 }
 
-export default function Settings({ google, sidebar }) {
+/** Where shops send bank transfers for orders we arrange (shown on their unpaid orders). */
+function BankDetails({ saved }) {
+    const form = useForm({
+        account_name: saved?.account_name ?? '',
+        bank_name: saved?.bank_name ?? '',
+        sort_code: saved?.sort_code ?? '',
+        account_number: saved?.account_number ?? '',
+    });
+    const field = (key, label, props = {}) => (
+        <label className="block min-w-0">
+            <span className="mb-1.5 block text-sm font-medium text-brand-text">{label}</span>
+            <input
+                value={form.data[key]}
+                onChange={(e) => form.setData(key, e.target.value)}
+                className="w-full min-w-0 rounded-xl border border-brand-border bg-brand-card px-3.5 py-2.5 text-sm text-brand-text outline-none transition focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/10"
+                {...props}
+            />
+            <FieldError message={form.errors[key]} />
+        </label>
+    );
+
+    return (
+        <Panel
+            title="Bank details for orders"
+            description="Shops see these on an order you've arranged that's waiting for their bank transfer, with the order's reference (e.g. TADA-42)."
+        >
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    form.put('/admin/settings/bank', { preserveScroll: true });
+                }}
+                noValidate
+                className="space-y-4"
+            >
+                <div className="grid gap-4 sm:grid-cols-2">
+                    {field('account_name', 'Account name', { placeholder: 'Techsa Ltd' })}
+                    {field('bank_name', 'Bank (optional)', { placeholder: 'Barclays' })}
+                    {field('sort_code', 'Sort code', { placeholder: '12-34-56', inputMode: 'numeric' })}
+                    {field('account_number', 'Account number', { placeholder: '12345678', inputMode: 'numeric' })}
+                </div>
+                <button type="submit" disabled={form.processing} className={primaryButton}>
+                    <LuLandmark className="h-4 w-4" /> {form.processing ? 'Saving…' : 'Save bank details'}
+                </button>
+            </form>
+        </Panel>
+    );
+}
+
+export default function Settings({ google, sidebar, bank }) {
     const { errors } = usePage().props;
     const [saving, setSaving] = useState(false);
     const live = google.enabled && google.configured;
@@ -228,6 +276,9 @@ export default function Settings({ google, sidebar }) {
                     <GoogleSetup google={google} />
                 </MethodRow>
             </Panel>
+            <div className="mt-6">
+                <BankDetails saved={bank} />
+            </div>
             <div className="mt-6">
                 <SidebarColors saved={sidebar} errors={errors} />
             </div>

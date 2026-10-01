@@ -4,7 +4,7 @@ use App\Models\Shop;
 use App\Models\StaffDevice;
 
 test('responses carry the security headers', function () {
-    $this->get('/')
+    $this->get('/login')
         ->assertOk()
         ->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertHeader('X-Frame-Options', 'DENY')

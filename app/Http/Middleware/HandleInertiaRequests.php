@@ -50,6 +50,8 @@ class HandleInertiaRequests extends Middleware
             // Sidebar / tab-bar menu from App\Support\Navigation - only the
             // items this user's role may open. Lazy: skipped for guests.
             'navigation' => fn () => $request->user() ? Navigation::for($request->user(), $request) : null,
+            // Whether "Find address" can be offered (FINDADDRESS_API_KEY set).
+            'addressLookup' => fn () => $request->user() !== null && filled(config('services.findaddress.key')),
             // Admin → Settings sidebar colours ({bg, text}, null = default look).
             'sidebarColors' => fn () => $request->user() ? Setting::get(Setting::SIDEBAR_COLORS) : null,
             // One-time reveal values (generated owner password, staff device

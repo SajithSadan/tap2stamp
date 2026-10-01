@@ -1189,14 +1189,17 @@ export default function Theme({
                                 </button>
                             </div>
 
-                            <a
-                                href={`/s/${shop.slug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-3 block text-center text-xs font-medium text-brand-accent"
-                            >
-                                Open your live card page
-                            </a>
+                            {/* Only when the admin lets this shop see its card link. */}
+                            {shop.slug && (
+                                <a
+                                    href={`/s/${shop.slug}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-3 block text-center text-xs font-medium text-brand-accent"
+                                >
+                                    Open your live card page
+                                </a>
+                            )}
                         </Panel>
                     </div>
                 </div>

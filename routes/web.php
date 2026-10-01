@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Controllers\AddressLookupController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\QrCodeController;
 use App\Http\Controllers\Admin\QrDesignController;
 use App\Http\Controllers\Admin\SettingsController;
@@ -15,6 +18,7 @@ use App\Http\Controllers\DeployController;
 use App\Http\Controllers\Dev\CustomThemeController;
 use App\Http\Controllers\Dev\ThemePreviewController;
 use App\Http\Controllers\MyCardsController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OwnerScanController;
 use App\Http\Controllers\QrRedirectController;
 use App\Http\Controllers\ReviewController;
@@ -25,10 +29,16 @@ use App\Http\Controllers\StaffController;
 use App\Http\Controllers\StaffDeviceController;
 use App\Http\Controllers\StaffMemberController;
 use App\Http\Controllers\StaffSetupController;
+use App\Http\Controllers\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', fn () => Inertia::render('Landing'));
+// No public landing page: the marketing site (tadatap.co.uk) is the front door.
+// Guests go to log in; signed-in users to their own home. Named `home` so the
+// guest middleware also sends signed-in visitors of /login here.
+Route::get('/', fn () => auth()->check()
+    ? redirect(auth()->user()->homeUrl())
+    : redirect()->route('login'))->name('home');
 
 // Customer loyalty card: the page shell renders via Inertia, but which
 // uuid (if any) is known only lives in the browser's localStorage, so the
@@ -87,6 +97,13 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
 
+// "Find address" on the shop address forms: our server calls findaddress.io
+// so its API key never reaches the browser. Signed-in only, and throttled
+// per user - every uncached lookup uses a paid credit.
+Route::get('/address-lookup', AddressLookupController::class)
+    ->middleware(['auth', 'throttle:20,1'])
+    ->name('address-lookup');
+
 // Admin: onboards new shops + their owner login (no self-service
 // registration - see CLAUDE.md "Admin panel"). No shop param anywhere in
 // dashboard routes below, so there's no ID to scope wrong.
@@ -99,6 +116,18 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::post('/shops', [ShopOwnerController::class, 'store'])->name('shops.store');
     Route::get('/shops/{shop}/settings', [ShopSettingsController::class, 'edit'])->name('shops.settings.edit');
     Route::put('/shops/{shop}/settings', [ShopSettingsController::class, 'update'])->name('shops.settings.update');
+    // Payment taken outside the app (bank transfer / cash) - hides the owner's order banner.
+    Route::post('/shops/{shop}/orders', [AdminOrderController::class, 'store'])->name('shops.orders.store');
+
+    // Product orders (to post out) and the products shops can order.
+    Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
+    Route::put('/orders/{order}/stage', [AdminOrderController::class, 'stage'])->name('orders.stage');
+    Route::put('/orders/{order}', [AdminOrderController::class, 'update'])->name('orders.update');
+    Route::put('/orders/{order}/paid', [AdminOrderController::class, 'confirmPayment'])->name('orders.paid');
+    Route::put('/orders/{order}/cancel', [AdminOrderController::class, 'cancel'])->name('orders.cancel');
+    Route::get('/products', [ProductController::class, 'index'])->name('products.index');
+    Route::post('/products', [ProductController::class, 'store'])->name('products.store');
+    Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
 
     // Bulk QR stickers: generate in batches, map each to a destination later,
     // print as a PDF (built client-side from printData's JSON).
@@ -122,6 +151,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
     Route::put('/settings/google', [SettingsController::class, 'updateGoogle'])->name('settings.google');
     Route::put('/settings/sidebar', [SettingsController::class, 'updateSidebar'])->name('settings.sidebar');
+    Route::put('/settings/bank', [SettingsController::class, 'updateBank'])->name('settings.bank');
 });
 
 // Public landing link inside every printed QR sticker. Redirects to the
@@ -169,6 +199,11 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::post('/theme/logo', [ShopLogoController::class, 'update'])->name('theme.logo');
     Route::delete('/theme/logo', [ShopLogoController::class, 'destroy'])->name('theme.logo.destroy');
 
+    // Ordering products (any quantity) through Stripe Checkout, and tracking them.
+    Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');
+    Route::post('/orders', [OrderController::class, 'checkout'])->middleware('throttle:10,1')->name('orders.checkout');
+    Route::get('/orders/{order}/success', [OrderController::class, 'success'])->name('orders.success');
+
     Route::post('/staff-members', [StaffMemberController::class, 'store'])->name('staff-members.store');
     Route::put('/staff-members/{staffMember}/pin', [StaffMemberController::class, 'updatePin'])->name('staff-members.pin');
     Route::delete('/staff-members/{staffMember}', [StaffMemberController::class, 'destroy'])->name('staff-members.destroy');
@@ -205,6 +240,11 @@ Route::middleware('staff.auth')->prefix('api/staff')->name('staff.')->group(func
         Route::get('/customers', [StaffController::class, 'customers'])->name('customers');
     });
 });
+
+// Stripe's payment confirmations (signature-checked, CSRF-exempt).
+Route::post('/stripe/webhook', StripeWebhookController::class)
+    ->middleware('throttle:60,1')
+    ->name('stripe.webhook');
 
 // Runs `php artisan migrate` / bootstraps the admin account over HTTP for
 // hosting plans without SSH access. Must work in every environment (it's for

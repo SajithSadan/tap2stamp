@@ -1,16 +1,48 @@
 import { Link } from '@inertiajs/react';
-import { LuActivity, LuGift, LuStamp, LuStar, LuUsers } from 'react-icons/lu';
+import { LuActivity, LuChevronRight, LuGift, LuPackage, LuStamp, LuStar, LuUsers } from 'react-icons/lu';
 import DailyBarChart from '@/Components/Dashboard/DailyBarChart';
 import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
 import { EmptyState, Panel, StatTile } from '@/Components/Dashboard/Ui';
 import ActivityRow from '@/Components/Dashboard/ActivityRow';
+import OrderOffer from '@/Components/Dashboard/OrderOffer';
 
-export default function Overview({ shop, stats, chart, recentActivity }) {
+/** After ordering: one slim line about the order still on its way, until it's delivered. */
+function ActiveOrder({ order }) {
+    const step = order.steps.find((s) => s.key === order.stage);
+
+    return (
+        <Link
+            href="/dashboard/orders"
+            className="mb-4 flex items-center gap-3 rounded-2xl border border-brand-border bg-brand-card px-4 py-3 shadow-sm transition-colors hover:bg-brand-bg"
+        >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-accent/10 text-brand-accent">
+                <LuPackage className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1 text-sm">
+                <span className="block truncate font-semibold text-brand-text">
+                    Your {order.quantity > 1 ? `${order.quantity} × ` : ''}
+                    {order.product_name}: {order.awaiting_payment ? 'awaiting payment' : step?.label}
+                </span>
+                <span className="block truncate text-xs text-brand-muted">
+                    {order.awaiting_payment
+                        ? `Reference ${order.reference} · See how to pay`
+                        : `${step?.date}${order.tracking_url ? ' · Track your parcel' : ' · See progress'}`}
+                </span>
+            </span>
+            <LuChevronRight className="h-4 w-4 shrink-0 text-brand-muted" />
+        </Link>
+    );
+}
+
+export default function Overview({ shop, orderOffer, activeOrder, stats, chart, recentActivity }) {
     const totalStamps = chart.reduce((sum, d) => sum + d.stamps, 0);
     const totalRedeemed = chart.reduce((sum, d) => sum + d.redeemed, 0);
 
     return (
         <OwnerLayout shop={shop} title="Overview" description="How your loyalty card is doing.">
+            {orderOffer && <OrderOffer offer={orderOffer} />}
+            {!orderOffer && activeOrder && <ActiveOrder order={activeOrder} />}
+
             <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                 <StatTile
                     icon={LuUsers}

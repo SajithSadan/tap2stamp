@@ -129,6 +129,7 @@ export function KpiTile({ icon: Icon, label, value, current, previous, note }) {
 const PAD = { top: 8, right: 16, bottom: 26, left: 44 };
 const BAND_GAP = 28;
 
+/** lines: [{ key, label, color, height, area?, format?(v), tickFormat?(v) }] */
 export function StackedLines({ data, lines, caption }) {
     const [ref, width] = useElementWidth();
     const [active, setActive] = useState(null);
@@ -144,8 +145,10 @@ export function StackedLines({ data, lines, caption }) {
         const values = data.map((d) => d[line.key]);
         const max = niceMax(Math.max(0, ...values));
         cursor = top + line.height + BAND_GAP;
+        // Optional per-line formatting (e.g. money); axis ticks may use a shorter form.
+        const fmt = line.format ?? formatNumber;
 
-        return { ...line, top, max, values, y: (v) => top + line.height - (v / max) * line.height };
+        return { ...line, top, max, values, fmt, tickFmt: line.tickFormat ?? fmt, y: (v) => top + line.height - (v / max) * line.height };
     });
     const height = cursor - BAND_GAP + PAD.bottom;
 
@@ -202,7 +205,7 @@ export function StackedLines({ data, lines, caption }) {
                                         <g key={t}>
                                             <line x1={PAD.left} x2={width - PAD.right} y1={band.y(t)} y2={band.y(t)} stroke={t === 0 ? BASELINE : GRID} strokeWidth="1" />
                                             <text x={PAD.left - 8} y={band.y(t)} dy="0.32em" textAnchor="end" className="fill-brand-muted text-[11px] tabular-nums">
-                                                {formatNumber(t)}
+                                                {band.tickFmt(t)}
                                             </text>
                                         </g>
                                     ))}
@@ -219,7 +222,7 @@ export function StackedLines({ data, lines, caption }) {
                                             textAnchor="end"
                                             className="fill-brand-text text-xs font-semibold tabular-nums"
                                         >
-                                            {formatNumber(last)}
+                                            {band.fmt(last)}
                                         </text>
                                     )}
 
@@ -247,13 +250,13 @@ export function StackedLines({ data, lines, caption }) {
                     <span className="pointer-events-none absolute top-0 z-10 -translate-x-1/2" style={{ left: tipLeft }}>
                         <TooltipCard
                             title={`${data[active].weekday} ${data[active].label}`}
-                            rows={bands.map((band) => ({ label: band.label.toLowerCase(), value: formatNumber(band.values[active]), color: band.color }))}
+                            rows={bands.map((band) => ({ label: band.label.toLowerCase(), value: band.fmt(band.values[active]), color: band.color }))}
                         />
                     </span>
                 )}
             </div>
 
-            <SrTable caption={caption} columns={['Day', ...lines.map((l) => l.label)]} rows={data.map((d) => [d.label, ...lines.map((l) => d[l.key])])} />
+            <SrTable caption={caption} columns={['Day', ...lines.map((l) => l.label)]} rows={data.map((d) => [d.label, ...bands.map((b) => b.fmt(d[b.key]))])} />
         </div>
     );
 }

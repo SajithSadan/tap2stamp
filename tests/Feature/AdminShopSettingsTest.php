@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\Order;
 use App\Models\Shop;
 use App\Models\User;
 
@@ -92,4 +93,77 @@ test('only admins can configure a shop', function () {
 
     $this->get("/admin/shops/{$shop->id}/settings")->assertRedirect('/login');
     $this->actingAs($owner)->get("/admin/shops/{$shop->id}/settings")->assertForbidden();
+});
+
+function adminShopForm(Shop $shop, array $overrides = []): array
+{
+    return [
+        'name' => $shop->name,
+        'max_stamps' => $shop->max_stamps,
+        'reward_title' => $shop->reward_title,
+        'address_line1' => '1 High Street',
+        'town' => 'Leeds',
+        'postcode' => 'ls1 4ap',
+        'contact_phone' => '07700 900123',
+        'delivery_same' => true,
+        'delivery_address' => '',
+        ...$overrides,
+    ];
+}
+
+test('the admin form tidies the postcode and phone like the owner\'s form', function () {
+    $shop = Shop::factory()->create();
+
+    $this->actingAs(shopSettingsAdmin())->put("/admin/shops/{$shop->id}/settings", adminShopForm($shop))->assertSessionHasNoErrors();
+
+    expect($shop->fresh())
+        ->postcode->toBe('LS1 4AP')
+        ->contact_phone->toBe('+447700900123')
+        ->delivery_address->toBeNull()
+        ->and($shop->fresh()->deliveryAddress())->toBe('1 High Street, Leeds, LS1 4AP');
+});
+
+test('"delivered to the shop address" clears a separate address; unticked needs one', function () {
+    $shop = Shop::factory()->create(['delivery_address' => 'Old warehouse']);
+    $admin = shopSettingsAdmin();
+
+    $this->actingAs($admin)->put("/admin/shops/{$shop->id}/settings", adminShopForm($shop, ['delivery_address' => 'Old warehouse']));
+    expect($shop->fresh()->delivery_address)->toBeNull();
+
+    $this->actingAs($admin)
+        ->put("/admin/shops/{$shop->id}/settings", adminShopForm($shop, ['delivery_same' => false]))
+        ->assertSessionHasErrors('delivery_address');
+
+    $this->actingAs($admin)->put("/admin/shops/{$shop->id}/settings", adminShopForm($shop, ['delivery_same' => false, 'delivery_address' => 'Unit 4, Leeds LS2 1AA']));
+    expect($shop->fresh()->delivery_address)->toBe('Unit 4, Leeds LS2 1AA');
+});
+
+test('orders made before the shop had an address pick it up once it is saved, unless posted', function () {
+    $shop = Shop::factory()->create(['address_line1' => null, 'town' => null, 'postcode' => null]);
+    $open = Order::factory()->paid()->create(['shop_id' => $shop->id, 'delivery_address' => null]);
+    $posted = Order::factory()->paid()->create(['shop_id' => $shop->id, 'delivery_address' => null, 'dispatched_at' => now()]);
+    $own = Order::factory()->paid()->create(['shop_id' => $shop->id, 'delivery_address' => 'Somewhere else']);
+
+    $this->actingAs(shopSettingsAdmin())->put("/admin/shops/{$shop->id}/settings", adminShopForm($shop));
+
+    expect($open->fresh()->delivery_address)->toBe('1 High Street, Leeds, LS1 4AP')
+        ->and($posted->fresh()->delivery_address)->toBeNull()
+        ->and($own->fresh()->delivery_address)->toBe('Somewhere else');
+});
+
+test('the admin can let a shop see its card link; it is hidden by default', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id, 'slug' => 'bean-there']);
+
+    $this->actingAs($owner)->get('/dashboard/settings')->assertInertia(fn ($page) => $page->where('shop.slug', null));
+
+    $this->actingAs(shopSettingsAdmin())
+        ->put("/admin/shops/{$shop->id}/settings", adminShopForm($shop, ['show_card_link' => true]))
+        ->assertSessionHasNoErrors();
+
+    expect($shop->fresh()->show_card_link)->toBeTrue();
+    $this->actingAs($owner->fresh())->get('/dashboard/settings')->assertInertia(fn ($page) => $page
+        ->where('shop.slug', 'bean-there')
+        ->where('shop.show_card_link', true)
+    );
 });

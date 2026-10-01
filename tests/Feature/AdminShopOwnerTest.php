@@ -115,7 +115,10 @@ test('an admin can create a shop and its owner', function () {
     expect($owner->role)->toBe(UserRole::Owner);
 
     $shop = Shop::where('slug', 'corner-bakery')->firstOrFail();
-    expect($shop->user_id)->toBe($owner->id);
+    expect($shop->user_id)->toBe($owner->id)
+        // The owner is the business contact until changed.
+        ->and($shop->contact_name)->toBe('Jamie Smith')
+        ->and($shop->contact_email)->toBe('jamie@example.com');
 });
 
 test('creating a shop requires a unique slug and owner email', function () {

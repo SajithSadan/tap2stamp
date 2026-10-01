@@ -405,3 +405,32 @@ test('the QR list shows each code\'s serial', function () {
         ->where('codes.data.1.serial', 2)
     );
 });
+
+test('the map screens list shops with their links, so a sticker can be mapped by picking a shop', function () {
+    $shop = Shop::factory()->create(['name' => 'Bean There', 'slug' => 'bean-there']);
+    QrCode::factory()->create(['code' => 'M4P5HP']);
+
+    $this->actingAs(qrAdmin())->get('/qr/M4P5HP')->assertInertia(fn ($page) => $page
+        ->component('Admin/QrCodes/Scan')
+        ->where('shops.0.name', 'Bean There')
+        ->where('shops.0.slug', 'bean-there')
+    );
+
+    $this->actingAs(qrAdmin())->get('/admin/qr-codes')->assertInertia(fn ($page) => $page
+        ->where('shops.0.slug', 'bean-there')
+    );
+});
+
+test('picking a shop saves its card link and assigns the sticker to it', function () {
+    $shop = Shop::factory()->create(['slug' => 'bean-there']);
+    $qr = QrCode::factory()->create();
+
+    // What the picker fills in: this site's /s/{slug} link.
+    $this->actingAs(qrAdmin())
+        ->put("/admin/qr-codes/{$qr->id}", ['destination_url' => url('/s/bean-there')])
+        ->assertRedirect();
+
+    expect($qr->fresh())
+        ->destination_url->toBe(url('/s/bean-there'))
+        ->shop_id->toBe($shop->id);
+});

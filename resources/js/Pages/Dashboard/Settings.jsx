@@ -1,7 +1,8 @@
-import { useForm } from "@inertiajs/react";
+import { Link, useForm, usePage } from "@inertiajs/react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { LuDownload, LuExternalLink } from "react-icons/lu";
+import { LuDownload, LuExternalLink, LuNfc } from "react-icons/lu";
+import AddressLookup from "@/Components/AddressLookup";
 import OwnerLayout from "@/Components/Dashboard/OwnerLayout";
 import { MAX_STAMPS, MIN_STAMPS } from "@/Components/Dashboard/ShopFields";
 import {
@@ -32,6 +33,7 @@ function Field({ label, error, hint, children }) {
 
 /** Business contact + location (collected at shop setup). Its own form and save button. */
 function ContactPanel({ contact }) {
+    const loginEmail = usePage().props.auth?.user?.email;
     const form = useForm({
         contact_name: contact.contact_name ?? "",
         contact_email: contact.contact_email ?? "",
@@ -58,6 +60,7 @@ function ContactPanel({ contact }) {
 
     return (
         <Panel
+            id="contact"
             className="lg:col-span-2"
             title="Contact & address"
             description="How we reach you, and where your shop is."
@@ -100,6 +103,30 @@ function ContactPanel({ contact }) {
                                 {...text("contact_email")}
                             />
                         </Field>
+                        {loginEmail &&
+                            !form.errors.contact_email &&
+                            (form.data.contact_email.trim().toLowerCase() ===
+                            loginEmail.toLowerCase() ? (
+                                <p className="mt-1 text-xs text-brand-muted">
+                                    Same as your login email.
+                                </p>
+                            ) : (
+                                <p className="mt-1 text-xs text-brand-muted">
+                                    Your login: {loginEmail} ·{" "}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            form.setData(
+                                                "contact_email",
+                                                loginEmail,
+                                            )
+                                        }
+                                        className="font-semibold text-brand-accent hover:underline"
+                                    >
+                                        Use this
+                                    </button>
+                                </p>
+                            ))}
                     </div>
                 </div>
 
@@ -107,6 +134,16 @@ function ContactPanel({ contact }) {
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-brand-muted">
                         Shop address
                     </h3>
+                    <div className="mt-3">
+                        <AddressLookup
+                            initialPostcode={form.data.postcode}
+                            onFound={(address) =>
+                                form.setData((data) => ({ ...data, ...address }))
+                            }
+                            inputClassName={inputClass}
+                            buttonClassName={secondaryButton}
+                        />
+                    </div>
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <Field
                             label="Address line 1"
@@ -208,10 +245,8 @@ function ContactPanel({ contact }) {
 
 export default function Settings({ shop, contact }) {
     const [posterQr, setPosterQr] = useState(null);
-    const cardUrl =
-        typeof window !== "undefined"
-            ? `${window.location.origin}/s/${shop.slug}`
-            : `/s/${shop.slug}`;
+    // Only sent when the admin lets this shop see its card link (show_card_link).
+    const cardUrl = shop.slug ? `${window.location.origin}/s/${shop.slug}` : null;
 
     const form = useForm({
         name: shop.name,
@@ -225,6 +260,7 @@ export default function Settings({ shop, contact }) {
     });
 
     useEffect(() => {
+        if (!cardUrl) return;
         QRCode.toDataURL(cardUrl, { margin: 2, width: 600 })
             .then(setPosterQr)
             .catch(() => setPosterQr(null));
@@ -386,6 +422,29 @@ export default function Settings({ shop, contact }) {
                     </form>
                 </Panel>
 
+                {!cardUrl ? (
+                    <Panel
+                        title="Counter display"
+                        description="How customers join your loyalty card."
+                    >
+                        <div className="text-center">
+                            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-accent/10 text-brand-accent">
+                                <LuNfc className="h-7 w-7" />
+                            </span>
+                            <p className="mt-3 text-sm text-brand-text">
+                                Customers tap their phone on your TaDa Tap
+                                counter display, or scan its QR code, to get
+                                their card.
+                            </p>
+                            <Link
+                                href="/dashboard/orders"
+                                className={`${primaryButton} mt-4`}
+                            >
+                                Order a counter display
+                            </Link>
+                        </div>
+                    </Panel>
+                ) : (
                 <Panel
                     title="Counter QR code"
                     description="Print it and put it by the till. Customers scan it to get their card."
@@ -422,6 +481,7 @@ export default function Settings({ shop, contact }) {
                         </div>
                     </div>
                 </Panel>
+                )}
 
                 {/* Below the shop settings (the QR sits beside them in the first row). */}
                 <ContactPanel contact={contact} />

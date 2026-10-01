@@ -9,6 +9,9 @@ import {
     LuExternalLink,
     LuGift,
     LuMoon,
+    LuPackage,
+    LuPackageCheck,
+    LuTruck,
     LuQrCode,
     LuStamp,
     LuStar,
@@ -33,6 +36,7 @@ import {
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { Avatar, EmptyState, Panel } from '@/Components/Dashboard/Ui';
 import { BLUE_RAMP, formatNumber, MINT_RAMP, percentChange, SERIES } from '@/lib/charts';
+import { formatPence } from '@/lib/money';
 
 const panelLink = 'inline-flex items-center gap-1 text-sm font-semibold text-brand-accent hover:underline';
 
@@ -515,6 +519,85 @@ function QuietShops({ shops, days }) {
     );
 }
 
+const STAGE_TONE = {
+    received: 'bg-amber-500/10 text-amber-700',
+    processing: 'bg-sky-500/10 text-sky-700',
+    dispatched: 'bg-violet-500/10 text-violet-700',
+    delivered: 'bg-emerald-500/10 text-emerald-700',
+};
+
+/** One small figure in the orders card. `alert` highlights work waiting to be done. */
+function OrderFigure({ icon: Icon, label, value, note, alert = false }) {
+    return (
+        <div className={`rounded-xl px-4 py-3 ${alert ? 'bg-amber-500/10 ring-1 ring-inset ring-amber-500/30' : 'bg-brand-bg'}`}>
+            <p className={`flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide ${alert ? 'text-amber-800' : 'text-brand-muted'}`}>
+                <Icon className="h-3.5 w-3.5" /> {label}
+            </p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-brand-text">{value}</p>
+            {note && <p className="text-xs text-brand-muted">{note}</p>}
+        </div>
+    );
+}
+
+/** First thing on the dashboard: any orders to post, and the latest ones. */
+function OrdersPanel({ orders }) {
+    return (
+        <Panel
+            title="Orders"
+            description={orders.to_do > 0 ? `${orders.to_do} waiting to be posted.` : 'Nothing waiting to be posted.'}
+            action={
+                <Link href="/admin/orders" className={panelLink}>
+                    All orders <LuArrowRight className="h-4 w-4" />
+                </Link>
+            }
+        >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <OrderFigure icon={LuPackage} label="To post" value={formatNumber(orders.to_do)} note="Received or processing" alert={orders.to_do > 0} />
+                <OrderFigure icon={LuTruck} label="On the way" value={formatNumber(orders.on_the_way)} note="Dispatched, not delivered" />
+                <OrderFigure
+                    icon={LuPackageCheck}
+                    label="Last 7 days"
+                    value={formatNumber(orders.week_count)}
+                    note={`${formatPence(orders.week_revenue_pence)} paid`}
+                />
+            </div>
+
+            {orders.recent.length === 0 ? (
+                <EmptyState icon={LuPackage} title="No orders yet">
+                    Orders show up here when an owner pays online, or when you record one on a shop's page.
+                </EmptyState>
+            ) : (
+                <ul className="-mx-5 -mb-5 mt-4 divide-y divide-brand-border border-t border-brand-border">
+                    {orders.recent.map((order) => {
+                        const step = order.steps.find((s) => s.key === order.stage);
+
+                        return (
+                            <li key={order.id}>
+                                <Link
+                                    href={`/admin/shops/${order.shop_id}/settings`}
+                                    className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-sm transition-colors hover:bg-brand-bg"
+                                >
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate font-medium text-brand-text">{order.shop_name}</span>
+                                        <span className="block truncate text-xs text-brand-muted">
+                                            #{order.id} · {order.quantity} × {order.product_name} · {order.payment_label}
+                                        </span>
+                                    </span>
+                                    <span className="tabular-nums text-brand-text">{formatPence(order.total_pence)}</span>
+                                    <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STAGE_TONE[order.stage]}`}>
+                                        {step?.label}
+                                    </span>
+                                    <span className="w-20 text-right text-xs text-brand-muted">{order.steps[0].date}</span>
+                                </Link>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </Panel>
+    );
+}
+
 function QrPanel({ qr }) {
     const percent = qr.total ? Math.round((qr.mapped / qr.total) * 100) : 0;
 
@@ -555,6 +638,7 @@ function QrPanel({ qr }) {
 
 export default function Dashboard({
     ranges,
+    orders,
     kpis,
     customerGrowth,
     shopGrowth,
@@ -590,6 +674,8 @@ export default function Dashboard({
     return (
         <DashboardContext.Provider value={{ ranges, loading, reload }}>
             <AdminLayout title="Dashboard" description="Growth, popularity and health across every shop. Each chart has its own time range.">
+                <OrdersPanel orders={orders} />
+
                 {/* KPIs - compact, each with its change vs the previous period */}
                 <SectionTitle
                     hint={`${lastDays(kpis.range)} vs the ${kpis.range} days before`}

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\ActionType;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentMethod;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreShopOwnerRequest;
+use App\Models\Product;
 use App\Models\Shop;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -30,7 +33,16 @@ class ShopOwnerController extends Controller
         $monthAgo = now()->subDays(30);
         $quietSince = now()->subDays(self::QUIET_DAYS);
 
+        // "Has it ordered the primary product?" - the featured one (the
+        // counter display), not just anything, once there are more products.
+        $primary = Product::where('is_featured', true)->first();
+        $primaryOrders = fn ($q) => $q->where('product_id', $primary?->id ?? 0);
+
         $shops = Shop::with('owner:id,name,email,google_id')
+            ->withMax(['orders as primary_paid_at' => fn ($q) => $primaryOrders($q)->where('status', OrderStatus::Paid)], 'paid_at')
+            ->withExists(['orders as primary_awaiting' => fn ($q) => $primaryOrders($q)
+                ->where('status', OrderStatus::Pending)
+                ->where('payment_method', '!=', PaymentMethod::Stripe->value)])
             ->withCount([
                 'cards as customers',
                 'cards as new_customers_30d' => fn ($q) => $q->where('created_at', '>=', $monthAgo),
@@ -46,6 +58,7 @@ class ShopOwnerController extends Controller
 
         return Inertia::render('Admin/Index', [
             'quietDays' => self::QUIET_DAYS,
+            'primaryProduct' => $primary?->name,
             'shops' => $shops->map(function (Shop $shop) use ($quietSince) {
                 $lastActivity = $shop->last_activity_at ? Carbon::parse($shop->last_activity_at) : null;
 
@@ -66,6 +79,11 @@ class ShopOwnerController extends Controller
                     'postcode' => $shop->postcode,
                     'address' => collect([$shop->address_line1, $shop->address_line2, $shop->town, $shop->postcode])->filter()->implode(', ') ?: null,
                     'delivery_address' => $shop->delivery_address,
+                    // The primary product: ordered (latest paid), awaiting the shop's
+                    // bank transfer, or not ordered.
+                    'product_ordered_at' => $shop->primary_paid_at ? Carbon::parse($shop->primary_paid_at)->toIso8601String() : null,
+                    'product_ordered_label' => $shop->primary_paid_at ? Carbon::parse($shop->primary_paid_at)->format('j M Y') : null,
+                    'product_awaiting' => ! $shop->primary_paid_at && $shop->primary_awaiting,
                     'customers' => $shop->customers,
                     'new_customers_30d' => $shop->new_customers_30d,
                     'stamps_30d' => $shop->stamps_30d,
@@ -115,6 +133,9 @@ class ShopOwnerController extends Controller
                 'slug' => $request->string('shop_slug')->value(),
                 'max_stamps' => $request->integer('shop_max_stamps'),
                 'reward_title' => $request->string('shop_reward_title')->value(),
+                // The owner is the business contact until someone says otherwise.
+                'contact_name' => $owner->name,
+                'contact_email' => $owner->email,
             ]);
         });
 

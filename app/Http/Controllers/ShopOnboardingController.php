@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreOnboardingShopRequest;
 use App\Http\Requests\ValidateOnboardingBusinessRequest;
+use App\Models\Shop;
 use App\Support\ShopContact;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,13 +56,15 @@ class ShopOnboardingController extends Controller
 
         DB::transaction(function () use ($request) {
             $request->user()->shop()->create([
-                ...$request->safe()->only(['name', 'slug', 'max_stamps', 'reward_title']),
+                ...$request->safe()->only(['name', 'max_stamps', 'reward_title']),
+                // Made for them - owners don't pick (or see) their card link.
+                'slug' => Shop::uniqueSlug($request->string('name')->value()),
                 ...ShopContact::attributes($request->validated()),
             ]);
 
             $request->user()->forceFill(['onboarding_draft' => null])->save();
         });
 
-        return redirect()->route('dashboard.index')->with('status', 'Your shop is live. Print your counter QR from Settings to start stamping.');
+        return redirect()->route('dashboard.index')->with('status', 'Your shop is live! Order your counter display so customers can tap or scan to join.');
     }
 }

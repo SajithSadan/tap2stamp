@@ -4,7 +4,6 @@ import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import {
     LuExternalLink,
-    LuChevronDown,
     LuImage,
     LuLayers,
     LuLink,
@@ -22,6 +21,9 @@ import {
 } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
+import QrDestinationField, {
+    ShopPicker,
+} from "@/Components/Dashboard/QrDestinationField";
 import {
     CopyButton,
     EmptyState,
@@ -423,139 +425,6 @@ function StatusBadge({ mapped }) {
     );
 }
 
-function ShopPicker({
-    shops,
-    value,
-    onChange,
-    label,
-    emptyLabel = "Not assigned to a shop",
-    id,
-}) {
-    const [open, setOpen] = useState(false);
-    const [query, setQuery] = useState("");
-    const rootRef = useRef(null);
-    const selected = shops.find((shop) => shop.id === Number(value));
-    const filtered = shops.filter((shop) =>
-        shop.name.toLowerCase().includes(query.trim().toLowerCase()),
-    );
-
-    useEffect(() => {
-        if (!open) return;
-
-        function closeOnOutsideClick(event) {
-            if (!rootRef.current?.contains(event.target)) {
-                setOpen(false);
-                setQuery("");
-            }
-        }
-
-        function closeOnEscape(event) {
-            if (event.key === "Escape") {
-                setOpen(false);
-                setQuery("");
-            }
-        }
-
-        document.addEventListener("pointerdown", closeOnOutsideClick);
-        document.addEventListener("keydown", closeOnEscape);
-        return () => {
-            document.removeEventListener("pointerdown", closeOnOutsideClick);
-            document.removeEventListener("keydown", closeOnEscape);
-        };
-    }, [open]);
-
-    function choose(shopId) {
-        onChange(shopId);
-        setOpen(false);
-        setQuery("");
-    }
-
-    return (
-        <div ref={rootRef} className="relative">
-            <div className="relative">
-                <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" />
-                <input
-                    id={id}
-                    type="text"
-                    role="combobox"
-                    aria-label={label}
-                    aria-expanded={open}
-                    aria-controls={`${id ?? "shop-picker"}-options`}
-                    aria-autocomplete="list"
-                    autoComplete="off"
-                    value={open ? query : (selected?.name ?? "")}
-                    onFocus={() => setOpen(true)}
-                    onChange={(event) => {
-                        setQuery(event.target.value);
-                        setOpen(true);
-                    }}
-                    placeholder={selected?.name ?? label}
-                    className={`${inputClass} w-full pl-9 pr-9`}
-                />
-                <LuChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" />
-            </div>
-            {open && (
-                <ul
-                    id={`${id ?? "shop-picker"}-options`}
-                    role="listbox"
-                    aria-label={label}
-                    className="absolute inset-x-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border border-brand-border bg-brand-card p-1 shadow-xl"
-                >
-                    <li role="option" aria-selected={!value}>
-                        <button
-                            type="button"
-                            onClick={() => choose("")}
-                            className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${!value ? "bg-brand-accent/10 font-medium text-brand-text" : "text-brand-muted hover:bg-brand-bg hover:text-brand-text"}`}
-                        >
-                            <span>{emptyLabel}</span>
-                        </button>
-                    </li>
-                    {filtered.map((shop) => (
-                        <li
-                            key={shop.id}
-                            role="option"
-                            aria-selected={shop.id === Number(value)}
-                        >
-                            <button
-                                type="button"
-                                onClick={() => choose(shop.id)}
-                                className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${shop.id === Number(value) ? "bg-brand-accent/10 font-medium text-brand-text" : "text-brand-text hover:bg-brand-bg"}`}
-                            >
-                                <span className="min-w-0 truncate">
-                                    {shop.name}
-                                </span>
-                                <span className="shrink-0 text-xs text-brand-muted">
-                                    {shop.qr_codes_count} assigned
-                                </span>
-                            </button>
-                        </li>
-                    ))}
-                    {filtered.length === 0 && (
-                        <li className="px-3 py-3 text-sm text-brand-muted">
-                            No shops match “{query}”.
-                        </li>
-                    )}
-                </ul>
-            )}
-        </div>
-    );
-}
-
-function shopForDestination(url, shops) {
-    try {
-        const destination = new URL(url);
-        if (destination.origin !== window.location.origin) return null;
-
-        const match = destination.pathname.match(/^\/s\/([^/]+)\/?$/);
-        if (!match) return null;
-
-        const slug = decodeURIComponent(match[1]);
-        return shops.find((shop) => shop.slug === slug) ?? null;
-    } catch {
-        return null;
-    }
-}
-
 function GeneratePanel({ maxPerBatch }) {
     const form = useForm({ quantity: 100, name: "" });
 
@@ -822,7 +691,6 @@ function Modal({ title, onClose, wide = false, children }) {
 function QrDetails({ qr, shops, design, onClose, onPdf, confirm }) {
     const [preview, setPreview] = useState(null);
     const form = useForm({ destination_url: qr.destination_url ?? "" });
-    const matchedShop = shopForDestination(form.data.destination_url, shops);
 
     useEffect(() => {
         QRCode.toDataURL(qr.scan_url, {
@@ -928,45 +796,13 @@ function QrDetails({ qr, shops, design, onClose, onPdf, confirm }) {
                     noValidate
                     className="space-y-3 border-t border-brand-border pt-5"
                 >
-                    <div>
-                        <label
-                            htmlFor="destination_url"
-                            className="block text-sm font-medium text-brand-text"
-                        >
-                            Destination URL
-                        </label>
-                        <input
-                            id="destination_url"
-                            type="url"
-                            inputMode="url"
-                            value={form.data.destination_url}
-                            onChange={(e) =>
-                                form.setData("destination_url", e.target.value)
-                            }
-                            placeholder="https://example.com/event/summer-festival"
-                            autoFocus
-                            className={`${inputClass} mt-1.5`}
-                        />
-                        <FieldError message={form.errors.destination_url} />
-                        {!form.errors.destination_url &&
-                            (matchedShop ? (
-                                <p className="mt-1 text-xs text-brand-muted">
-                                    Scanning the code sends people here.
-                                    Automatically assigned to{" "}
-                                    <strong className="font-semibold text-brand-text">
-                                        {matchedShop.name}
-                                    </strong>
-                                    .
-                                </p>
-                            ) : (
-                                <p className="mt-1 text-xs text-brand-muted">
-                                    Scanning the code sends people here. Shop
-                                    allocation is detected for this site’s shop
-                                    card links (/s/shop-slug). Leave empty to
-                                    unmap.
-                                </p>
-                            ))}
-                    </div>
+                    <QrDestinationField
+                        value={form.data.destination_url}
+                        onChange={(url) => form.setData("destination_url", url)}
+                        shops={shops}
+                        error={form.errors.destination_url}
+                        autoFocus
+                    />
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         {qr.destination_url ? (
                             <button

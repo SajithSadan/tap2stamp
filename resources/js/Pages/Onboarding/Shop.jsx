@@ -7,12 +7,11 @@ import {
     authButtonClass,
     authInputClass,
 } from "@/Components/AuthShell";
+import AddressLookup from "@/Components/AddressLookup";
 import {
     CardPreview,
     MAX_STAMPS,
     MIN_STAMPS,
-    SlugInput,
-    slugify,
 } from "@/Components/Dashboard/ShopFields";
 import useValidatedForm from "@/lib/useValidatedForm";
 import {
@@ -62,12 +61,11 @@ const RULES = {
             'Enter the delivery address, or tick "Same as the shop address".',
         ),
     ],
-    slug: [required("Choose a link for your card.")],
     reward_title: [required("Say what the reward is.")],
 };
 
 // Fields on the loyalty card step; any other error belongs to "Your business".
-const CARD_FIELDS = ["slug", "max_stamps", "reward_title"];
+const CARD_FIELDS = ["max_stamps", "reward_title"];
 const BUSINESS_FIELDS = Object.keys(RULES).filter(
     (key) => !CARD_FIELDS.includes(key),
 );
@@ -240,7 +238,6 @@ function fromDraft(draft) {
     return {
         ...values,
         delivery_same: draft.delivery_same ?? true,
-        slug: slugify(draft.name ?? ""),
     };
 }
 
@@ -251,7 +248,6 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
     const { data, setData, post, processing, errors } = useValidatedForm(
         {
             name: "",
-            slug: "",
             max_stamps: 8,
             reward_title: "",
             // Contact person + email start as the account's own.
@@ -277,13 +273,9 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
         className: authInputClass,
     });
 
-    // Link follows the shop name until the owner edits it themselves.
+    // The card link is made from the name on the server; owners don't see it.
     function handleNameChange(value) {
-        setData((prev) => ({
-            ...prev,
-            name: value,
-            slug: prev.slug === slugify(prev.name) ? slugify(value) : prev.slug,
-        }));
+        setData("name", value);
     }
 
     // Unticking "same as the shop" starts the delivery box from the shop
@@ -343,7 +335,6 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
     const preview = (
         <CardPreview
             name={data.name}
-            slug={data.slug}
             maxStamps={data.max_stamps}
             reward={data.reward_title}
         />
@@ -497,6 +488,17 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
                                     title="Location"
                                     description="Where customers find your shop."
                                 >
+                                    <AddressLookup
+                                        initialPostcode={data.postcode}
+                                        onFound={(address) =>
+                                            setData((prev) => ({
+                                                ...prev,
+                                                ...address,
+                                            }))
+                                        }
+                                        inputClassName={authInputClass}
+                                        buttonClassName="inline-flex items-center justify-center gap-2 rounded-full bg-brand-deep px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+                                    />
                                     <AuthField
                                         id="address_line1"
                                         label="Address line 1"
@@ -688,31 +690,6 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
                                             </p>
                                         </Question>
 
-                                        <Question
-                                            number={3}
-                                            title="Your card link"
-                                            description="The QR at your counter opens this page. It's filled in from your shop name; change it if you like."
-                                        >
-                                            <AuthField
-                                                id="slug"
-                                                label={
-                                                    <span className="sr-only">
-                                                        Card link
-                                                    </span>
-                                                }
-                                                error={errors.slug}
-                                                hint="Letters, numbers and dashes."
-                                            >
-                                                <SlugInput
-                                                    id="slug"
-                                                    value={data.slug}
-                                                    onChange={(v) =>
-                                                        setData("slug", v)
-                                                    }
-                                                    placeholder="the-coffee-corner"
-                                                />
-                                            </AuthField>
-                                        </Question>
                                     </div>
 
                                     <aside className="lg:sticky lg:top-10 lg:self-start">

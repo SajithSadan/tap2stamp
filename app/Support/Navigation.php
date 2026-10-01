@@ -47,6 +47,8 @@ class Navigation
             ['route' => 'admin.dashboard', 'label' => 'Dashboard', 'icon' => 'overview', 'roles' => $admin],
             // "Add shop" is a button on this page, not its own menu item.
             ['route' => 'admin.index', 'label' => 'Shops', 'icon' => 'shops', 'roles' => $admin, 'active' => ['admin.index', 'admin.shops.*']],
+            // "Products" is a button on this page, not its own menu item.
+            ['route' => 'admin.orders.index', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $admin, 'active' => ['admin.orders.*', 'admin.products.*']],
             ['route' => 'admin.qr-codes.index', 'label' => 'QR codes', 'icon' => 'qr', 'roles' => $admin, 'active' => ['admin.qr-codes.*']],
             ['route' => 'admin.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $admin, 'active' => ['admin.settings*']],
 
@@ -56,6 +58,7 @@ class Navigation
             ['route' => 'dashboard.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $owner],
             ['route' => 'dashboard.reviews', 'label' => 'Reviews', 'icon' => 'reviews', 'roles' => $owner],
             ['route' => 'dashboard.staff', 'label' => 'Staff', 'icon' => 'staff', 'roles' => $owner, 'mobile_primary' => true],
+            ['route' => 'dashboard.orders', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $owner, 'active' => ['dashboard.orders*']],
             ['route' => 'dashboard.theme', 'label' => 'Theme', 'icon' => 'theme', 'roles' => $owner, 'active' => ['dashboard.theme*']],
             ['route' => 'dashboard.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $owner, 'active' => ['dashboard.settings*']],
             [
@@ -65,7 +68,8 @@ class Navigation
                 'roles' => $owner,
                 'section' => 'footer',
                 'external' => true,
-                'href' => fn (User $user) => $user->shop ? route('card.show', $user->shop) : null,
+                // Only when the admin allows this shop to see its card link.
+                'href' => fn (User $user) => $user->shop?->show_card_link ? route('card.show', $user->shop) : null,
             ],
         ];
     }

@@ -63,7 +63,7 @@ class QrCodeController extends Controller
             ->latest('id')
             ->get();
 
-        $shops = Shop::query()->withCount('qrCodes')->orderBy('name')->get(['id', 'name']);
+        $shops = Shop::query()->withCount('qrCodes')->orderBy('name')->get(['id', 'name', 'slug']);
         $designs = QrDesign::withCount('codes')->latest('id')->get()
             ->map(fn (QrDesign $design) => $design->toClient() + ['codes_count' => $design->codes_count]);
 

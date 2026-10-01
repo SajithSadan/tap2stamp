@@ -38,6 +38,22 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
+    // UK address lookup (findaddress.io) for the shop address forms. Only
+    // ever called from our server (AddressLookupController), so the key never
+    // reaches the browser.
+    'findaddress' => [
+        'key' => env('FINDADDRESS_API_KEY'),
+    ],
+
+    // Stripe Checkout for owners ordering products (the counter display).
+    // Only the secret key is needed - payment happens on Stripe's own page.
+    // The webhook secret comes from the endpoint added in Stripe's dashboard
+    // (or `stripe listen` locally).
+    'stripe' => [
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

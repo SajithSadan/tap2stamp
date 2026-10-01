@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\ActionType;
+use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\CustomerShopCard;
+use App\Models\Order;
 use App\Models\QrCode;
 use App\Models\Review;
 use App\Models\Shop;
@@ -51,6 +53,7 @@ class DashboardController extends Controller
 
         return Inertia::render('Admin/Dashboard', [
             'ranges' => self::RANGES,
+            'orders' => fn () => $this->orders(),
             'kpis' => fn () => $this->kpis($range('kpis')),
             'customerGrowth' => fn () => $this->growth($range('customerGrowth'), Customer::query()),
             'shopGrowth' => fn () => $this->growth($range('shopGrowth'), Shop::query()),
@@ -410,6 +413,28 @@ class DashboardController extends Controller
             'reward_reach_rate' => $pct(CustomerShopCard::where('rewards_claimed', '>', 0)->count(), $cards),
             'marketing_opt_in_rate' => $pct(CustomerShopCard::where('marketing_consent', true)->count(), $cards),
             'google_owner_rate' => $pct(User::where('role', UserRole::Owner)->whereNotNull('google_id')->count(), $owners),
+        ];
+    }
+
+    /**
+     * Product orders at a glance: what still has to be posted, what's on its
+     * way, this week's paid orders, and the latest few.
+     */
+    private function orders(): array
+    {
+        $paid = fn () => Order::where('status', OrderStatus::Paid);
+        $week = $paid()->where('paid_at', '>=', now()->subDays(7));
+
+        return [
+            'to_do' => $paid()->whereNull('dispatched_at')->whereNull('delivered_at')->count(),
+            'on_the_way' => $paid()->whereNotNull('dispatched_at')->whereNull('delivered_at')->count(),
+            'week_count' => (clone $week)->count(),
+            'week_revenue_pence' => (int) $week->sum('total_pence'),
+            'recent' => $paid()->with('shop:id,name')
+                ->latest('paid_at')
+                ->limit(5)
+                ->get()
+                ->map(fn (Order $order) => [...$order->summary(), 'shop_id' => $order->shop_id, 'shop_name' => $order->shop?->name]),
         ];
     }
 

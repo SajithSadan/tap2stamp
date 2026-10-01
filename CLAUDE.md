@@ -365,6 +365,9 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
   `Pages/Qr/NotFound.jsx` with a 404 status. Unknown codes are never echoed back.
 - **Admin**: `/admin/qr-codes` (`Admin\QrCodeController`): generate, search/filter
   (batch, mapped/unmapped), map/unmap (`url:http,https` only — the URL is redirected to),
+  via `Components/Dashboard/QrDestinationField.jsx` (also on the scan-to-map screen): **A shop**
+  (searchable `ShopPicker` → fills in this site's `/s/{slug}` link) or **Web address**. Both
+  save `destination_url`; the server assigns `shop_id` when it's one of our shop links,
   select + print. Success messages use the shared `flash.status`. **Delete batch**
   (`DELETE /admin/qr-codes/batches/{qrBatch}`) removes the batch and all its codes in one
   transaction — printed stickers from it then show "Nothing found", so the page confirms, and
@@ -415,6 +418,22 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
   server-side PDF library, for the Hostinger CPU/memory limits and to avoid dompdf's attack
   surface.
 
+## Owners don't get their card link (additive — protects counter display sales)
+
+Owners could otherwise print their own QR of `/s/{slug}` instead of buying our counter
+display. So, by default, nothing in the owner dashboard reveals it:
+
+- `shops.show_card_link` (bool, **default false**), switched per shop by the admin
+  (Admin → shop settings → Loyalty card → "Show the card link to the owner").
+- While off: `DashboardController::shopSummary()` sends `slug: null` (so it isn't even in the
+  page data), the "Customer page" nav item's `href` closure returns null (hidden), Settings
+  shows a "Counter display" panel (→ Orders) instead of the downloadable QR, and Theme hides
+  "Open your live card page". The customers CSV is named from the shop name, not the slug.
+- **Sign-up no longer asks for a link**: `Shop::uniqueSlug($name)` makes it (`bean-there`,
+  then `-2`, `-3`…); any `slug` sent is ignored. Only the admin's "Add shop" still picks one.
+- The card page itself stays public (customers, My Cards and QR stickers rely on it) — this
+  removes the easy route, it can't stop someone who already knows the URL.
+
 ## Self-service sign-up (additive — the landing page's "Start Free")
 
 The marketing site is WordPress (currently at tadatap.co.uk); its "Start Free" links to this app's
@@ -441,19 +460,109 @@ as it's set up (no approval step).
   postcode upper-cased with its space; `delivery_same` tick box). Required in the forms,
   nullable in the table (older shops). Owners edit it on Settings in its **own** form
   (`PUT /dashboard/settings/contact`) so the main settings form still saves for older shops.
-  The admin Shops grid shows Contact + Location columns.
+  The admin Shops grid shows Contact + Location columns. The contact person/email **default to
+  the owner's login** (sign-up pre-fills them; admin "Add shop" copies them; a data migration
+  backfilled older shops; `Shop::contactDetails()` falls back for the forms) but stay separate
+  fields — a manager can be the contact. Both settings forms show "Same as your login" or
+  "Your login: … · Use this".
+- **Find address** (findaddress.io, postcode + house number/name → one address): the
+  `AddressLookup.jsx` box above the address fields on onboarding, owner Settings and the admin
+  shop settings page fills them
+  in (still editable). The browser only calls our **proxy** `GET /address-lookup`
+  (`AddressLookupController` → `App\Services\AddressFinder`, `auth` + `throttle:20,1`), which
+  sends `FINDADDRESS_API_KEY` as `x-api-key` server-side — the key never reaches the client.
+  Found addresses are cached 30 days (every uncached lookup costs a credit). Provider errors
+  (key, credits) → 503 "type it in"; bad postcode → 404. No key = shared `addressLookup` false
+  and the box isn't shown.
 - **Shop setup**: `/onboarding` (`ShopOnboardingController`, `Pages/Onboarding/Shop.jsx`)
   creates the owner's one shop, in two steps: "Your business" (name, contact, location — checked
   by `POST /onboarding/business`, which creates nothing but keeps the validated step on the account
   as `users.onboarding_draft` (JSON, hidden) so a reload, failed submit, logout or another
   device resumes on step 2 with it filled in; cleared in the same transaction that creates
   the shop) then "Loyalty card"
-  (link, stamps, reward + preview). The final `POST /onboarding` re-validates everything and
+  (stamps, reward + preview — the card link is generated, see above). The final `POST /onboarding` re-validates everything and
   sends the owner back to step 1 if that's where an error is. `EnsureOwnerHasShop` (alias `shop.ready`) on the whole
   dashboard group sends an owner without a shop there — every dashboard action assumes
   `auth()->user()->shop` exists. Shared form pieces with the admin "Add shop":
   `Components/Dashboard/ShopFields.jsx`.
 - Not built yet: email verification and password reset (mail is `log` locally).
+
+## Products & orders (additive — the counter display)
+
+Owners order hardware from us — today one product, the £40 counter display stand (NFC + QR),
+later maybe more (table stickers). Prices and copy live in our DB, not in Stripe.
+
+- **Tables**: `products` (`name`, `description`, `price_pence`, `is_active`, `is_featured`) and
+  `orders` (one product per order, `quantity` 1–`Order::MAX_QUANTITY` (20, mirrored in
+  `lib/money.js`); `product_name`, `unit_price_pence`, `total_pence` copied at order time;
+  `payment_method` `stripe | bank_transfer | cash | free` = `App\Enums\PaymentMethod`;
+  `status` `pending | paid`; `stripe_session_id` unique; `delivery_address` snapshot; `note`;
+  fulfilment timestamps `paid_at` → `processing_at` → `dispatched_at` → `delivered_at`;
+  `courier`, `tracking_number`, `tracking_url`). The launch product is inserted **by the migration** (production
+  can't run seeders). Products are never deleted — switch them off.
+- **Price breaks**: `products.price_tiers` (JSON, null = one price) = `[{from, price_pence}]`;
+  each item is charged the price for its position (£40 + `{from: 2, £20}` → 3 items = £80).
+  `Product::priceBreakdown()` / `totalFor()` is the only real calculation (Stripe gets one
+  line item per price step); `priceBreakdown()` / `priceFor()` in `lib/money.js` mirror it for
+  display — **keep the two in sync**. Max 5 breaks, `from` 2–`MAX_QUANTITY`.
+- **The flag**: `shops.product_ordered_at`, set by the shop's first paid order (either way) in
+  `OrderService::markPaid()` and never cleared. While it's null and a product is featured +
+  active, the owner's Overview shows `OrderOffer.jsx` ("What's next? Order your counter
+  display", `orderOffer` prop). Once set, the banner is gone for good — including when the
+  admin recorded the order, so owners who paid by phone/bank transfer never see it.
+- **Online (Stripe Checkout)**: `POST /dashboard/orders` (`OrderController::checkout`,
+  `product_id` + `quantity`; ordering again any time is allowed) creates or reuses the shop's
+  pending order for that product and returns `Inertia::location()` to Stripe's hosted page
+  (`price_data` built from our price, GBP). Paid is confirmed by **both** the success redirect
+  (`GET /dashboard/orders/{order}/success`, order looked up through the owner's own shop) and the
+  webhook (`POST /stripe/webhook`, `StripeWebhookController`, signature-checked, CSRF-exempt),
+  whichever comes first; `markPaid()` locks the row and is idempotent. Needs `STRIPE_SECRET`
+  (+ `STRIPE_WEBHOOK_SECRET`); with no secret the banner says "get in touch" and checkout 404s.
+  Ordering needs an address (`Shop::deliveryAddress()`: delivery address, else the shop address).
+  An order keeps a copy of the address; orders with none (made before the shop had one) pick it
+  up when the shop's address is saved (`Shop::booted()` `saved` hook), unless already dispatched.
+  Both settings forms have "delivered to the shop address" (`delivery_same`); the admin form
+  tidies phone/postcode via `ShopContact::normalise()` like the owner's.
+- **All Stripe calls** go through `App\Services\StripeGateway` (thin, array-based) so tests mock
+  it; the webhook test signs a real payload instead.
+- **Fulfilment stages** (`App\Enums\OrderStage`: received / processing / dispatched /
+  delivered): the stage is the furthest timestamp set (`Order::stage()`), never a separate
+  column. `OrderService::moveTo()` moves forwards (dating skipped stages) or back (clearing
+  later ones and the tracking). Admin: `PUT /admin/orders/{order}/stage`, via the shared
+  `OrderStageEditor.jsx` dialog (courier datalist, tracking number, tracking **link pasted by
+  the admin** — we don't guess courier URLs). Only the tracking fields sent are changed.
+  Newly reaching Dispatched / Delivered emails the shop owner (`App\Mail\OrderDispatched` /
+  `OrderDelivered`, markdown views in `resources/views/mail/orders/`), sent synchronously
+  in try/catch — a mail failure is logged and never undoes the change.
+- **Owner**: `/dashboard/orders` (`DashboardController::orders`, nav "Orders",
+  `Dashboard/Orders.jsx`) = "Your orders" (paid only — abandoned checkouts aren't orders —
+  each with `OrderTracker.jsx`) + "Order more" (every product on sale, `QuantityStepper`).
+  `Order::summary()` is the owner-safe shape (no admin note / placed-by). After ordering,
+  Overview shows a slim `activeOrder` line for the latest undelivered order.
+- **Admin**: Orders (`/admin/orders`, nav item; to do / dispatched / delivered / awaiting
+  payment, "Update" per row) with a **Products** button (`/admin/products`: add/edit, price in £,
+  on sale, "offer on owner dashboards" = featured, only one at a time). Each shop's settings
+  page has "Counter display & orders": its orders (with "Update") + **Record order** (product,
+  quantity, bank transfer / cash / free, amount, note) → `POST /admin/shops/{shop}/orders`. The Shops grid has a Display column
+  and a "No display ordered" filter.
+- **Orders arranged by the admin** (phone, visit, promotion): "New order" on Admin → Orders
+  (any shop, `ManualOrderForm.jsx`, also on each shop's page) → `POST /admin/shops/{shop}/orders`
+  with an **agreed price** (`total_pence`; the normal price is kept in `list_total_pence`, so
+  discounts show as "£10 off" / "Free") and `paid`: already received (bank transfer / cash),
+  free (always paid, £0), or **awaiting bank transfer** (`status` pending, non-Stripe method =
+  `Order::awaitingManualPayment()`). Awaiting orders show the owner the bank details
+  (`Setting::BANK_DETAILS`, Admin → Settings) + reference `TADA-{id}`, and hide the order
+  banner. The admin then **Confirm payment** (`PUT /admin/orders/{order}/paid` →
+  `markPaid()`) or **Cancel** (`PUT …/cancel`, unpaid only → `status` cancelled; the banner
+  comes back). Owners never see abandoned Stripe checkouts or cancelled orders.
+- **Editing an order** (`OrderEditDialog.jsx` on the Orders grid + shop page → `PUT
+  /admin/orders/{order}`, `UpdateOrderRequest`, `OrderService::update()`): arranged orders can
+  change product, quantity, price, method (list price recomputed; an unpaid one switched to
+  Free goes ahead); **Stripe orders only their delivery address and note** — the amount is
+  what Stripe charged. Cancelled orders and unfinished Stripe checkouts 422 (checked in
+  `prepareForValidation`, before the rules).
+- No subscription billing exists yet — "first year free" is only copy in the product
+  description.
 
 ## Admin dashboard & charts (additive)
 
@@ -521,6 +630,7 @@ Plus (staff accounts, see above) `staff_members` (`shop_id`, `name` unique per s
 Plus `users.google_id` (nullable, unique) with `users.password` now nullable (Google-only
 owners), `users.onboarding_draft` (nullable JSON, shop setup in progress), and `qr_batches` / `qr_codes` / `qr_designs` (see "Bulk QR stickers").
 Plus `shops.header_style` (nullable JSON, card page header text/tint/shadow).
+Plus `products`, `orders` and `shops.product_ordered_at` (see "Products & orders").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to texts from **that one shop**, unticked by default,
 and customers can register without it. `CustomerRegistrar` only ever turns it on: an unticked

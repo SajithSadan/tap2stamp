@@ -51,11 +51,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // token (see App\Http\Controllers\DeployController). Same reasoning
         // for api/staff/* - the scanner authenticates with a bearer token
         // (AuthenticateStaffDevice), not a session, so there's no CSRF
-        // cookie for those requests either.
+        // cookie for those requests either. Stripe's webhook is checked by
+        // its Stripe-Signature header instead (StripeWebhookController).
         $middleware->validateCsrfTokens(except: [
             'deploy/migrate',
             'deploy/seed-admin',
             'api/staff/*',
+            'stripe/webhook',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

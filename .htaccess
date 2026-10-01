@@ -1,0 +1,21 @@
+# Hostinger: the whole Laravel project sits in the domain's web root, so send
+# every request into public/ (whose own .htaccess hands it to index.php).
+# Nothing outside public/ - .env, vendor/, storage/ - is ever served.
+
+Options -Indexes
+
+# Never serve dotfiles (.env, .htaccess, .ftp-deploy-sync-state.json, ...).
+# Doesn't depend on mod_rewrite, so .env stays private even if rewriting breaks.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Let's Encrypt / domain verification files.
+    RewriteRule ^\.well-known/ - [L]
+
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>

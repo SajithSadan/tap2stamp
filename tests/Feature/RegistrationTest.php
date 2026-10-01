@@ -124,7 +124,9 @@ test('an owner can set up their shop, which goes live straight away', function (
 
     $shop = Shop::sole();
     expect($shop->user_id)->toBe($owner->id)
+        // The card link is made from the name - owners don't pick it.
         ->and($shop->slug)->toBe('the-coffee-corner')
+        ->and($shop->show_card_link)->toBeFalse()
         ->and($shop->max_stamps)->toBe(6);
 
     $this->actingAs($owner)->get('/dashboard')->assertOk();
@@ -141,7 +143,7 @@ test('an owner can only ever set up one shop', function () {
     expect(Shop::count())->toBe(1);
 });
 
-test('shop setup validates the link, stamps and reward', function (array $overrides, string $field) {
+test('shop setup validates the stamps and reward', function (array $overrides, string $field) {
     Shop::factory()->create(['slug' => 'taken']);
     $owner = User::factory()->create(['role' => UserRole::Owner]);
 
@@ -149,8 +151,6 @@ test('shop setup validates the link, stamps and reward', function (array $overri
 
     expect(Shop::where('user_id', $owner->id)->exists())->toBeFalse();
 })->with([
-    'slug taken' => [['slug' => 'taken'], 'slug'],
-    'slug with spaces' => [['slug' => 'my shop'], 'slug'],
     'too few stamps' => [['max_stamps' => 2], 'max_stamps'],
     'too many stamps' => [['max_stamps' => 21], 'max_stamps'],
     'no reward' => [['reward_title' => ''], 'reward_title'],
@@ -245,4 +245,13 @@ test('admins and guests cannot use shop setup', function () {
     $this->actingAs($admin)->post('/onboarding/business', validShop())->assertForbidden();
 
     expect(Shop::count())->toBe(0);
+});
+
+test('a taken card link gets a number, and anything sent as a link is ignored', function () {
+    Shop::factory()->create(['slug' => 'the-coffee-corner']);
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    $this->actingAs($owner)->post('/onboarding', validShop(['slug' => 'my-own-pick']))->assertSessionHasNoErrors();
+
+    expect(Shop::where('user_id', $owner->id)->sole()->slug)->toBe('the-coffee-corner-2');
 });

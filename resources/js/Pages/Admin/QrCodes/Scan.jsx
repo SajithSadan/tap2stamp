@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { LuArrowLeft, LuCircleCheck, LuCircleDashed, LuExternalLink, LuLink, LuQrCode, LuScanLine, LuUnlink } from 'react-icons/lu';
 import { useConfirm } from '@/Components/ConfirmDialog';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
-import { FieldError, inputClass, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
+import QrDestinationField from '@/Components/Dashboard/QrDestinationField';
+import { primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
 import QrStickerScanner from '@/Components/QrStickerScanner';
 
 /**
@@ -11,7 +12,7 @@ import QrStickerScanner from '@/Components/QrStickerScanner';
  * or the in-app scanner - GET /qr/{code}). Customers scanning the same sticker
  * are redirected, or get "Nothing found" - never this page.
  */
-export default function Scan({ qr }) {
+export default function Scan({ qr, shops }) {
     const form = useForm({ destination_url: qr.destination_url ?? '' });
     const mapped = !!qr.destination_url;
     const [confirm, confirmDialog] = useConfirm();
@@ -96,25 +97,13 @@ export default function Scan({ qr }) {
 
                     {/* Set or change the destination. */}
                     <form onSubmit={save} noValidate className="space-y-3 border-t border-brand-border px-5 py-5">
-                        <div>
-                            <label htmlFor="destination_url" className="block text-sm font-medium text-brand-text">
-                                {mapped ? 'Change destination' : 'Destination URL'}
-                            </label>
-                            <input
-                                id="destination_url"
-                                type="url"
-                                inputMode="url"
-                                value={form.data.destination_url}
-                                onChange={(e) => form.setData('destination_url', e.target.value)}
-                                placeholder="https://yourdomain.com/s/the-coffee-corner"
-                                autoFocus={!mapped}
-                                className={`${inputClass} mt-1.5 py-3`}
-                            />
-                            <FieldError message={form.errors.destination_url} />
-                            {!form.errors.destination_url && (
-                                <p className="mt-1 text-xs text-brand-muted">For a shop, paste its card page link (/s/…). Any https web address works too.</p>
-                            )}
-                        </div>
+                        <QrDestinationField
+                            label={mapped ? 'Change destination' : 'Send people to'}
+                            value={form.data.destination_url}
+                            onChange={(url) => form.setData('destination_url', url)}
+                            shops={shops}
+                            error={form.errors.destination_url}
+                        />
 
                         <button type="submit" disabled={form.processing} className={`${primaryButton} w-full py-3`}>
                             <LuLink className="h-4 w-4" /> {form.processing ? 'Saving…' : mapped ? 'Update destination' : 'Map sticker'}

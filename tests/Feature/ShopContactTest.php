@@ -198,3 +198,28 @@ test('the admin shops grid shows each shop\'s contact and location', function ()
         ->where('shops.0.delivery_address', '5 Park Row, Leeds')
     );
 });
+
+test('the contact person and email default to the owner\'s login when not given', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner, 'name' => 'Priya Shah', 'email' => 'priya@example.com']);
+    $shop = Shop::factory()->create(['user_id' => $owner->id, 'contact_name' => null, 'contact_email' => null]);
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($owner)->get('/dashboard/settings')->assertInertia(fn ($page) => $page
+        ->where('contact.contact_name', 'Priya Shah')
+        ->where('contact.contact_email', 'priya@example.com')
+    );
+
+    $this->actingAs($admin)->get("/admin/shops/{$shop->id}/settings")->assertInertia(fn ($page) => $page
+        ->where('shop.contact_email', 'priya@example.com')
+        ->where('ownerEmail', 'priya@example.com')
+    );
+});
+
+test('a contact email the owner chose is kept, not replaced by the login', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner, 'email' => 'login@example.com']);
+    Shop::factory()->create(['user_id' => $owner->id, 'contact_email' => 'manager@example.com']);
+
+    $this->actingAs($owner)->get('/dashboard/settings')->assertInertia(fn ($page) => $page
+        ->where('contact.contact_email', 'manager@example.com')
+    );
+});
