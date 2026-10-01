@@ -25,6 +25,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -70,16 +71,15 @@ class DashboardController extends Controller
             'search' => $search,
             'maxStamps' => $shop->max_stamps,
             // No phone numbers here - same stance as the activity feed.
-            'customers' => $shop->cards()
-                ->with('customer:id,name')
-                ->when($search !== '', fn ($q) => $q->whereHas('customer', fn ($c) => $c->where('name', 'like', '%'.$search.'%')))
-                ->orderByDesc('last_stamped_at')
-                ->orderByDesc('id')
+            'customers' => $this->customersQuery($shop, $search)
+                ->with('customer:id,name,phone')
+                ->orderByDesc('last_stamped_at')->orderByDesc('id')
                 ->paginate(15)
                 ->withQueryString()
                 ->through(fn (CustomerShopCard $card) => [
                     'id' => $card->id,
                     'name' => $card->customer->name,
+                    'phone' => $card->customer->phone,
                     'stamps' => $card->current_stamps,
                     'rewards_claimed' => $card->rewards_claimed,
                     'last_visit' => $card->last_stamped_at?->timezone('Europe/London')->format('j M Y'),
@@ -87,6 +87,52 @@ class DashboardController extends Controller
                     'marketing_consent' => $card->marketing_consent,
                 ]),
         ]);
+    }
+
+    public function exportCustomers(Request $request): StreamedResponse
+    {
+        $shop = $request->user()->shop;
+        $search = trim((string) $request->query('q', ''));
+        $query = $this->customersQuery($shop, $search)
+            ->with('customer:id,name,phone')
+            ->orderByDesc('last_stamped_at')->orderByDesc('id');
+
+        return response()->streamDownload(function () use ($query, $shop) {
+            $output = fopen('php://output', 'w');
+            fwrite($output, "\xEF\xBB\xBF");
+            fputcsv($output, ['Name', 'Phone', 'Stamps', 'Stamps required', 'Rewards claimed', 'Last visit', 'Joined', 'SMS offers opted in']);
+
+            $query->chunk(500, function ($cards) use ($output, $shop) {
+                foreach ($cards as $card) {
+                    fputcsv($output, [
+                        $this->spreadsheetSafe($card->customer->name),
+                        $this->spreadsheetSafe($card->customer->phone),
+                        $card->current_stamps,
+                        $shop->max_stamps,
+                        $card->rewards_claimed,
+                        $card->last_stamped_at?->timezone('Europe/London')->format('j M Y') ?? '',
+                        $card->created_at->timezone('Europe/London')->format('j M Y'),
+                        $card->marketing_consent ? 'Yes' : 'No',
+                    ]);
+                }
+            });
+
+            fclose($output);
+        }, $shop->slug.'-customers-'.now()->format('Y-m-d').'.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    private function customersQuery(Shop $shop, string $search)
+    {
+        return $shop->cards()->when($search !== '', fn ($q) => $q->whereHas('customer', fn ($customer) => $customer
+            ->where('name', 'like', '%'.$search.'%')
+            ->orWhere('phone', 'like', '%'.$search.'%')));
+    }
+
+    private function spreadsheetSafe(string $value): string
+    {
+        return preg_match('/^[=+\-@\t\r]/', $value) ? "'{$value}" : $value;
     }
 
     public function activity(Request $request): Response
@@ -137,7 +183,7 @@ class DashboardController extends Controller
 
         // Which device (if any) each staff member is signed in on right now.
         $signedInOn = $devices
-            ->filter(fn (StaffDevice $device) => ! $device->revoked_at && $device->activeStaffMember())
+            ->filter(fn (StaffDevice $device) => !$device->revoked_at && $device->activeStaffMember())
             ->mapWithKeys(fn (StaffDevice $device) => [$device->staff_member_id => $device->name]);
 
         return Inertia::render('Dashboard/Staff', [
@@ -182,6 +228,7 @@ class DashboardController extends Controller
                 'max_stamps' => $shop->max_stamps,
                 'reward_title' => $shop->reward_title,
                 'google_review_url' => $shop->google_review_url,
+                'google_review_direct' => $shop->google_review_direct,
                 'instagram_url' => $shop->instagram_url,
                 'wifi_ssid' => $shop->wifi_ssid,
                 'wifi_password' => $shop->wifi_password,
@@ -192,7 +239,17 @@ class DashboardController extends Controller
 
     public function updateSettings(UpdateShopSettingsRequest $request): RedirectResponse
     {
-        $request->user()->shop->update($request->validated());
+        $validated = $request->validated();
+        $shop = $request->user()->shop;
+        $googleUrl = array_key_exists('google_review_url', $validated)
+            ? $validated['google_review_url']
+            : $shop->google_review_url;
+        $directRequested = array_key_exists('google_review_direct', $validated)
+            ? filter_var($validated['google_review_direct'], FILTER_VALIDATE_BOOLEAN)
+            : $shop->google_review_direct;
+
+        $validated['google_review_direct'] = (bool) $googleUrl && $directRequested;
+        $shop->update($validated);
 
         return redirect()->route('dashboard.settings');
     }

@@ -17,7 +17,11 @@ export const authButtonClass =
 export function Wordmark({ className = "", variant = "dark" }) {
     return (
         <img
-            src={variant === "light" ? "/images/tata-tap-loyalty-program-dark-logo.png" : "/images/tada-tap-logo.png"}
+            src={
+                variant === "light"
+                    ? "/images/tata-tap-loyalty-program-dark-logo.png"
+                    : "/images/tada-tap-logo.png"
+            }
             alt="Tada Tap"
             className={`block h-8 w-auto max-w-full object-contain ${className}`}
         />

@@ -36,6 +36,18 @@ test('the card page renders with the shop props', function () {
     );
 });
 
+test('the customer card receives the shop review destination mode', function () {
+    $shop = Shop::factory()->create([
+        'google_review_url' => 'https://g.page/r/example/review',
+        'google_review_direct' => true,
+    ]);
+
+    $this->get("/s/{$shop->slug}")->assertInertia(fn ($page) => $page
+        ->where('shop.google_review_url', 'https://g.page/r/example/review')
+        ->where('shop.google_review_direct', true)
+    );
+});
+
 test('registration requires a name', function () {
     $shop = Shop::factory()->create();
 

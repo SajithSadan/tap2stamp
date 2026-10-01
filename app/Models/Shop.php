@@ -39,6 +39,7 @@ class Shop extends Model
         'banner_path',
         'logo_path',
         'google_review_url',
+        'google_review_direct',
         'instagram_url',
         'wifi_ssid',
         'wifi_password',
@@ -67,6 +68,7 @@ class Shop extends Model
             'theme_custom' => 'array',
             'header_style' => 'array',
             'theme_in_dashboard' => 'boolean',
+            'google_review_direct' => 'boolean',
         ];
     }
 

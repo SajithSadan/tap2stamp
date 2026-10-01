@@ -1,8 +1,8 @@
 import { router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
-import { LuSearch, LuUsers } from 'react-icons/lu';
+import { LuDownload, LuSearch, LuUsers } from 'react-icons/lu';
 import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
-import { Avatar, EmptyState, inputClass, Pagination, Panel } from '@/Components/Dashboard/Ui';
+import { Avatar, EmptyState, inputClass, Pagination, Panel, secondaryButton } from '@/Components/Dashboard/Ui';
 
 function StampProgress({ stamps, max }) {
     const full = stamps >= max;
@@ -51,16 +51,24 @@ export default function Customers({ shop, search, customers, maxStamps }) {
                 bodyClassName=""
                 title={`${customers.total} ${customers.total === 1 ? 'customer' : 'customers'}`}
                 action={
-                    <div className="relative w-full sm:w-64">
-                        <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" />
-                        <input
-                            type="search"
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search by name"
-                            aria-label="Search customers by name"
-                            className={`${inputClass} pl-9`}
-                        />
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                        <div className="relative w-full sm:w-64">
+                            <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" />
+                            <input
+                                type="search"
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder="Search name or phone"
+                                aria-label="Search customers by name or phone"
+                                className={`${inputClass} pl-9`}
+                            />
+                        </div>
+                        <a
+                            href={`/dashboard/customers/export${query ? `?q=${encodeURIComponent(query)}` : ''}`}
+                            className={`${secondaryButton} shrink-0`}
+                        >
+                            <LuDownload className="h-4 w-4" /> Download CSV
+                        </a>
                     </div>
                 }
             >
@@ -76,6 +84,7 @@ export default function Customers({ shop, search, customers, maxStamps }) {
                                 <thead>
                                     <tr className="border-b border-brand-border text-xs uppercase tracking-wide text-brand-muted">
                                         <th className="px-5 py-3 font-medium">Name</th>
+                                        <th className="px-5 py-3 font-medium">Phone</th>
                                         <th className="px-5 py-3 font-medium">Stamps</th>
                                         <th className="px-5 py-3 font-medium">Rewards</th>
                                         <th className="px-5 py-3 font-medium">Last visit</th>
@@ -92,6 +101,7 @@ export default function Customers({ shop, search, customers, maxStamps }) {
                                                     <span className="font-medium text-brand-text">{c.name}</span>
                                                 </div>
                                             </td>
+                                            <td className="px-5 py-3 tabular-nums text-brand-text">{c.phone}</td>
                                             <td className="px-5 py-3">
                                                 <StampProgress stamps={c.stamps} max={maxStamps} />
                                             </td>
@@ -114,6 +124,7 @@ export default function Customers({ shop, search, customers, maxStamps }) {
                                     <Avatar name={c.name} />
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm font-medium text-brand-text">{c.name}</p>
+                                        <p className="text-xs tabular-nums text-brand-muted">{c.phone}</p>
                                         <p className="text-xs text-brand-muted">
                                             {c.rewards_claimed} {c.rewards_claimed === 1 ? 'reward' : 'rewards'} · last visit {c.last_visit ?? 'not yet'}
                                         </p>

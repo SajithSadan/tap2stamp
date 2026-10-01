@@ -39,30 +39,25 @@ ratings/reviews, Instagram, Wi-Fi).
 
 ## In-house review & rating (deviates from the original doc — built)
 
-The original doc's Stage 3 "Google Review" tile just opened `shops.google_review_url`
-externally. That's been replaced: customers rate/review **in-app** instead — the rating (1-5
-stars) + optional comment is saved to our own `reviews` table. The end goal is still Google
-reviews, but not an automatic one-to-one post of every submission: the plan is for the shop
-owner/admin to **selectively** choose which collected reviews get pushed/posted publicly (e.g.
-to Google) — that curation step isn't built yet (pending Stage 4's dashboard), so nothing is
-auto-published today. Don't tell customers it's "never shared with Google" — that's not
-accurate to the plan, and it isn't information they need anyway; customer-facing copy should
-just say the feedback goes to the shop, nothing about where it may or may not end up later.
+By default, customers rate/review **in-app** — the rating (1-5 stars) + optional comment is
+saved to our `reviews` table and, when `shops.google_review_url` is configured, they can
+optionally share it on Google after submitting. Owners can instead enable
+`shops.google_review_direct` in Settings: in that mode the customer card action opens the
+configured Google review URL directly and skips in-app feedback. This is a per-shop mode for
+all customers, never selected based on an individual rating; do not implement rating-based
+review gating. Google reviews must be submitted by customers from their own Google accounts.
 
 - Table: `reviews` (`customer_id`, `shop_id`, `rating` 1-5, `comment` nullable, timestamps;
   unique `customer_id+shop_id` — resubmitting updates the existing review, not a duplicate).
 - Card page: `App\Models\Review`, `ReviewController::store()`
   (`POST /s/{shop:slug}/card/{customer:uuid}/review`), `RatingTile.jsx` (star UI).
-  **One rating flow, no separate Google button**: the card page's quick-action row is
-  **Follow** (Instagram) · **Rate** · **Wi-Fi** (each only when set up); Rate / Wi-Fi open a
-  panel under the row. Rating saves to our `reviews` table; then, if the shop set
-  `shops.google_review_url` (Settings, `url:http,https`), a **"Post it on Google too"** button
-  copies the comment and opens the shop's Google review page. Google only accepts reviews from
-  the customer's own account (no API posts for them), and it's offered after **every** rating,
-  good or bad - showing it only for high ratings is "review gating", against Google's rules.
-- The tile is deliberately **not** labelled "Google Review" — nothing is posted automatically,
-  so calling it that would overpromise. Labelled "Rate your visit" / "Update your rating"
-  instead.
+  The default **Share feedback** action opens the in-app rating dialog and persists the feedback;
+  it may then offer a separate **Share on Google too** action. When `google_review_direct` is on
+  and a URL exists, the action links directly to Google instead. The post-stamp feedback prompt
+  is only used in in-app feedback mode.
+- Never condition Google-link visibility on rating: showing it only for high ratings is review
+  gating. In direct mode the same Google link is shown to all customers regardless of any
+  previous feedback.
 - Requires an existing `customer_shop_card` (i.e. the customer has registered at this shop)
   before a review can be submitted — 404s otherwise.
 
@@ -145,20 +140,20 @@ Stage 6's endpoint exists too.
   `/api/*`, so the scanner always sees fresh auth state and stamp counts. Icons generated via
   PHP's GD extension (see git history if regenerating).
 - **`StampService::scan()`**: the only place stamp/redeem logic lives. Strict payload regex →
-  shop match against the *authenticated device's* shop (never trust the QR's own SHOP: value
+  shop match against the _authenticated device's_ shop (never trust the QR's own SHOP: value
   alone) → `lockForUpdate()` inside `DB::transaction()` → full card redeems (resets to 0,
   `rewards_claimed++`, ignores cooldown) → cooldown check → otherwise stamps
   (`current_stamps++`, flags `reward_ready` if that fills the card). Returns `[httpStatus,
-  body]` tuples, not exceptions — the controller just does
+body]` tuples, not exceptions — the controller just does
   `response()->json($body, $httpStatus)`.
 - **`POST /api/staff/scan`**, **`GET /api/staff/me`**, **`GET /api/staff/summary`** — all thin,
   all delegate to the device on the request / to `StampService`.
 - **Test coverage gap, disclosed rather than silently skipped**: "concurrent double-scan only
-  stamps once" is only tested as the *sequential*-call invariant (two scans in a row within
+  stamps once" is only tested as the _sequential_-call invariant (two scans in a row within
   cooldown → exactly one stamp), not genuine cross-connection concurrency. Pest wraps every
   test in `RefreshDatabase`'s outer transaction, so a second, truly independent DB connection
   wouldn't see a test's data at all — that approach was tried and doesn't work here. The
-  `lockForUpdate()` protection is real and correctly placed; only the *test* of true concurrency
+  `lockForUpdate()` protection is real and correctly placed; only the _test_ of true concurrency
   is the gap.
 
 ## Real-time customer updates (Stage 7)
@@ -168,7 +163,7 @@ Stage 6's endpoint exists too.
   channels don't call back to the server), event name `card.updated`. Payload is deliberately
   minimal: `stamps`, `max_stamps`, `action` (`stamp_added` | `reward_redeemed`), `reward_ready`
   — no name, no phone.
-- **Dispatch site**: `StampService::scan()`, *after* `DB::transaction()` returns (i.e. after
+- **Dispatch site**: `StampService::scan()`, _after_ `DB::transaction()` returns (i.e. after
   commit), wrapped in try/catch → `Log::error()` on failure. Only for `stamp_added` and
   `reward_redeemed` — a rejected scan (cooldown, shop mismatch, etc.) never broadcasts. A
   broadcast failure **never** affects the HTTP response or rolls back the stamp — the stamp
@@ -185,11 +180,11 @@ Stage 6's endpoint exists too.
   `visibilitychange` (tab/app returning to foreground) to self-correct from any missed events.
 - **Chime**: one `AudioContext` created at the first tap of the "Tap to enable live sound
   updates" hint (`enableSound()`), stored in a ref and reused for every subsequent chime —
-  mobile autoplay policy only requires the gesture for the context's *creation*, not for each
+  mobile autoplay policy only requires the gesture for the context's _creation_, not for each
   sound played through it afterwards. If never tapped, `playChime()` just no-ops (ref is null) -
   the visual/stamp update still happens either way.
 - **Confetti**: reuses the existing `Celebration` sparkle-burst component (built in the UI-polish
-  pass, originally only for the reward-ready transition) - now triggered on *every* `card.updated`
+  pass, originally only for the reward-ready transition) - now triggered on _every_ `card.updated`
   event via a shared `triggerCelebration()` helper, not a second particle system.
 - **Reward-redeemed toast**: a separate transient banner (`redeemedToast` state, auto-hides
   after 3s) — redemption resets `stamps` to 0, so the persistent "reward ready" banner
@@ -218,7 +213,7 @@ creates shops and an artisan command can't run without SSH.
 
 ## Staff accounts & dashboards (additive — changes the Stage 5 device model)
 
-Devices alone didn't say *who* gave a stamp, so staff now have their own accounts on top of the
+Devices alone didn't say _who_ gave a stamp, so staff now have their own accounts on top of the
 owner-approved device.
 
 - **Two layers**: the device is still approved once by the owner (setup QR →
@@ -376,30 +371,30 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
   asks to type DELETE when any code in it is mapped.
 - **Sticker designs** (`/admin/qr-codes/designs`, `Admin\QrDesignController`, `qr_designs`
   table): a background image (JPG/PNG/WebP ≤ 5 MB, on the `uploads` disk under `qr-designs/`)
-  + where the QR "block" goes, stored as **fractions of the image** (`qr_x`/`qr_size` of its
-  width, `qr_y` of its height) + the printed sticker `width_mm` + **`style`** (JSON: colours,
-  dot/corner shapes, frame/quiet zone/radius, centre text or logo (`logo_path`, ≤ 1 MB),
-  caption above/below, font, error correction, `box_ratio` = the QR box's own height / width,
-  null = auto). The QR itself always stays **square** — in a wider/taller box it's centred at the
-  largest size that fits (never stretched: that breaks scanning). `App\Support\QrStyle` validates/normalises it
-  (null = plain defaults; a centre forces ECC `H`) and has the block geometry
-  (`blockAspect`, `qrFraction`) — **keep it in sync with `resources/js/lib/qrStyle.js`**.
-  `SaveQrDesignRequest` checks the block sits on the image and the QR itself prints ≥ 15 mm.
-  Pages: `Designs.jsx` (grid) and `DesignEditor.jsx` (top toolbar for the design as a whole:
-  name, width, QR size, centring, replace background, print stats; canvas; right-hand tabs for
-  styling: Colours / Shape / Frame / Middle / Caption / Safety; "Test print" PDF). **One renderer**, `lib/qrRender.js` (canvas), draws the block for the editor,
-  thumbnails, PDF and PNG, so what you see is what prints; `QrDesignStage.jsx` does the drag /
-  corner-resize / arrow keys. Every Print button on the QR page opens a **print dialog**
-  (`PrintDialog` in `Admin/QrCodes/Index.jsx`): pick the design (thumbnail cards, or Plain QR)
-  and the layout (with page counts); the last choices are remembered in localStorage and
-  pre-selected. Layouts: a **sheet** (A4, as many as fit, header + cut
-  lines) or **one per page** — for a design, each PDF page *is* the sticker (page size =
-  exactly its W × H, artwork edge to edge, nothing else); plain QRs go one per A4 page at
-  140 mm. The editor's "Test print" is always one sticker-size page.
-  **Double-sided** (dialog option, remembered): every page is followed by its back page with
-  the same codes' QRs — on the same design, or another design of the **same print size**
-  (`canBeBackOf()`); sheet backs are mirrored left-to-right so a long-edge flip lines each
-  back up behind its front. 100 codes one-per-page = 200 pages.
+    - where the QR "block" goes, stored as **fractions of the image** (`qr_x`/`qr_size` of its
+      width, `qr_y` of its height) + the printed sticker `width_mm` + **`style`** (JSON: colours,
+      dot/corner shapes, frame/quiet zone/radius, centre text or logo (`logo_path`, ≤ 1 MB),
+      caption above/below, font, error correction, `box_ratio` = the QR box's own height / width,
+      null = auto). The QR itself always stays **square** — in a wider/taller box it's centred at the
+      largest size that fits (never stretched: that breaks scanning). `App\Support\QrStyle` validates/normalises it
+      (null = plain defaults; a centre forces ECC `H`) and has the block geometry
+      (`blockAspect`, `qrFraction`) — **keep it in sync with `resources/js/lib/qrStyle.js`**.
+      `SaveQrDesignRequest` checks the block sits on the image and the QR itself prints ≥ 15 mm.
+      Pages: `Designs.jsx` (grid) and `DesignEditor.jsx` (top toolbar for the design as a whole:
+      name, width, QR size, centring, replace background, print stats; canvas; right-hand tabs for
+      styling: Colours / Shape / Frame / Middle / Caption / Safety; "Test print" PDF). **One renderer**, `lib/qrRender.js` (canvas), draws the block for the editor,
+      thumbnails, PDF and PNG, so what you see is what prints; `QrDesignStage.jsx` does the drag /
+      corner-resize / arrow keys. Every Print button on the QR page opens a **print dialog**
+      (`PrintDialog` in `Admin/QrCodes/Index.jsx`): pick the design (thumbnail cards, or Plain QR)
+      and the layout (with page counts); the last choices are remembered in localStorage and
+      pre-selected. Layouts: a **sheet** (A4, as many as fit, header + cut
+      lines) or **one per page** — for a design, each PDF page _is_ the sticker (page size =
+      exactly its W × H, artwork edge to edge, nothing else); plain QRs go one per A4 page at
+      140 mm. The editor's "Test print" is always one sticker-size page.
+      **Double-sided** (dialog option, remembered): every page is followed by its back page with
+      the same codes' QRs — on the same design, or another design of the **same print size**
+      (`canBeBackOf()`); sheet backs are mirrored left-to-right so a long-edge flip lines each
+      back up behind its front. 100 codes one-per-page = 200 pages.
 - **Print sizes**: each design has an exact size — a preset from `QrDesign::PRESETS` (**Stand
   90 × 140 mm**, **Table 60 × 60 mm**; the server fills in the numbers, never trusting the
   browser's) or custom `width_mm` × `height_mm` (null height = follow the artwork). Designs
@@ -475,11 +470,11 @@ as it's set up (no approval step).
   < 5 visits show as "not enough data", never 0% / 100%). "All visits" was dropped: rewards
   are a small share of visits at the same times, so it looked identical to stamps. Heatmap
   shading is relative to its own max, so the legend always prints the real scale (0 … max).
-- **Owner activation is a cohort**: owners who *signed up* in the chosen range → set up their
+- **Owner activation is a cohort**: owners who _signed up_ in the chosen range → set up their
   shop → gave a first stamp → still stamping (last 14 days), plus the median days from sign-up
   to first stamp. Every bar is the same group, so the filter changes all of them (an earlier
   all-time version only moved the last bar and looked broken).
-- **Ratings are per shop**, so the headline is the average *shop* rating (each shop's own
+- **Ratings are per shop**, so the headline is the average _shop_ rating (each shop's own
   average, averaged), not the mean of all reviews — one busy shop can't dominate. "Lowest
   rated" only ranks shops with ≥ 3 reviews. Daily series are `GROUP BY DATE(created_at)` in SQL (MySQL/MariaDB functions:
   `DATE`, `HOUR`, `DAYOFWEEK`) — a fixed number of queries regardless of platform size.
@@ -582,7 +577,7 @@ box on a repeat registration is not a withdrawal. There's no opt-out UI and no S
   Inertia root template.
 - **No browser dialogs**: never `alert()` / `confirm()` / `prompt()`. Use
   `useConfirm()` from `Components/ConfirmDialog.jsx` (`await confirm({ title, message,
-  confirmLabel, danger, requireText })`, render `{confirmDialog}`); `requireText: 'DELETE'` for
+confirmLabel, danger, requireText })`, render `{confirmDialog}`); `requireText: 'DELETE'` for
   hard-to-undo actions.
 - **Icons**: use `react-icons` for every icon. Don't hand-write inline `<svg>` icons. The only
   exception is artwork that `react-icons` doesn't have, such as the country flags in

@@ -297,11 +297,7 @@ export default function RegistrationModal({
     }
 
     function submitRegistration(consent) {
-        onSubmit(
-            name.trim(),
-            `${country.dial}${phoneDigits}`,
-            consent,
-        );
+        onSubmit(name.trim(), `${country.dial}${phoneDigits}`, consent);
     }
 
     const nameError = localErrors.name ?? errors.name?.[0];
@@ -331,11 +327,21 @@ export default function RegistrationModal({
                             transition={{ duration: 0.18 }}
                             className="w-full max-w-sm rounded-2xl bg-brand-card p-6 text-center shadow-2xl"
                         >
-                            <h2 id="offers-confirm-title" className="font-heading text-xl font-semibold text-brand-text">
+                            <h2
+                                id="offers-confirm-title"
+                                className="font-heading text-xl font-semibold text-brand-text"
+                            >
                                 Are you sure?
                             </h2>
-                            <p id="offers-confirm-description" className="mt-2 text-sm leading-relaxed text-brand-muted">
-                                You won't receive offers from <span className="font-semibold text-brand-text">{shopName}</span>. Would you like to opt out?
+                            <p
+                                id="offers-confirm-description"
+                                className="mt-2 text-sm leading-relaxed text-brand-muted"
+                            >
+                                You won't receive offers from{" "}
+                                <span className="font-semibold text-brand-text">
+                                    {shopName}
+                                </span>
+                                . Would you like to opt out?
                             </p>
                             <div className="mt-6 grid gap-3">
                                 <button

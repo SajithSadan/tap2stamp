@@ -38,9 +38,9 @@ Open http://localhost:8000.
 
 All seeded passwords are `password`.
 
-| Who | Login | Where |
-|---|---|---|
-| Admin | `admin@loyaltyhub.test` | `/login` → `/admin` |
+| Who                   | Login                     | Where                   |
+| --------------------- | ------------------------- | ----------------------- |
+| Admin                 | `admin@loyaltyhub.test`   | `/login` → `/admin`     |
 | Owner of Artisan Cafe | `owner@artisan-cafe.test` | `/login` → `/dashboard` |
 | Owner of Urban Barber | `owner@urban-barber.test` | `/login` → `/dashboard` |
 
@@ -73,11 +73,11 @@ Pest feature tests live in `tests/Feature`, one file per feature area. Format co
 
 ## Useful config
 
-| `.env` key | Default | What it does |
-|---|---|---|
-| `STAMP_COOLDOWN_HOURS` | `8` | Minimum gap between two stamps for one customer at one shop |
-| `APP_TIMEZONE` | `Europe/London` | All displayed times |
-| `QUEUE_CONNECTION` | `sync` | Keep this. The app never needs a queue worker. |
+| `.env` key             | Default         | What it does                                                |
+| ---------------------- | --------------- | ----------------------------------------------------------- |
+| `STAMP_COOLDOWN_HOURS` | `8`             | Minimum gap between two stamps for one customer at one shop |
+| `APP_TIMEZONE`         | `Europe/London` | All displayed times                                         |
+| `QUEUE_CONNECTION`     | `sync`          | Keep this. The app never needs a queue worker.              |
 
 ## Project notes
 

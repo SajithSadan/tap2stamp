@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\QrCodeController;
 use App\Http\Controllers\Admin\QrDesignController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShopOwnerController;
+use App\Http\Controllers\Admin\ShopSettingsController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -96,6 +97,8 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/', [ShopOwnerController::class, 'index'])->name('index');
     Route::get('/shops/create', [ShopOwnerController::class, 'create'])->name('shops.create');
     Route::post('/shops', [ShopOwnerController::class, 'store'])->name('shops.store');
+    Route::get('/shops/{shop}/settings', [ShopSettingsController::class, 'edit'])->name('shops.settings.edit');
+    Route::put('/shops/{shop}/settings', [ShopSettingsController::class, 'update'])->name('shops.settings.update');
 
     // Bulk QR stickers: generate in batches, map each to a destination later,
     // print as a PDF (built client-side from printData's JSON).
@@ -143,6 +146,7 @@ Route::middleware(['auth', 'role:owner'])->group(function () {
 Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('dashboard')->name('dashboard.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('index');
     Route::get('/customers', [DashboardController::class, 'customers'])->name('customers');
+    Route::get('/customers/export', [DashboardController::class, 'exportCustomers'])->name('customers.export');
     Route::get('/activity', [DashboardController::class, 'activity'])->name('activity');
     Route::get('/reviews', [DashboardController::class, 'reviews'])->name('reviews');
     Route::get('/staff', [DashboardController::class, 'staff'])->name('staff');

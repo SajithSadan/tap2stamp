@@ -37,6 +37,7 @@ class CardController extends Controller
                 // for customers who want to review the shop on Google too.
                 'instagram_url' => $shop->instagram_url,
                 'google_review_url' => $shop->google_review_url,
+                'google_review_direct' => $shop->google_review_direct,
                 'stamp_icon' => StampIcons::resolve($shop->stamp_icon),
                 'signup_icon' => SignupIcons::resolve($shop->signup_icon),
                 'banner_url' => $shop->bannerUrl(),

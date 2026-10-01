@@ -53,6 +53,37 @@ test('an owner can update their shop settings', function () {
     expect($shop->fresh()->reward_title)->toBe('New reward');
 });
 
+test('an owner can enable direct Google Reviews and clearing the URL disables direct mode', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($owner)->put('/dashboard/settings', [
+        'name' => $shop->name,
+        'max_stamps' => $shop->max_stamps,
+        'reward_title' => $shop->reward_title,
+        'google_review_url' => 'https://g.page/r/example/review',
+        'google_review_direct' => true,
+        'instagram_url' => null,
+        'wifi_ssid' => null,
+        'wifi_password' => null,
+    ])->assertRedirect('/dashboard/settings');
+
+    expect($shop->fresh()->google_review_direct)->toBeTrue();
+
+    $this->actingAs($owner)->put('/dashboard/settings', [
+        'name' => $shop->name,
+        'max_stamps' => $shop->max_stamps,
+        'reward_title' => $shop->reward_title,
+        'google_review_url' => null,
+        'google_review_direct' => true,
+        'instagram_url' => null,
+        'wifi_ssid' => null,
+        'wifi_password' => null,
+    ])->assertRedirect('/dashboard/settings');
+
+    expect($shop->fresh()->google_review_direct)->toBeFalse();
+});
+
 test('settings validation rejects an out-of-range stamp count', function () {
     $owner = User::factory()->create(['role' => UserRole::Owner]);
     $shop = Shop::factory()->create(['user_id' => $owner->id]);

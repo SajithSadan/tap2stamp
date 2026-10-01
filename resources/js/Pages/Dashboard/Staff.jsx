@@ -1,39 +1,63 @@
-import { router, useForm, usePage } from '@inertiajs/react';
-import QRCode from 'qrcode';
-import { useEffect, useState } from 'react';
-import { LuKeyRound, LuLink, LuPlus, LuSmartphone, LuTrash2, LuUserCog } from 'react-icons/lu';
-import { FaWhatsapp } from 'react-icons/fa';
-import { useConfirm } from '@/Components/ConfirmDialog';
-import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
-import { Avatar, CopyButton, EmptyState, FieldError, inputClass, Panel, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
+import { router, useForm, usePage } from "@inertiajs/react";
+import QRCode from "qrcode";
+import { useEffect, useState } from "react";
+import {
+    LuKeyRound,
+    LuLink,
+    LuPlus,
+    LuSmartphone,
+    LuTrash2,
+    LuUserCog,
+} from "react-icons/lu";
+import { FaWhatsapp } from "react-icons/fa";
+import { useConfirm } from "@/Components/ConfirmDialog";
+import OwnerLayout from "@/Components/Dashboard/OwnerLayout";
+import {
+    Avatar,
+    CopyButton,
+    EmptyState,
+    FieldError,
+    inputClass,
+    Panel,
+    primaryButton,
+    secondaryButton,
+} from "@/Components/Dashboard/Ui";
 
 // Digits only, max 6 - the server re-validates (4-6 digits).
 const pinInputProps = {
-    type: 'password',
-    inputMode: 'numeric',
-    autoComplete: 'new-password',
+    type: "password",
+    inputMode: "numeric",
+    autoComplete: "new-password",
     maxLength: 6,
 };
 
 function onlyDigits(value) {
-    return value.replace(/\D/g, '').slice(0, 6);
+    return value.replace(/\D/g, "").slice(0, 6);
 }
 
 function ResetPinForm({ member, onDone }) {
-    const form = useForm({ pin: '' });
+    const form = useForm({ pin: "" });
 
     function submit(e) {
         e.preventDefault();
-        form.put(`/dashboard/staff-members/${member.id}/pin`, { preserveScroll: true, onSuccess: onDone });
+        form.put(`/dashboard/staff-members/${member.id}/pin`, {
+            preserveScroll: true,
+            onSuccess: onDone,
+        });
     }
 
     return (
-        <form onSubmit={submit} className="mt-3 flex items-start gap-2 sm:pl-12">
+        <form
+            onSubmit={submit}
+            className="mt-3 flex items-start gap-2 sm:pl-12"
+        >
             <div className="min-w-0 flex-1 sm:max-w-40">
                 <input
                     {...pinInputProps}
                     value={form.data.pin}
-                    onChange={(e) => form.setData('pin', onlyDigits(e.target.value))}
+                    onChange={(e) =>
+                        form.setData("pin", onlyDigits(e.target.value))
+                    }
                     placeholder="New PIN"
                     aria-label={`New PIN for ${member.name}`}
                     className={inputClass}
@@ -41,10 +65,18 @@ function ResetPinForm({ member, onDone }) {
                 />
                 <FieldError message={form.errors.pin} />
             </div>
-            <button type="submit" disabled={form.processing} className={`${primaryButton} h-[42px] shrink-0`}>
+            <button
+                type="submit"
+                disabled={form.processing}
+                className={`${primaryButton} h-[42px] shrink-0`}
+            >
                 Save PIN
             </button>
-            <button type="button" onClick={onDone} className={`${secondaryButton} h-[42px] shrink-0`}>
+            <button
+                type="button"
+                onClick={onDone}
+                className={`${secondaryButton} h-[42px] shrink-0`}
+            >
                 Cancel
             </button>
         </form>
@@ -52,34 +84,47 @@ function ResetPinForm({ member, onDone }) {
 }
 
 function StaffMembers({ members, confirm }) {
-    const form = useForm({ name: '', pin: '' });
+    const form = useForm({ name: "", pin: "" });
     const [resetting, setResetting] = useState(null);
 
     function submit(e) {
         e.preventDefault();
-        form.post('/dashboard/staff-members', { preserveScroll: true, onSuccess: () => form.reset() });
+        form.post("/dashboard/staff-members", {
+            preserveScroll: true,
+            onSuccess: () => form.reset(),
+        });
     }
 
     async function remove(member) {
         const ok = await confirm({
             title: `Remove ${member.name}?`,
-            message: 'They won’t be able to sign in any more. Their past stamps stay in your activity.',
-            confirmLabel: 'Remove',
+            message:
+                "They won’t be able to sign in any more. Their past stamps stay in your activity.",
+            confirmLabel: "Remove",
             danger: true,
         });
         if (!ok) return;
 
-        router.delete(`/dashboard/staff-members/${member.id}`, { preserveScroll: true });
+        router.delete(`/dashboard/staff-members/${member.id}`, {
+            preserveScroll: true,
+        });
     }
 
     return (
-        <Panel title="Staff members" description="Each person signs in on a shop device with their name and PIN, so every stamp shows who gave it.">
-            <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_9rem_auto]">
+        <Panel
+            title="Staff members"
+            description="Each person signs in on a shop device with their name and PIN, so every stamp shows who gave it."
+        >
+            <form
+                onSubmit={submit}
+                noValidate
+                className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_9rem_auto]"
+            >
                 <div>
                     <input
                         type="text"
                         value={form.data.name}
-                        onChange={(e) => form.setData('name', e.target.value)}
+                        onChange={(e) => form.setData("name", e.target.value)}
                         placeholder="Name, e.g. Sam"
                         aria-label="Staff member name"
                         className={inputClass}
@@ -90,18 +135,26 @@ function StaffMembers({ members, confirm }) {
                     <input
                         {...pinInputProps}
                         value={form.data.pin}
-                        onChange={(e) => form.setData('pin', onlyDigits(e.target.value))}
+                        onChange={(e) =>
+                            form.setData("pin", onlyDigits(e.target.value))
+                        }
                         placeholder="PIN (4–6 digits)"
                         aria-label="PIN"
                         className={inputClass}
                     />
                     <FieldError message={form.errors.pin} />
                 </div>
-                <button type="submit" disabled={form.processing} className={`${primaryButton} h-[42px]`}>
+                <button
+                    type="submit"
+                    disabled={form.processing}
+                    className={`${primaryButton} h-[42px]`}
+                >
                     <LuPlus className="h-4 w-4" /> Add
                 </button>
             </form>
-            <p className="mt-2 text-xs text-brand-muted">Tell them their PIN in person. You can reset it here any time.</p>
+            <p className="mt-2 text-xs text-brand-muted">
+                Tell them their PIN in person. You can reset it here any time.
+            </p>
 
             {members.length === 0 ? (
                 <EmptyState icon={LuUserCog} title="No staff yet">
@@ -125,29 +178,44 @@ function StaffMembers({ members, confirm }) {
                                             )}
                                         </p>
                                         <p className="text-xs text-brand-muted">
-                                            {member.stamps_today} today · {member.stamps_total} total
-                                            {member.last_scan && ` · last scan ${member.last_scan}`}
+                                            {member.stamps_today} today ·{" "}
+                                            {member.stamps_total} total
+                                            {member.last_scan &&
+                                                ` · last scan ${member.last_scan}`}
                                         </p>
                                     </div>
                                 </div>
                                 <div className="-ml-2.5 flex shrink-0 gap-1 pl-12 sm:ml-0 sm:pl-0">
                                     <button
                                         type="button"
-                                        onClick={() => setResetting(resetting === member.id ? null : member.id)}
+                                        onClick={() =>
+                                            setResetting(
+                                                resetting === member.id
+                                                    ? null
+                                                    : member.id,
+                                            )
+                                        }
                                         className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-text hover:bg-brand-bg"
                                     >
-                                        <LuKeyRound className="h-3.5 w-3.5" /> Reset PIN
+                                        <LuKeyRound className="h-3.5 w-3.5" />{" "}
+                                        Reset PIN
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => remove(member)}
                                         className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
                                     >
-                                        <LuTrash2 className="h-3.5 w-3.5" /> Remove
+                                        <LuTrash2 className="h-3.5 w-3.5" />{" "}
+                                        Remove
                                     </button>
                                 </div>
                             </div>
-                            {resetting === member.id && <ResetPinForm member={member} onDone={() => setResetting(null)} />}
+                            {resetting === member.id && (
+                                <ResetPinForm
+                                    member={member}
+                                    onDone={() => setResetting(null)}
+                                />
+                            )}
                         </li>
                     ))}
                 </ul>
@@ -159,8 +227,10 @@ function StaffMembers({ members, confirm }) {
 function StaffDevices({ devices, confirm }) {
     const { flash } = usePage().props;
     const [setupQr, setSetupQr] = useState(null);
-    const form = useForm({ name: '' });
-    const setupUrl = flash?.staffToken ? `${window.location.origin}/staff/setup/${flash.staffToken}` : '';
+    const form = useForm({ name: "" });
+    const setupUrl = flash?.staffToken
+        ? `${window.location.origin}/staff/setup/${flash.staffToken}`
+        : "";
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Set up the shop's staff scanner by opening this link on the device: ${setupUrl}`)}`;
 
     useEffect(() => {
@@ -169,41 +239,58 @@ function StaffDevices({ devices, confirm }) {
             return;
         }
 
-        QRCode.toDataURL(`${window.location.origin}/staff/setup/${flash.staffToken}`, { margin: 1, width: 220 })
+        QRCode.toDataURL(
+            `${window.location.origin}/staff/setup/${flash.staffToken}`,
+            { margin: 1, width: 220 },
+        )
             .then(setSetupQr)
             .catch(() => setSetupQr(null));
     }, [flash?.staffToken]);
 
     function submit(e) {
         e.preventDefault();
-        form.post('/dashboard/staff-devices', { preserveScroll: true, onSuccess: () => form.reset() });
+        form.post("/dashboard/staff-devices", {
+            preserveScroll: true,
+            onSuccess: () => form.reset(),
+        });
     }
 
     async function revoke(device) {
         const ok = await confirm({
             title: `Revoke ${device.name}?`,
-            message: 'It will stop working straight away. You can add it again later with a new setup QR.',
-            confirmLabel: 'Revoke',
+            message:
+                "It will stop working straight away. You can add it again later with a new setup QR.",
+            confirmLabel: "Revoke",
             danger: true,
         });
         if (!ok) return;
 
-        router.delete(`/dashboard/staff-devices/${device.id}`, { preserveScroll: true });
+        router.delete(`/dashboard/staff-devices/${device.id}`, {
+            preserveScroll: true,
+        });
     }
 
     async function generateSetupLink(device) {
         const ok = await confirm({
             title: `Create a new setup link for ${device.name}?`,
-            message: 'This replaces the current device token and signs out the scanner currently using it. The device must be opened with the new link before staff can scan again.',
-            confirmLabel: 'Create new link',
+            message:
+                "This replaces the current device token and signs out the scanner currently using it. The device must be opened with the new link before staff can scan again.",
+            confirmLabel: "Create new link",
         });
         if (!ok) return;
 
-        router.post(`/dashboard/staff-devices/${device.id}/setup-link`, {}, { preserveScroll: true });
+        router.post(
+            `/dashboard/staff-devices/${device.id}/setup-link`,
+            {},
+            { preserveScroll: true },
+        );
     }
 
     return (
-        <Panel title="Shop devices" description="Approve each shop phone or tablet once. Staff then sign in on it with their PIN.">
+        <Panel
+            title="Shop devices"
+            description="Approve each shop phone or tablet once. Staff then sign in on it with their PIN."
+        >
             {flash?.staffToken && (
                 <div className="mb-4 rounded-xl border border-brand-accent/40 bg-brand-accent/5 p-4 text-center">
                     <p className="text-sm font-semibold text-brand-text">
@@ -212,11 +299,20 @@ function StaffDevices({ devices, confirm }) {
                             : "Scan this with the new device now. It won't be shown again."}
                     </p>
                     {setupQr && (
-                        <img src={setupQr} alt="Device setup QR code" className="mx-auto mt-3 h-44 w-44 rounded-lg border border-brand-border bg-white" />
+                        <img
+                            src={setupQr}
+                            alt="Device setup QR code"
+                            className="mx-auto mt-3 h-44 w-44 rounded-lg border border-brand-border bg-white"
+                        />
                     )}
                     <div className="mx-auto mt-3 flex max-w-xl items-center gap-1 rounded-lg border border-brand-border bg-brand-card p-1.5 text-left">
-                        <p className="min-w-0 flex-1 break-all font-mono text-xs text-brand-muted">{setupUrl}</p>
-                        <CopyButton text={setupUrl} label="Copy device setup link" />
+                        <p className="min-w-0 flex-1 break-all font-mono text-xs text-brand-muted">
+                            {setupUrl}
+                        </p>
+                        <CopyButton
+                            text={setupUrl}
+                            label="Copy device setup link"
+                        />
                     </div>
                     <a
                         href={whatsappUrl}
@@ -226,20 +322,30 @@ function StaffDevices({ devices, confirm }) {
                     >
                         <FaWhatsapp className="h-4 w-4" /> Share via WhatsApp
                     </a>
-                    <p className="mt-2 text-xs text-brand-muted">WhatsApp will open with the link ready to send.</p>
+                    <p className="mt-2 text-xs text-brand-muted">
+                        WhatsApp will open with the link ready to send.
+                    </p>
                 </div>
             )}
 
-            <form onSubmit={submit} noValidate className="flex flex-col gap-2 sm:flex-row">
+            <form
+                onSubmit={submit}
+                noValidate
+                className="flex flex-col gap-2 sm:flex-row"
+            >
                 <input
                     type="text"
                     value={form.data.name}
-                    onChange={(e) => form.setData('name', e.target.value)}
+                    onChange={(e) => form.setData("name", e.target.value)}
                     placeholder="Device name, e.g. Counter iPad"
                     aria-label="Device name"
                     className={inputClass}
                 />
-                <button type="submit" disabled={form.processing} className={`${primaryButton} shrink-0 sm:h-[42px]`}>
+                <button
+                    type="submit"
+                    disabled={form.processing}
+                    className={`${primaryButton} shrink-0 sm:h-[42px]`}
+                >
                     <LuPlus className="h-4 w-4" /> Add device
                 </button>
             </form>
@@ -252,29 +358,41 @@ function StaffDevices({ devices, confirm }) {
             ) : (
                 <ul className="mt-4 divide-y divide-brand-border rounded-xl border border-brand-border">
                     {devices.map((device) => (
-                        <li key={device.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${device.revoked ? 'opacity-60' : ''}`}>
+                        <li
+                            key={device.id}
+                            className={`flex flex-wrap items-center gap-3 px-4 py-3 ${device.revoked ? "opacity-60" : ""}`}
+                        >
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bg text-brand-muted">
                                 <LuSmartphone className="h-4 w-4" />
                             </span>
                             <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium text-brand-text">{device.name}</p>
+                                <p className="truncate text-sm font-medium text-brand-text">
+                                    {device.name}
+                                </p>
                                 <p className="truncate text-xs text-brand-muted">
                                     {device.revoked
-                                        ? 'Revoked'
+                                        ? "Revoked"
                                         : [
-                                              device.signed_in ? `${device.signed_in} signed in` : 'Nobody signed in',
-                                              device.last_used_at ? `used ${device.last_used_at}` : `added ${device.created_at}`,
-                                          ].join(' · ')}
+                                              device.signed_in
+                                                  ? `${device.signed_in} signed in`
+                                                  : "Nobody signed in",
+                                              device.last_used_at
+                                                  ? `used ${device.last_used_at}`
+                                                  : `added ${device.created_at}`,
+                                          ].join(" · ")}
                                 </p>
                             </div>
                             {!device.revoked && (
                                 <div className="flex shrink-0 items-center gap-1">
                                     <button
                                         type="button"
-                                        onClick={() => generateSetupLink(device)}
+                                        onClick={() =>
+                                            generateSetupLink(device)
+                                        }
                                         className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-text hover:bg-brand-bg"
                                     >
-                                        <LuLink className="h-3.5 w-3.5" /> New setup link
+                                        <LuLink className="h-3.5 w-3.5" /> New
+                                        setup link
                                     </button>
                                     <button
                                         type="button"
@@ -297,7 +415,11 @@ export default function Staff({ shop, staffMembers, staffDevices }) {
     const [confirm, confirmDialog] = useConfirm();
 
     return (
-        <OwnerLayout shop={shop} title="Staff" description="Your team and the devices they scan cards on.">
+        <OwnerLayout
+            shop={shop}
+            title="Staff"
+            description="Your team and the devices they scan cards on."
+        >
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <StaffMembers members={staffMembers} confirm={confirm} />
                 <StaffDevices devices={staffDevices} confirm={confirm} />

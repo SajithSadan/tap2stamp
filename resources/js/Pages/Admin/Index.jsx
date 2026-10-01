@@ -7,6 +7,7 @@ import {
     LuExternalLink,
     LuKeyRound,
     LuPlus,
+    LuSettings,
     LuStore,
     LuX,
 } from "react-icons/lu";
@@ -472,9 +473,17 @@ function buildColumns(origin) {
             enableSorting: false,
             enableHiding: false,
             enableGlobalFilter: false,
-            meta: { csv: false },
+            meta: { csv: false, stickyRight: true },
             cell: ({ row: { original: s } }) => (
                 <div className="flex items-center justify-end gap-0.5">
+                    <Link
+                        href={`/admin/shops/${s.id}/settings`}
+                        aria-label={`Configure ${s.name}`}
+                        title="Configure shop"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-muted transition-colors hover:bg-brand-bg hover:text-brand-text"
+                    >
+                        <LuSettings className="h-4 w-4" />
+                    </Link>
                     <CopyButton
                         text={`${origin}/s/${s.slug}`}
                         label={`Copy ${s.name}'s card link`}

@@ -79,9 +79,9 @@ test('activity shows which staff member gave the stamp', function () {
         ->assertInertia(fn ($page) => $page->where('activity.data.0.staff_name', 'Sam'));
 });
 
-test('customers are searchable by name, only from this shop, without phone numbers', function () {
+test('customers are searchable by name or phone and only from this shop', function () {
     [$owner, $shop] = ownerWithShop();
-    $jamie = Customer::factory()->create(['name' => 'Jamie Smith']);
+    $jamie = Customer::factory()->create(['name' => 'Jamie Smith', 'phone' => '+447911123456']);
     CustomerShopCard::factory()->create(['shop_id' => $shop->id, 'customer_id' => $jamie->id]);
     CustomerShopCard::factory()->create(['shop_id' => $shop->id]);
     CustomerShopCard::factory()->create(['customer_id' => Customer::factory()->create(['name' => 'Jamie Other'])->id]);
@@ -91,8 +91,48 @@ test('customers are searchable by name, only from this shop, without phone numbe
             ->where('search', 'jamie')
             ->has('customers.data', 1)
             ->where('customers.data.0.name', 'Jamie Smith')
-            ->missing('customers.data.0.phone')
+            ->where('customers.data.0.phone', '+447911123456')
         );
+
+    $this->actingAs($owner)->get('/dashboard/customers?q=447911')
+        ->assertInertia(fn ($page) => $page
+            ->has('customers.data', 1)
+            ->where('customers.data.0.phone', '+447911123456')
+        );
+});
+
+test('customer CSV export includes phone and consent and stays scoped to the owner shop', function () {
+    [$owner, $shop] = ownerWithShop();
+    $customer = Customer::factory()->create([
+        'name' => 'Jamie Smith',
+        'phone' => '+447911123456',
+    ]);
+    CustomerShopCard::factory()->create([
+        'shop_id' => $shop->id,
+        'customer_id' => $customer->id,
+        'marketing_consent' => true,
+    ]);
+    $otherCustomer = Customer::factory()->create([
+        'name' => 'Other Shop Customer',
+        'phone' => '+447700900123',
+    ]);
+    CustomerShopCard::factory()->create(['customer_id' => $otherCustomer->id]);
+
+    $response = $this->actingAs($owner)->get('/dashboard/customers/export?q=Jamie');
+    $response->assertOk();
+    expect($response->headers->get('content-disposition'))->toContain("{$shop->slug}-customers-");
+
+    ob_start();
+    $response->baseResponse->sendContent();
+    $csv = ob_get_clean();
+
+    expect($csv)
+        ->toContain('Name,Phone,Stamps,"Stamps required"')
+        ->toContain('Jamie Smith')
+        ->toContain("'+447911123456")
+        ->toContain('Yes')
+        ->not->toContain('Other Shop Customer')
+        ->not->toContain('+447700900123');
 });
 
 test('reviews show a 5-to-1 star breakdown of only this shop\'s reviews', function () {

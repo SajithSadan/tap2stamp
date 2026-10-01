@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -7,9 +7,10 @@
 
 @theme {
     /* Site default theme: Tada Tap (ThemeCatalog::DEFAULT) - keep in sync with its catalog entry. */
-    --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
-    --font-heading: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+    --font-sans:
+        "Poppins", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+        "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    --font-heading: "Poppins", ui-sans-serif, system-ui, sans-serif;
 
     --color-brand-bg: #f5f8fa;
     --color-brand-card: #ffffff;
@@ -39,11 +40,22 @@
        tinted with a touch of the accent rather than white, so it stays rich
        instead of turning milky. Mixed from the live theme variables, so it
        follows a shop's theme too. */
-    --color-brand-deep-soft: color-mix(in oklab, var(--color-brand-deep) 93%, var(--color-brand-accent));
+    --color-brand-deep-soft: color-mix(
+        in oklab,
+        var(--color-brand-deep) 93%,
+        var(--color-brand-accent)
+    );
 
     /* Dashboard sidebar + mobile tab bar (bg-nav, text-nav-text). --nav-bg / --nav-text are
        set from Admin → Settings (useSidebarColors); unset = brand-deep-soft with white text. */
-    --color-nav: var(--nav-bg, color-mix(in oklab, var(--color-brand-deep) 93%, var(--color-brand-accent)));
+    --color-nav: var(
+        --nav-bg,
+        color-mix(
+            in oklab,
+            var(--color-brand-deep) 93%,
+            var(--color-brand-accent)
+        )
+    );
     --color-nav-text: var(--nav-text, #ffffff);
 }
 

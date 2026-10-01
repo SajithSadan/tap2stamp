@@ -1,20 +1,38 @@
-import { Head, Link, usePage } from '@inertiajs/react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { useState } from 'react';
-import { LuEllipsis, LuExternalLink, LuLogOut, LuScanLine, LuStore, LuX } from 'react-icons/lu';
-import { SidebarLinks, useNavigation } from '@/Components/Dashboard/NavMenu';
-import { navSurface, sideLinkClass, StatusBanner, useSidebarColors } from '@/Components/Dashboard/Ui';
-import TechsaFooter from '@/Components/TechsaFooter';
-import OwnerScanner from '@/Components/Dashboard/OwnerScanner';
-import { navIcon } from '@/lib/navIcons';
-import { useDocumentTheme } from '@/lib/theme';
+import { Head, Link, usePage } from "@inertiajs/react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useState } from "react";
+import {
+    LuEllipsis,
+    LuExternalLink,
+    LuLogOut,
+    LuScanLine,
+    LuStore,
+    LuX,
+} from "react-icons/lu";
+import { SidebarLinks, useNavigation } from "@/Components/Dashboard/NavMenu";
+import {
+    navSurface,
+    sideLinkClass,
+    StatusBanner,
+    useSidebarColors,
+} from "@/Components/Dashboard/Ui";
+import TechsaFooter from "@/Components/TechsaFooter";
+import OwnerScanner from "@/Components/Dashboard/OwnerScanner";
+import { navIcon } from "@/lib/navIcons";
+import { useDocumentTheme } from "@/lib/theme";
 
 /**
  * Owner dashboard shell: fixed sidebar on desktop, top bar + bottom tabs on
  * phones. Every page passes the same `shop` summary prop it renders from.
  * The menu itself comes from App\Support\Navigation.
  */
-export default function OwnerLayout({ shop, title, description, actions, children }) {
+export default function OwnerLayout({
+    shop,
+    title,
+    description,
+    actions,
+    children,
+}) {
     const { props } = usePage();
     const email = props.auth?.user?.email;
     const nav = useNavigation();
@@ -23,7 +41,7 @@ export default function OwnerLayout({ shop, title, description, actions, childre
     const reviewWarningKey = `owner.google-review-warning.dismissed.${shop.id}`;
     const [reviewWarningDismissed, setReviewWarningDismissed] = useState(() => {
         try {
-            return window.localStorage.getItem(reviewWarningKey) === '1';
+            return window.localStorage.getItem(reviewWarningKey) === "1";
         } catch {
             return false;
         }
@@ -43,14 +61,20 @@ export default function OwnerLayout({ shop, title, description, actions, childre
 
             <div className="flex min-h-dvh flex-col bg-brand-bg">
                 {/* Desktop sidebar - soft navy (the theme's deep colour), same surface as the mobile tab bar. */}
-                <aside className={`fixed inset-y-0 left-0 z-20 hidden w-64 flex-col lg:flex ${navSurface}`}>
+                <aside
+                    className={`fixed inset-y-0 left-0 z-20 hidden w-64 flex-col lg:flex ${navSurface}`}
+                >
                     <div className="flex items-center gap-3 px-5 py-5">
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-nav-text/[0.08] text-brand-accent">
                             <LuStore className="h-5 w-5" />
                         </span>
                         <div className="min-w-0">
-                            <p className="truncate font-heading text-lg font-semibold leading-tight text-nav-text">{shop.name}</p>
-                            <p className="text-xs text-nav-text/55">Owner dashboard</p>
+                            <p className="truncate font-heading text-lg font-semibold leading-tight text-nav-text">
+                                {shop.name}
+                            </p>
+                            <p className="text-xs text-nav-text/55">
+                                Owner dashboard
+                            </p>
                         </div>
                     </div>
 
@@ -60,7 +84,8 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                             onClick={() => setScannerOpen(true)}
                             className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-accent px-3 py-3 text-sm font-semibold text-brand-accent-text shadow-sm transition hover:brightness-95"
                         >
-                            <LuScanLine className="h-5 w-5" /> Scan customer card
+                            <LuScanLine className="h-5 w-5" /> Scan customer
+                            card
                         </button>
                     </div>
 
@@ -70,11 +95,20 @@ export default function OwnerLayout({ shop, title, description, actions, childre
 
                     <div className="space-y-1 border-t border-nav-text/[0.08] px-3 py-3">
                         <SidebarLinks items={nav.footer} />
-                        <Link href="/logout" method="post" as="button" className={`${sideLinkClass(false)} w-full`}>
+                        <Link
+                            href="/logout"
+                            method="post"
+                            as="button"
+                            className={`${sideLinkClass(false)} w-full`}
+                        >
                             <LuLogOut className="h-[18px] w-[18px]" />
                             Log out
                         </Link>
-                        {email && <p className="truncate px-3 pt-1 text-xs text-nav-text/45">{email}</p>}
+                        {email && (
+                            <p className="truncate px-3 pt-1 text-xs text-nav-text/45">
+                                {email}
+                            </p>
+                        )}
                     </div>
                 </aside>
 
@@ -84,9 +118,17 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-accent/10 text-brand-accent">
                             <LuStore className="h-4 w-4" />
                         </span>
-                        <p className="truncate font-heading text-base font-semibold text-brand-text">{shop.name}</p>
+                        <p className="truncate font-heading text-base font-semibold text-brand-text">
+                            {shop.name}
+                        </p>
                     </div>
-                    <Link href="/logout" method="post" as="button" aria-label="Log out" className="rounded-lg p-2 text-brand-muted hover:bg-brand-bg">
+                    <Link
+                        href="/logout"
+                        method="post"
+                        as="button"
+                        aria-label="Log out"
+                        className="rounded-lg p-2 text-brand-muted hover:bg-brand-bg"
+                    >
                         <LuLogOut className="h-5 w-5" />
                     </Link>
                 </header>
@@ -97,8 +139,14 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                     <div className="w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8 2xl:px-12 2xl:py-10">
                         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
                             <div>
-                                <h1 className="font-heading text-2xl font-semibold text-brand-text sm:text-3xl">{title}</h1>
-                                {description && <p className="mt-1 text-sm text-brand-muted">{description}</p>}
+                                <h1 className="font-heading text-2xl font-semibold text-brand-text sm:text-3xl">
+                                    {title}
+                                </h1>
+                                {description && (
+                                    <p className="mt-1 text-sm text-brand-muted">
+                                        {description}
+                                    </p>
+                                )}
                             </div>
                             {actions}
                         </div>
@@ -106,12 +154,25 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                         <StatusBanner />
 
                         {!shop.google_review_url && !reviewWarningDismissed && (
-                            <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950" role="status">
+                            <div
+                                className="mb-5 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950"
+                                role="status"
+                            >
                                 <span className="min-w-0 flex-1">
-                                    <span className="block text-sm font-semibold">Add your Google review link</span>
-                                    <span className="mt-0.5 block text-sm text-amber-900/80">Customers can rate you in-app now. Add your Google link to let them share their review on Google too.</span>
-                                    <Link href="/dashboard/settings#google-review-url" className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-950 underline underline-offset-2 hover:text-amber-800">
-                                        Set up Google review link <LuExternalLink className="h-3.5 w-3.5" />
+                                    <span className="block text-sm font-semibold">
+                                        Add your Google review link
+                                    </span>
+                                    <span className="mt-0.5 block text-sm text-amber-900/80">
+                                        Customers can rate you in-app now. Add
+                                        your Google link to let them share their
+                                        review on Google too.
+                                    </span>
+                                    <Link
+                                        href="/dashboard/settings#google-review-url"
+                                        className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-950 underline underline-offset-2 hover:text-amber-800"
+                                    >
+                                        Set up Google review link{" "}
+                                        <LuExternalLink className="h-3.5 w-3.5" />
                                     </Link>
                                 </span>
                                 <button
@@ -119,7 +180,10 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                                     aria-label="Dismiss Google review link reminder"
                                     onClick={() => {
                                         try {
-                                            window.localStorage.setItem(reviewWarningKey, '1');
+                                            window.localStorage.setItem(
+                                                reviewWarningKey,
+                                                "1",
+                                            );
                                         } catch {
                                             // Dismiss for this page view if storage is unavailable.
                                         }
@@ -144,7 +208,12 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                         const Icon = navIcon(item.icon);
 
                         return (
-                            <Link key={item.href} href={item.href} aria-current={item.active ? 'page' : undefined} className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${item.active ? 'text-brand-accent' : 'text-nav-text/60 hover:text-nav-text'}`}>
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                aria-current={item.active ? "page" : undefined}
+                                className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${item.active ? "text-brand-accent" : "text-nav-text/60 hover:text-nav-text"}`}
+                            >
                                 <Icon className="h-5 w-5" />
                                 <span className="truncate">{item.label}</span>
                             </Link>
@@ -160,13 +229,23 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                         >
                             <LuScanLine className="h-6 w-6" />
                         </button>
-                        <span className="pb-2.5 text-[10px] font-medium text-nav-text/60" aria-hidden="true">Scan</span>
+                        <span
+                            className="pb-2.5 text-[10px] font-medium text-nav-text/60"
+                            aria-hidden="true"
+                        >
+                            Scan
+                        </span>
                     </div>
                     {primaryItems.slice(2).map((item) => {
                         const Icon = navIcon(item.icon);
 
                         return (
-                            <Link key={item.href} href={item.href} aria-current={item.active ? 'page' : undefined} className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${item.active ? 'text-brand-accent' : 'text-nav-text/60 hover:text-nav-text'}`}>
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                aria-current={item.active ? "page" : undefined}
+                                className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${item.active ? "text-brand-accent" : "text-nav-text/60 hover:text-nav-text"}`}
+                            >
                                 <Icon className="h-5 w-5" />
                                 <span className="truncate">{item.label}</span>
                             </Link>
@@ -176,10 +255,18 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                         type="button"
                         onClick={() => setMoreOpen((open) => !open)}
                         aria-expanded={moreOpen}
-                        aria-label={moreOpen ? 'Close more navigation' : 'More navigation'}
-                        className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${moreActive || moreOpen ? 'text-brand-accent' : 'text-nav-text/60 hover:text-nav-text'}`}
+                        aria-label={
+                            moreOpen
+                                ? "Close more navigation"
+                                : "More navigation"
+                        }
+                        className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${moreActive || moreOpen ? "text-brand-accent" : "text-nav-text/60 hover:text-nav-text"}`}
                     >
-                        {moreOpen ? <LuX className="h-5 w-5" /> : <LuEllipsis className="h-5 w-5" />}
+                        {moreOpen ? (
+                            <LuX className="h-5 w-5" />
+                        ) : (
+                            <LuEllipsis className="h-5 w-5" />
+                        )}
                         <span>More</span>
                     </button>
                 </nav>
@@ -201,7 +288,7 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: 20 }}
-                                transition={{ duration: 0.18, ease: 'easeOut' }}
+                                transition={{ duration: 0.18, ease: "easeOut" }}
                                 className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 grid grid-cols-2 gap-2 rounded-2xl border border-nav-text/10 bg-nav p-3 text-nav-text shadow-xl lg:hidden"
                             >
                                 {moreItems.map((item) => {
@@ -212,11 +299,15 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                                             key={item.href}
                                             href={item.href}
                                             onClick={() => setMoreOpen(false)}
-                                            aria-current={item.active ? 'page' : undefined}
-                                            className={`flex min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${item.active ? 'bg-brand-accent/15 text-nav-text [&>svg]:text-brand-accent' : 'text-nav-text/70 hover:bg-nav-text/5 hover:text-nav-text'}`}
+                                            aria-current={
+                                                item.active ? "page" : undefined
+                                            }
+                                            className={`flex min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${item.active ? "bg-brand-accent/15 text-nav-text [&>svg]:text-brand-accent" : "text-nav-text/70 hover:bg-nav-text/5 hover:text-nav-text"}`}
                                         >
                                             <Icon className="h-5 w-5 shrink-0" />
-                                            <span className="truncate">{item.label}</span>
+                                            <span className="truncate">
+                                                {item.label}
+                                            </span>
                                         </Link>
                                     );
                                 })}
@@ -226,7 +317,9 @@ export default function OwnerLayout({ shop, title, description, actions, childre
                 </AnimatePresence>
             </div>
 
-            {scannerOpen && <OwnerScanner onClose={() => setScannerOpen(false)} />}
+            {scannerOpen && (
+                <OwnerScanner onClose={() => setScannerOpen(false)} />
+            )}
         </>
     );
 }

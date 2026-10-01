@@ -11,6 +11,7 @@ import { inputClass, secondaryButton } from '@/Components/Dashboard/Ui';
  * Column `meta`:
  *   label   - name in the Columns menu and CSV header
  *   align   - 'right' for numbers
+ *   stickyRight - keep this column visible at the right edge while scrolling horizontally
  *   csv     - (row) => value, or false to leave the column out of the CSV
  *
  * `storageKey` remembers column visibility + page size per browser (a
@@ -168,6 +169,7 @@ export default function DataTable({
 
     const alignClass = (column) => (column.columnDef.meta?.align === 'right' ? 'text-right' : 'text-left');
     const stickyFirst = (i, bg) => (i === 0 ? `sticky left-0 ${bg} pl-5` : '');
+    const stickyRight = (column, bg) => (column.columnDef.meta?.stickyRight ? `sticky right-0 ${bg} shadow-[-8px_0_10px_-10px_rgba(15,23,42,0.45)]` : '');
 
     return (
         <div className="min-w-0 rounded-2xl border border-brand-border bg-brand-card shadow-sm">
@@ -222,7 +224,7 @@ export default function DataTable({
                                             key={header.id}
                                             scope="col"
                                             aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
-                                            className={`whitespace-nowrap border-b border-brand-border bg-brand-bg px-4 py-3 text-xs font-medium uppercase tracking-wide text-brand-muted ${alignClass(header.column)} ${stickyFirst(i, 'z-20 bg-brand-bg')}`}
+                                            className={`whitespace-nowrap border-b border-brand-border bg-brand-bg px-4 py-3 text-xs font-medium uppercase tracking-wide text-brand-muted ${alignClass(header.column)} ${stickyFirst(i, 'z-20 bg-brand-bg')} ${stickyRight(header.column, 'z-30 bg-brand-bg')}`}
                                         >
                                             {header.isPlaceholder ? null : canSort ? (
                                                 <button
@@ -271,7 +273,7 @@ export default function DataTable({
                                             className={`border-b border-brand-border px-4 py-3 align-middle transition-colors group-hover/row:bg-brand-bg ${alignClass(cell.column)} ${stickyFirst(
                                                 i,
                                                 'z-[5] bg-brand-card',
-                                            )}`}
+                                            )} ${stickyRight(cell.column, 'z-10 bg-brand-card group-hover/row:bg-brand-bg')}`}
                                         >
                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                         </td>
