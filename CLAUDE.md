@@ -1,10 +1,10 @@
-# Loyalty Hub — Project Rules
+# Tada Tap — Project Rules
 
 This file is loaded automatically every session. It replaces pasting the Master Context by hand.
 
 ## Product
 
-A web-based digital loyalty and social hub for UK high-street independents (cafes, bakeries,
+A web-based digital loyalty and social hub called Tada Tap for UK high-street independents (cafes, bakeries,
 barbers, pubs). Replaces paper punch cards and doubles as a customer engagement hub (in-app
 ratings/reviews, Instagram, Wi-Fi).
 
@@ -252,8 +252,9 @@ owner-approved device.
 
 - The 50-theme catalog lives in `App\Support\ThemeCatalog` (moved out of the dev-only
   `ThemePreviewController`, which now just reads it). `ThemeCatalog::DEFAULT` is
-  `tap2stamp` (navy + mint green, Poppins — the brand look of the WordPress landing page at
-  tap2stamp.co.uk) = the site look in `app.css` and the fonts in `app.blade.php`. **Keep all
+  `tap2stamp` (the persisted legacy slug for the Tada Tap brand: navy + mint green, Poppins —
+  the look of the marketing site currently at tap2stamp.co.uk) = the site look in `app.css` and
+  the fonts in `app.blade.php`. **Keep all
   three in sync** when the brand colours change.
 - `shops.theme` (nullable slug) is set on `/dashboard/theme` (`Dashboard/Theme.jsx`: filters,
   live phone preview, `PUT /dashboard/theme` validated with `Rule::in` the catalog keys).
@@ -268,7 +269,7 @@ owner-approved device.
 - Because themes can be dark, customer-page code must not use `brand-text` as a "dark"
   colour (it's light on dark themes). For always-dark brand surfaces (card banner,
   registration backdrop, owner/admin sidebar, sign-up panel) use **`brand-deep`** — the theme's
-  `deep` colour, always paired with white text. Tap2Stamp sets it to its navy; every other
+  `deep` colour, always paired with white text. Tada Tap sets it to its navy; every other
   theme falls back to `ThemeCatalog::DEFAULT_DEEP` (near-black, the old look), added in
   `ThemeCatalog::all()` so every theme array always has it. Owners can customise it (it's in
   `CUSTOM_COLORS`). The owner/admin **sidebar and mobile tab bar** use the calmer
@@ -421,7 +422,7 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
 
 ## Self-service sign-up (additive — the landing page's "Start Free")
 
-The marketing site is WordPress (tap2stamp.co.uk); its "Start Free" links to this app's
+The marketing site is WordPress (currently at tap2stamp.co.uk); its "Start Free" links to this app's
 `/register`. Sign-up always creates an **owner**, never an admin, and the shop is live as soon
 as it's set up (no approval step).
 

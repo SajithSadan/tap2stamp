@@ -4,6 +4,7 @@ use App\Enums\ActionType;
 use App\Enums\UserRole;
 use App\Models\Customer;
 use App\Models\Shop;
+use App\Models\StaffMember;
 use App\Models\StampLog;
 use App\Models\User;
 
@@ -79,6 +80,45 @@ test('adding a staff device stores only its hash and flashes the plain token onc
 
     expect($device->token_hash)->toBe(hash('sha256', $token));
     expect($device->token_hash)->not->toBe($token);
+});
+
+test('an owner can generate a replacement setup link for an existing device', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+    $member = StaffMember::factory()->create(['shop_id' => $shop->id]);
+    $oldToken = 'existing-device-token';
+    $device = $shop->staffDevices()->create([
+        'name' => 'Counter iPad',
+        'token_hash' => hash('sha256', $oldToken),
+        'staff_member_id' => $member->id,
+        'staff_signed_in_at' => now(),
+    ]);
+
+    $this->actingAs($owner)->post("/dashboard/staff-devices/{$device->id}/setup-link")
+        ->assertRedirect('/dashboard/staff')
+        ->assertSessionHas('staffToken')
+        ->assertSessionHas('staffDeviceName', 'Counter iPad');
+
+    $newToken = session('staffToken');
+    $device->refresh();
+
+    expect($newToken)->not->toBe($oldToken)
+        ->and($device->token_hash)->toBe(hash('sha256', $newToken))
+        ->and($device->staff_member_id)->toBeNull()
+        ->and($device->staff_signed_in_at)->toBeNull();
+});
+
+test('an owner cannot generate a setup link for another owner\'s device', function () {
+    $ownerA = User::factory()->create(['role' => UserRole::Owner]);
+    Shop::factory()->create(['user_id' => $ownerA->id]);
+
+    $ownerB = User::factory()->create(['role' => UserRole::Owner]);
+    $shopB = Shop::factory()->create(['user_id' => $ownerB->id]);
+    $device = $shopB->staffDevices()->create(['name' => 'B device', 'token_hash' => hash('sha256', 'original')]);
+
+    $this->actingAs($ownerA)->post("/dashboard/staff-devices/{$device->id}/setup-link")->assertForbidden();
+
+    expect($device->fresh()->token_hash)->toBe(hash('sha256', 'original'));
 });
 
 test('revoking a device sets revoked_at', function () {

@@ -11,6 +11,7 @@ use App\Services\CustomerRegistrar;
 use App\Support\SignupIcons;
 use App\Support\StampIcons;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -55,6 +56,14 @@ class CardController extends Controller
             $request->string('phone')->value(),
             $request->boolean('marketing_consent'),
         );
+
+        return response()->json($this->cardPayload($card, $shop));
+    }
+
+    public function registerExisting(Request $request, Shop $shop, Customer $customer, CustomerRegistrar $registrar): JsonResponse
+    {
+        $validated = $request->validate(['marketing_consent' => ['required', 'boolean']]);
+        $card = $registrar->registerExistingFor($shop, $customer, $validated['marketing_consent']);
 
         return response()->json($this->cardPayload($card, $shop));
     }

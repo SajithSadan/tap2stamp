@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Support\QrStyle;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -56,6 +57,11 @@ class QrDesign extends Model
             'height_mm' => 'integer',
             'style' => 'array',
         ];
+    }
+
+    public function codes(): BelongsToMany
+    {
+        return $this->belongsToMany(QrCode::class, 'qr_code_design')->withTimestamps();
     }
 
     /** Every style key filled in - designs saved before styling get the plain look. */

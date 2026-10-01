@@ -27,7 +27,7 @@ export default function AdminLayout({ title, description, actions, children }) {
                 {/* Desktop sidebar - soft navy, same surface as the mobile tab bar. */}
                 <aside className={`fixed inset-y-0 left-0 z-20 hidden w-64 flex-col lg:flex ${navSurface}`}>
                     <div className="px-5 py-5">
-                        <Wordmark className="text-2xl text-nav-text" />
+                        <Wordmark variant="light" />
                     </div>
 
                     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
@@ -47,7 +47,7 @@ export default function AdminLayout({ title, description, actions, children }) {
                 {/* Mobile top bar */}
                 <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-brand-border bg-brand-card/95 px-4 py-3 backdrop-blur lg:hidden">
                     <Link href="/admin" className="flex min-w-0 items-baseline gap-2">
-                        <Wordmark className="text-xl text-brand-text" />
+                        <Wordmark className="h-7" />
                         <span className="text-xs font-medium text-brand-muted">Admin</span>
                     </Link>
                     <Link href="/logout" method="post" as="button" aria-label="Log out" className="rounded-lg p-2 text-brand-muted hover:bg-brand-bg">

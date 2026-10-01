@@ -37,12 +37,12 @@ class ThemeCatalog
     private static function catalog(): array
     {
         return [
-            // The tap2stamp brand (matches the WordPress landing page): three
-            // colours - navy surfaces (deep), mint green accent, white - on
-            // near-black ink. Also the site's own look: keep app.css in sync.
+            // Keep this persisted slug for existing shops; the customer-facing
+            // theme name is Tada Tap. Navy, mint green and white are the brand
+            // colours; keep the site's default look in app.css in sync.
             'tap2stamp' => [
-                'name' => 'Tap2Stamp',
-                'blurb' => 'The tap2stamp brand — navy, mint green and white, friendly rounded type.',
+                'name' => 'Tada Tap',
+                'blurb' => 'The Tada Tap brand — navy, mint green and white, friendly rounded type.',
                 'category' => 'general',
                 'mood' => 'light',
                 'google_fonts' => 'Poppins:wght@400;500;600;700;800',

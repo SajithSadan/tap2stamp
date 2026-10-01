@@ -1,4 +1,4 @@
-# Loyalty Hub
+# Tada Tap
 
 Digital loyalty cards and a small customer hub for UK high-street independents (cafes,
 bakeries, barbers, pubs). Customers scan a QR at the counter, register once with a name and

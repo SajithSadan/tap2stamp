@@ -1,53 +1,66 @@
-import { Head } from '@inertiajs/react';
-import { useState } from 'react';
-import { FcGoogle } from 'react-icons/fc';
-import { LuEye, LuEyeOff, LuGift, LuSmartphone, LuStar } from 'react-icons/lu';
-import { FieldError } from '@/Components/Dashboard/Ui';
+import { Head } from "@inertiajs/react";
+import { useState } from "react";
+import { FcGoogle } from "react-icons/fc";
+import { LuEye, LuEyeOff, LuGift, LuSmartphone, LuStar } from "react-icons/lu";
+import { FieldError } from "@/Components/Dashboard/Ui";
 
 // Log in / sign up / shop setup share this shell so they match the
-// tap2stamp landing page: navy brand panel beside the form on desktop, the
+// Tada Tap brand: navy panel beside the form on desktop, the
 // form alone on phones.
 
 export const authInputClass =
-    'w-full min-w-0 rounded-xl border border-brand-border bg-brand-card px-4 py-3 text-sm text-brand-text outline-none transition placeholder:text-brand-muted/70 focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/15';
+    "w-full min-w-0 rounded-xl border border-brand-border bg-brand-card px-4 py-3 text-sm text-brand-text outline-none transition placeholder:text-brand-muted/70 focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/15";
 
 export const authButtonClass =
-    'inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-accent px-5 py-3 text-sm font-semibold text-brand-accent-text transition hover:brightness-95 disabled:opacity-50';
+    "inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-accent px-5 py-3 text-sm font-semibold text-brand-accent-text transition hover:brightness-95 disabled:opacity-50";
 
-export function Wordmark({ className = '' }) {
+export function Wordmark({ className = "", variant = "dark" }) {
     return (
-        <span className={`font-heading font-bold tracking-tight ${className}`}>
-            tap<span className="text-brand-accent">2</span>stamp
-        </span>
+        <img
+            src={variant === "light" ? "/images/tata-tap-loyalty-program-dark-logo.png" : "/images/tada-tap-logo.png"}
+            alt="Tada Tap"
+            className={`block h-8 w-auto max-w-full object-contain ${className}`}
+        />
     );
 }
 
 // While a field has an error, its control gets a red outline (plain inputs,
 // or the bordered box around composite ones like SlugInput).
 const invalidClass =
-    '[&_:is(input,textarea)]:border-red-400 [&_:is(input,textarea):focus]:ring-red-500/15 [&>div]:border-red-400 [&>div:focus-within]:ring-red-500/15';
+    "[&_:is(input,textarea)]:border-red-400 [&_:is(input,textarea):focus]:ring-red-500/15 [&>div]:border-red-400 [&>div:focus-within]:ring-red-500/15";
 
 export function AuthField({ id, label, error, hint, children }) {
     return (
         <div className={error ? invalidClass : undefined}>
-            <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-brand-text">
+            <label
+                htmlFor={id}
+                className="mb-1.5 block text-sm font-medium text-brand-text"
+            >
                 {label}
             </label>
             {children}
-            {hint && !error && <p className="mt-1 text-xs text-brand-muted">{hint}</p>}
+            {hint && !error && (
+                <p className="mt-1 text-xs text-brand-muted">{hint}</p>
+            )}
             <FieldError id={`${id}-error`} message={error} />
         </div>
     );
 }
 
-export function PasswordInput({ id, value, onChange, autoComplete, placeholder }) {
+export function PasswordInput({
+    id,
+    value,
+    onChange,
+    autoComplete,
+    placeholder,
+}) {
     const [visible, setVisible] = useState(false);
 
     return (
         <div className="relative">
             <input
                 id={id}
-                type={visible ? 'text' : 'password'}
+                type={visible ? "text" : "password"}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 autoComplete={autoComplete}
@@ -57,10 +70,14 @@ export function PasswordInput({ id, value, onChange, autoComplete, placeholder }
             <button
                 type="button"
                 onClick={() => setVisible((v) => !v)}
-                aria-label={visible ? 'Hide password' : 'Show password'}
+                aria-label={visible ? "Hide password" : "Show password"}
                 className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-brand-muted hover:text-brand-text"
             >
-                {visible ? <LuEyeOff className="h-4 w-4" /> : <LuEye className="h-4 w-4" />}
+                {visible ? (
+                    <LuEyeOff className="h-4 w-4" />
+                ) : (
+                    <LuEye className="h-4 w-4" />
+                )}
             </button>
         </div>
     );
@@ -90,12 +107,30 @@ export function OrDivider() {
 }
 
 const POINTS = [
-    { icon: LuSmartphone, title: 'No app, no plastic', text: 'Customers collect stamps on their own phone.' },
-    { icon: LuGift, title: 'Rewards that bring them back', text: 'Set your own stamps and reward in a minute.' },
-    { icon: LuStar, title: 'Reviews and insights', text: 'See who visits, how often, and what they think.' },
+    {
+        icon: LuSmartphone,
+        title: "No app, no plastic",
+        text: "Customers collect stamps on their own phone.",
+    },
+    {
+        icon: LuGift,
+        title: "Rewards that bring them back",
+        text: "Set your own stamps and reward in a minute.",
+    },
+    {
+        icon: LuStar,
+        title: "Reviews and insights",
+        text: "See who visits, how often, and what they think.",
+    },
 ];
 
-export default function AuthShell({ title, heading, subheading, children, footer }) {
+export default function AuthShell({
+    title,
+    heading,
+    subheading,
+    children,
+    footer,
+}) {
     return (
         <>
             <Head title={title} />
@@ -106,41 +141,63 @@ export default function AuthShell({ title, heading, subheading, children, footer
                     <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand-accent/20 blur-3xl" />
                     <div className="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-brand-accent/10 blur-3xl" />
 
-                    <Wordmark className="relative text-2xl" />
+                    <Wordmark variant="light" className="relative" />
 
                     <div className="relative">
-                        <p className="text-sm font-semibold text-brand-accent">Digital loyalty card</p>
-                        <h2 className="mt-3 font-heading text-4xl font-bold leading-tight">Turn every visit into a reason to come back.</h2>
+                        <p className="text-sm font-semibold text-brand-accent">
+                            Digital loyalty card
+                        </p>
+                        <h2 className="mt-3 font-heading text-4xl font-bold leading-tight">
+                            Turn every visit into a reason to come back.
+                        </h2>
 
                         <ul className="mt-10 space-y-6">
-                            {POINTS.map(({ icon: Icon, title: pointTitle, text }) => (
-                                <li key={pointTitle} className="flex gap-4">
-                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-brand-accent">
-                                        <Icon className="h-5 w-5" />
-                                    </span>
-                                    <div>
-                                        <p className="font-semibold">{pointTitle}</p>
-                                        <p className="mt-0.5 text-sm text-white/70">{text}</p>
-                                    </div>
-                                </li>
-                            ))}
+                            {POINTS.map(
+                                ({ icon: Icon, title: pointTitle, text }) => (
+                                    <li key={pointTitle} className="flex gap-4">
+                                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-brand-accent">
+                                            <Icon className="h-5 w-5" />
+                                        </span>
+                                        <div>
+                                            <p className="font-semibold">
+                                                {pointTitle}
+                                            </p>
+                                            <p className="mt-0.5 text-sm text-white/70">
+                                                {text}
+                                            </p>
+                                        </div>
+                                    </li>
+                                ),
+                            )}
                         </ul>
                     </div>
 
-                    <p className="relative text-xs text-white/50">Made for UK high-street independents.</p>
+                    <p className="relative text-xs text-white/50">
+                        Made for UK high-street independents.
+                    </p>
                 </aside>
 
                 {/* Form */}
                 <main className="flex flex-1 items-center justify-center px-5 py-10 sm:px-8">
                     <div className="w-full max-w-md">
-                        <Wordmark className="text-2xl text-brand-text lg:hidden" />
+                        <Wordmark className="h-7 lg:hidden" />
 
-                        <h1 className="mt-8 font-heading text-3xl font-bold text-brand-text lg:mt-0">{heading}</h1>
-                        {subheading && <p className="mt-2 text-sm text-brand-muted">{subheading}</p>}
+                        <h1 className="mt-8 font-heading text-3xl font-bold text-brand-text lg:mt-0">
+                            {heading}
+                        </h1>
+                        {subheading && (
+                            <p className="mt-2 text-sm text-brand-muted">
+                                {subheading}
+                            </p>
+                        )}
 
                         <div className="mt-8">{children}</div>
 
-                        {footer && <div className="mt-8 text-center text-sm text-brand-muted">{footer}</div>}
+                        {footer && (
+                            <div className="mt-8 text-center text-sm text-brand-muted">
+                                {footer}
+                            </div>
+                        )}
                     </div>
                 </main>
             </div>

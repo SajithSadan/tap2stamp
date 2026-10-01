@@ -67,7 +67,7 @@ class StaffController extends Controller
         $request->validate(['payload' => ['required', 'string']]);
 
         [$status, $body] = $service->scan(
-            $request->attributes->get('staffDevice'),
+            $request->attributes->get('staffDevice')->shop,
             $request->string('payload')->value(),
             $request->attributes->get('staffMember'),
         );

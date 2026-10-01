@@ -184,7 +184,7 @@ export default function Settings({ shop, contact }) {
                                     <input type="url" placeholder="https://instagram.com/…" {...text('instagram_url')} />
                                 </Field>
                                 <Field label="Google review URL" error={form.errors.google_review_url} hint="After rating you, customers get a button to post it on Google too.">
-                                    <input type="url" placeholder="https://g.page/r/…" {...text('google_review_url')} />
+                                    <input id="google-review-url" type="url" placeholder="https://g.page/r/…" {...text('google_review_url')} />
                                 </Field>
                             </div>
                         </div>

@@ -14,6 +14,7 @@ use App\Http\Controllers\DeployController;
 use App\Http\Controllers\Dev\CustomThemeController;
 use App\Http\Controllers\Dev\ThemePreviewController;
 use App\Http\Controllers\MyCardsController;
+use App\Http\Controllers\OwnerScanController;
 use App\Http\Controllers\QrRedirectController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ShopBannerController;
@@ -36,6 +37,10 @@ Route::get('/s/{shop:slug}', [CardController::class, 'show'])->name('card.show')
 Route::post('/s/{shop:slug}/register', [CardController::class, 'register'])
     ->middleware('throttle:10,1')
     ->name('card.register');
+Route::post('/s/{shop:slug}/card/{customer:uuid}/join', [CardController::class, 'registerExisting'])
+    ->middleware('throttle:10,1')
+    ->name('card.join')
+    ->withoutScopedBindings();
 // withoutScopedBindings(): a customer isn't a direct relation of a shop
 // (there's no Shop::customers()) - the shop/customer link is the explicit
 // CustomerShopCard lookup CardController::cardState() already does, not
@@ -97,6 +102,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/qr-codes', [QrCodeController::class, 'index'])->name('qr-codes.index');
     Route::post('/qr-codes', [QrCodeController::class, 'store'])->name('qr-codes.store');
     Route::post('/qr-codes/print', [QrCodeController::class, 'printData'])->name('qr-codes.print');
+    Route::post('/qr-codes/record-print', [QrCodeController::class, 'recordPrint'])->name('qr-codes.record-print');
     Route::delete('/qr-codes/batches/{qrBatch}', [QrCodeController::class, 'destroyBatch'])->name('qr-codes.batches.destroy');
 
     // Sticker designs: a background image + where the QR goes on it, picked at print time.
@@ -140,6 +146,7 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::get('/activity', [DashboardController::class, 'activity'])->name('activity');
     Route::get('/reviews', [DashboardController::class, 'reviews'])->name('reviews');
     Route::get('/staff', [DashboardController::class, 'staff'])->name('staff');
+    Route::post('/scan', OwnerScanController::class)->middleware('throttle:30,1')->name('scan');
     Route::get('/settings', [DashboardController::class, 'settings'])->name('settings');
     Route::put('/settings', [DashboardController::class, 'updateSettings'])->name('settings.update');
     Route::put('/settings/contact', [DashboardController::class, 'updateContact'])->name('settings.contact');
@@ -163,6 +170,7 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::delete('/staff-members/{staffMember}', [StaffMemberController::class, 'destroy'])->name('staff-members.destroy');
 
     Route::post('/staff-devices', [StaffDeviceController::class, 'store'])->name('staff-devices.store');
+    Route::post('/staff-devices/{staffDevice}/setup-link', [StaffDeviceController::class, 'setupLink'])->name('staff-devices.setup-link');
     Route::delete('/staff-devices/{staffDevice}', [StaffDeviceController::class, 'destroy'])->name('staff-devices.destroy');
 });
 

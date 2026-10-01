@@ -255,6 +255,7 @@ function PinSignIn({ shopName, members, api, onSignedIn }) {
 function ScanTab({ api, onScanned, onApiError }) {
     const [cameraError, setCameraError] = useState(false);
     const [result, setResult] = useState(null);
+    const [manualPayload, setManualPayload] = useState('');
     const lastScanRef = useRef({ payload: null, time: 0 });
     const dismissTimerRef = useRef(null);
     const busyRef = useRef(false);
@@ -297,14 +298,26 @@ function ScanTab({ api, onScanned, onApiError }) {
     }
 
     function onDecode(decodedText) {
+        const payload = decodedText.trim();
+        if (!payload) return;
+
         const now = Date.now();
 
-        if (decodedText === lastScanRef.current.payload && now - lastScanRef.current.time < DEBOUNCE_MS) {
+        if (payload === lastScanRef.current.payload && now - lastScanRef.current.time < DEBOUNCE_MS) {
             return;
         }
 
-        lastScanRef.current = { payload: decodedText, time: now };
-        submitScan(decodedText);
+        lastScanRef.current = { payload, time: now };
+        submitScan(payload);
+    }
+
+    function submitManual(e) {
+        e.preventDefault();
+        const payload = manualPayload.trim();
+        if (!payload || busyRef.current) return;
+
+        setManualPayload('');
+        onDecode(payload);
     }
 
     // Mounted only while this tab is open, so leaving the tab releases the camera.
@@ -339,7 +352,30 @@ function ScanTab({ api, onScanned, onApiError }) {
                     <div id={READER_ID} className="w-full max-w-md" />
                 )}
             </div>
-            <p className="px-5 pb-4 text-center text-xs text-white/60">Point the camera at the customer's card QR code.</p>
+            <div className="bg-brand-card px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+                <p className="mb-2 text-center text-xs text-brand-muted">Point the camera at the customer’s card QR code, or use a scanner below.</p>
+                <form onSubmit={submitManual} className="mx-auto flex w-full max-w-md gap-2">
+                    <input
+                        type="text"
+                        value={manualPayload}
+                        onChange={(e) => setManualPayload(e.target.value)}
+                        placeholder="Scan or enter QR code"
+                        aria-label="Scan or enter customer QR code"
+                        autoComplete="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        autoFocus
+                        className="h-12 min-w-0 flex-1 rounded-xl border border-brand-border bg-white px-3 text-sm text-brand-text outline-none placeholder:text-brand-muted/70 focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/10"
+                    />
+                    <button
+                        type="submit"
+                        disabled={!manualPayload.trim()}
+                        className="h-12 shrink-0 rounded-xl bg-brand-accent px-4 text-sm font-semibold text-brand-accent-text transition-opacity disabled:opacity-50"
+                    >
+                        Submit
+                    </button>
+                </form>
+            </div>
         </div>
     );
 }

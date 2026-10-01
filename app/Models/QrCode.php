@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class QrCode extends Model
 {
@@ -15,6 +16,7 @@ class QrCode extends Model
 
     protected $fillable = [
         'qr_batch_id',
+        'shop_id',
         'code',
         'destination_url',
         'mapped_at',
@@ -30,6 +32,16 @@ class QrCode extends Model
     public function batch(): BelongsTo
     {
         return $this->belongsTo(QrBatch::class, 'qr_batch_id');
+    }
+
+    public function shop(): BelongsTo
+    {
+        return $this->belongsTo(Shop::class);
+    }
+
+    public function designs(): BelongsToMany
+    {
+        return $this->belongsToMany(QrDesign::class, 'qr_code_design')->withTimestamps();
     }
 
     /**

@@ -43,4 +43,21 @@ class CustomerRegistrar
 
         return $card;
     }
+
+    /** Creates the current shop's card for a customer already identified by their saved UUID. */
+    public function registerExistingFor(Shop $shop, Customer $customer, bool $marketingConsent = false): CustomerShopCard
+    {
+        $card = CustomerShopCard::firstOrCreate(
+            ['customer_id' => $customer->id, 'shop_id' => $shop->id],
+            ['current_stamps' => 0, 'rewards_claimed' => 0]
+        );
+
+        if ($marketingConsent && ! $card->marketing_consent) {
+            $card->update(['marketing_consent' => true, 'marketing_consent_at' => now()]);
+        }
+
+        $card->setRelation('customer', $customer);
+
+        return $card;
+    }
 }

@@ -51,11 +51,11 @@ class Navigation
             ['route' => 'admin.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $admin, 'active' => ['admin.settings*']],
 
             // --- Owner dashboard -----------------------------------------
-            ['route' => 'dashboard.index', 'label' => 'Overview', 'icon' => 'overview', 'roles' => $owner],
-            ['route' => 'dashboard.customers', 'label' => 'Customers', 'icon' => 'customers', 'roles' => $owner],
+            ['route' => 'dashboard.index', 'label' => 'Overview', 'icon' => 'overview', 'roles' => $owner, 'mobile_primary' => true],
+            ['route' => 'dashboard.customers', 'label' => 'Customers', 'icon' => 'customers', 'roles' => $owner, 'mobile_primary' => true],
             ['route' => 'dashboard.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $owner],
             ['route' => 'dashboard.reviews', 'label' => 'Reviews', 'icon' => 'reviews', 'roles' => $owner],
-            ['route' => 'dashboard.staff', 'label' => 'Staff', 'icon' => 'staff', 'roles' => $owner],
+            ['route' => 'dashboard.staff', 'label' => 'Staff', 'icon' => 'staff', 'roles' => $owner, 'mobile_primary' => true],
             ['route' => 'dashboard.theme', 'label' => 'Theme', 'icon' => 'theme', 'roles' => $owner, 'active' => ['dashboard.theme*']],
             ['route' => 'dashboard.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $owner, 'active' => ['dashboard.settings*']],
             [
@@ -98,6 +98,7 @@ class Navigation
                 'group' => $item['group'] ?? null,
                 'external' => $item['external'] ?? false,
                 'active' => $request->routeIs(...($item['active'] ?? [$item['route']])),
+                'mobile_primary' => $item['mobile_primary'] ?? false,
             ];
         }
 

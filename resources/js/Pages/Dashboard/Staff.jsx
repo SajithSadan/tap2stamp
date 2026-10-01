@@ -1,10 +1,11 @@
 import { router, useForm, usePage } from '@inertiajs/react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
-import { LuKeyRound, LuPlus, LuSmartphone, LuTrash2, LuUserCog } from 'react-icons/lu';
+import { LuKeyRound, LuLink, LuPlus, LuSmartphone, LuTrash2, LuUserCog } from 'react-icons/lu';
+import { FaWhatsapp } from 'react-icons/fa';
 import { useConfirm } from '@/Components/ConfirmDialog';
 import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
-import { Avatar, EmptyState, FieldError, inputClass, Panel, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
+import { Avatar, CopyButton, EmptyState, FieldError, inputClass, Panel, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
 
 // Digits only, max 6 - the server re-validates (4-6 digits).
 const pinInputProps = {
@@ -159,6 +160,8 @@ function StaffDevices({ devices, confirm }) {
     const { flash } = usePage().props;
     const [setupQr, setSetupQr] = useState(null);
     const form = useForm({ name: '' });
+    const setupUrl = flash?.staffToken ? `${window.location.origin}/staff/setup/${flash.staffToken}` : '';
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Set up the shop's staff scanner by opening this link on the device: ${setupUrl}`)}`;
 
     useEffect(() => {
         if (!flash?.staffToken) {
@@ -188,15 +191,42 @@ function StaffDevices({ devices, confirm }) {
         router.delete(`/dashboard/staff-devices/${device.id}`, { preserveScroll: true });
     }
 
+    async function generateSetupLink(device) {
+        const ok = await confirm({
+            title: `Create a new setup link for ${device.name}?`,
+            message: 'This replaces the current device token and signs out the scanner currently using it. The device must be opened with the new link before staff can scan again.',
+            confirmLabel: 'Create new link',
+        });
+        if (!ok) return;
+
+        router.post(`/dashboard/staff-devices/${device.id}/setup-link`, {}, { preserveScroll: true });
+    }
+
     return (
         <Panel title="Shop devices" description="Approve each shop phone or tablet once. Staff then sign in on it with their PIN.">
             {flash?.staffToken && (
                 <div className="mb-4 rounded-xl border border-brand-accent/40 bg-brand-accent/5 p-4 text-center">
-                    <p className="text-sm font-semibold text-brand-text">Scan this with the new device now. It won't be shown again.</p>
+                    <p className="text-sm font-semibold text-brand-text">
+                        {flash.staffDeviceName
+                            ? `Setup link for ${flash.staffDeviceName}. It won't be shown again.`
+                            : "Scan this with the new device now. It won't be shown again."}
+                    </p>
                     {setupQr && (
                         <img src={setupQr} alt="Device setup QR code" className="mx-auto mt-3 h-44 w-44 rounded-lg border border-brand-border bg-white" />
                     )}
-                    <p className="mt-2 break-all font-mono text-[11px] text-brand-muted">/staff/setup/{flash.staffToken}</p>
+                    <div className="mx-auto mt-3 flex max-w-xl items-center gap-1 rounded-lg border border-brand-border bg-brand-card p-1.5 text-left">
+                        <p className="min-w-0 flex-1 break-all font-mono text-xs text-brand-muted">{setupUrl}</p>
+                        <CopyButton text={setupUrl} label="Copy device setup link" />
+                    </div>
+                    <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mx-auto mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95"
+                    >
+                        <FaWhatsapp className="h-4 w-4" /> Share via WhatsApp
+                    </a>
+                    <p className="mt-2 text-xs text-brand-muted">WhatsApp will open with the link ready to send.</p>
                 </div>
             )}
 
@@ -222,7 +252,7 @@ function StaffDevices({ devices, confirm }) {
             ) : (
                 <ul className="mt-4 divide-y divide-brand-border rounded-xl border border-brand-border">
                     {devices.map((device) => (
-                        <li key={device.id} className={`flex items-center gap-3 px-4 py-3 ${device.revoked ? 'opacity-60' : ''}`}>
+                        <li key={device.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${device.revoked ? 'opacity-60' : ''}`}>
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bg text-brand-muted">
                                 <LuSmartphone className="h-4 w-4" />
                             </span>
@@ -238,13 +268,22 @@ function StaffDevices({ devices, confirm }) {
                                 </p>
                             </div>
                             {!device.revoked && (
-                                <button
-                                    type="button"
-                                    onClick={() => revoke(device)}
-                                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
-                                >
-                                    Revoke
-                                </button>
+                                <div className="flex shrink-0 items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => generateSetupLink(device)}
+                                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-text hover:bg-brand-bg"
+                                    >
+                                        <LuLink className="h-3.5 w-3.5" /> New setup link
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => revoke(device)}
+                                        className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                                    >
+                                        Revoke
+                                    </button>
+                                </div>
                             )}
                         </li>
                     ))}

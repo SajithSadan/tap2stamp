@@ -6,7 +6,7 @@
 @source '../**/*.js';
 
 @theme {
-    /* Site default theme: Tap2Stamp (ThemeCatalog::DEFAULT) - keep in sync with its catalog entry. */
+    /* Site default theme: Tada Tap (ThemeCatalog::DEFAULT) - keep in sync with its catalog entry. */
     --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
     --font-heading: 'Poppins', ui-sans-serif, system-ui, sans-serif;

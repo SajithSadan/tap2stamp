@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
 import {
     LuExternalLink,
+    LuChevronDown,
     LuImage,
     LuLayers,
     LuLink,
@@ -137,7 +138,7 @@ function PrintDialog({ job, designs, initial, onClose, onPrint }) {
                             </div>
                             <div className="border-t border-brand-border px-3 py-2">
                                 <p className="text-sm font-semibold text-brand-text">Plain QR</p>
-                                <p className="text-xs text-brand-muted">No artwork</p>
+                                <p className="text-xs text-brand-muted">No artwork · no new design association</p>
                             </div>
                         </ChoiceCard>
                         {designs.map((d) => {
@@ -153,7 +154,7 @@ function PrintDialog({ job, designs, initial, onClose, onPrint }) {
                                         <p className="truncate text-sm font-semibold text-brand-text">{d.name}</p>
                                         <p className="text-xs tabular-nums text-brand-muted">
                                             {d.preset && <span className="capitalize">{d.preset} · </span>}
-                                            {Math.round(s.w / 10)} × {Math.round(s.h / 10)} cm
+                                            {Math.round(s.w / 10)} × {Math.round(s.h / 10)} cm · {d.codes_count} codes tracked
                                         </p>
                                     </div>
                                 </ChoiceCard>
@@ -286,6 +287,120 @@ function StatusBadge({ mapped }) {
             <LuUnlink className="h-3 w-3" /> Unmapped
         </span>
     );
+}
+
+function ShopPicker({ shops, value, onChange, label, emptyLabel = 'Not assigned to a shop', id }) {
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const rootRef = useRef(null);
+    const selected = shops.find((shop) => shop.id === Number(value));
+    const filtered = shops.filter((shop) => shop.name.toLowerCase().includes(query.trim().toLowerCase()));
+
+    useEffect(() => {
+        if (!open) return;
+
+        function closeOnOutsideClick(event) {
+            if (!rootRef.current?.contains(event.target)) {
+                setOpen(false);
+                setQuery('');
+            }
+        }
+
+        function closeOnEscape(event) {
+            if (event.key === 'Escape') {
+                setOpen(false);
+                setQuery('');
+            }
+        }
+
+        document.addEventListener('pointerdown', closeOnOutsideClick);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('pointerdown', closeOnOutsideClick);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [open]);
+
+    function choose(shopId) {
+        onChange(shopId);
+        setOpen(false);
+        setQuery('');
+    }
+
+    return (
+        <div ref={rootRef} className="relative">
+            <div className="relative">
+                <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" />
+                <input
+                    id={id}
+                    type="text"
+                    role="combobox"
+                    aria-label={label}
+                    aria-expanded={open}
+                    aria-controls={`${id ?? 'shop-picker'}-options`}
+                    aria-autocomplete="list"
+                    autoComplete="off"
+                    value={open ? query : selected?.name ?? ''}
+                    onFocus={() => setOpen(true)}
+                    onChange={(event) => {
+                        setQuery(event.target.value);
+                        setOpen(true);
+                    }}
+                    placeholder={selected?.name ?? label}
+                    className={`${inputClass} w-full pl-9 pr-9`}
+                />
+                <LuChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" />
+            </div>
+            {open && (
+                <ul
+                    id={`${id ?? 'shop-picker'}-options`}
+                    role="listbox"
+                    aria-label={label}
+                    className="absolute inset-x-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border border-brand-border bg-brand-card p-1 shadow-xl"
+                >
+                    <li role="option" aria-selected={!value}>
+                        <button
+                            type="button"
+                            onClick={() => choose('')}
+                            className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${!value ? 'bg-brand-accent/10 font-medium text-brand-text' : 'text-brand-muted hover:bg-brand-bg hover:text-brand-text'}`}
+                        >
+                            <span>{emptyLabel}</span>
+                        </button>
+                    </li>
+                    {filtered.map((shop) => (
+                        <li key={shop.id} role="option" aria-selected={shop.id === Number(value)}>
+                            <button
+                                type="button"
+                                onClick={() => choose(shop.id)}
+                                className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${shop.id === Number(value) ? 'bg-brand-accent/10 font-medium text-brand-text' : 'text-brand-text hover:bg-brand-bg'}`}
+                            >
+                                <span className="min-w-0 truncate">{shop.name}</span>
+                                <span className="shrink-0 text-xs text-brand-muted">{shop.qr_codes_count} assigned</span>
+                            </button>
+                        </li>
+                    ))}
+                    {filtered.length === 0 && (
+                        <li className="px-3 py-3 text-sm text-brand-muted">No shops match “{query}”.</li>
+                    )}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+function shopForDestination(url, shops) {
+    try {
+        const destination = new URL(url);
+        if (destination.origin !== window.location.origin) return null;
+
+        const match = destination.pathname.match(/^\/s\/([^/]+)\/?$/);
+        if (!match) return null;
+
+        const slug = decodeURIComponent(match[1]);
+        return shops.find((shop) => shop.slug === slug) ?? null;
+    } catch {
+        return null;
+    }
 }
 
 function GeneratePanel({ maxPerBatch }) {
@@ -464,9 +579,10 @@ function Modal({ title, onClose, wide = false, children }) {
 }
 
 /** One code up close: preview, its permanent link, the mapping form and downloads. */
-function QrDetails({ qr, design, onClose, onPdf, confirm }) {
+function QrDetails({ qr, shops, design, onClose, onPdf, confirm }) {
     const [preview, setPreview] = useState(null);
     const form = useForm({ destination_url: qr.destination_url ?? '' });
+    const matchedShop = shopForDestination(form.data.destination_url, shops);
 
     useEffect(() => {
         QRCode.toDataURL(qr.scan_url, { errorCorrectionLevel: 'M', margin: 1, width: 320 })
@@ -503,7 +619,11 @@ function QrDetails({ qr, design, onClose, onPdf, confirm }) {
                         <div className="flex flex-wrap items-center gap-2">
                             <StatusBadge mapped={!!qr.destination_url} />
                             <span className="text-xs text-brand-muted">{qr.batch_label}</span>
+                            {qr.shop_name && <span className="rounded-full bg-brand-accent/10 px-2 py-0.5 text-xs font-medium text-brand-text">{qr.shop_name}</span>}
                         </div>
+                        {qr.design_names?.length > 0 && (
+                            <p className="text-xs text-brand-muted">Printed with: <span className="font-medium text-brand-text">{qr.design_names.join(', ')}</span></p>
+                        )}
                         <div className="flex items-center gap-1 rounded-lg bg-brand-bg py-1 pl-3 pr-1">
                             <p className="min-w-0 flex-1 select-all truncate font-mono text-xs text-brand-muted" title={qr.scan_url}>
                                 {qr.scan_url}
@@ -533,9 +653,13 @@ function QrDetails({ qr, design, onClose, onPdf, confirm }) {
                             className={`${inputClass} mt-1.5`}
                         />
                         <FieldError message={form.errors.destination_url} />
-                        {!form.errors.destination_url && (
-                            <p className="mt-1 text-xs text-brand-muted">Scanning the code sends people here. Leave empty to unmap.</p>
-                        )}
+                        {!form.errors.destination_url && (matchedShop ? (
+                            <p className="mt-1 text-xs text-brand-muted">
+                                Scanning the code sends people here. Automatically assigned to <strong className="font-semibold text-brand-text">{matchedShop.name}</strong>.
+                            </p>
+                        ) : (
+                            <p className="mt-1 text-xs text-brand-muted">Scanning the code sends people here. Shop allocation is detected for this site’s shop card links (/s/shop-slug). Leave empty to unmap.</p>
+                        ))}
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         {qr.destination_url ? (
@@ -582,7 +706,7 @@ function RowActions({ qr, onEdit, onPdf }) {
     );
 }
 
-export default function Index({ codes, batches, stats, filters, maxPerBatch, designs }) {
+export default function Index({ codes, batches, shops, stats, filters, maxPerBatch, designs }) {
     const [search, setSearch] = useState(filters.search ?? '');
     // The last print choices, pre-selected in the print dialog next time.
     const [designId, setDesignId] = useState(() => Number(remembered(DESIGN_KEY)) || null);
@@ -621,7 +745,7 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch, des
 
     const pageIds = codes.data.map((qr) => qr.id);
     const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
-    const hasFilters = !!(filters.search || filters.batch || filters.status);
+    const hasFilters = !!(filters.search || filters.batch || filters.status || filters.shop || filters.design);
 
     function toggle(id) {
         setSelected((prev) => {
@@ -649,8 +773,19 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch, des
         setPrinting({ key, done: 0, total: 0 });
 
         try {
-            const { title, codes: list } = await load();
+            const { title, codes: list } = await load(options);
             await printQrPdf({ title, codes: list, ...options, onProgress: (done, total) => setPrinting({ key, done, total }) }, win);
+            const designIds = [options.design?.id];
+            if (options.doubleSided) designIds.push(options.backDesign?.id ?? options.design?.id);
+            try {
+                await axios.post('/admin/qr-codes/record-print', {
+                    ids: list.map((code) => code.id),
+                    design_ids: [...new Set(designIds.filter(Boolean))],
+                });
+                router.reload({ only: ['codes', 'designs'], preserveScroll: true });
+            } catch {
+                setPrintError('The print PDF is ready, but the designs used could not be recorded. Refresh and try again.');
+            }
         } catch {
             win?.close();
             setPrintError("Couldn't build the print. Please try again.");
@@ -719,7 +854,12 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch, des
     // A single code is already on the page - no round trip needed.
     const printOne = (qr) => {
         setEditing(null);
-        setPrintJob({ key: `code-${qr.id}`, title: `QR ${qr.code}`, count: 1, load: async () => ({ title: `QR ${qr.code}`, codes: [qr] }) });
+        setPrintJob({
+            key: `code-${qr.id}`,
+            title: `QR ${qr.code}`,
+            count: 1,
+            load: async () => (await axios.post('/admin/qr-codes/print', { ids: [qr.id] })).data,
+        });
     };
 
     const activeBatch = batches.find((b) => b.id === filters.batch);
@@ -790,6 +930,28 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch, des
                             </option>
                         ))}
                     </select>
+                    <div className="md:w-56">
+                        <ShopPicker
+                            shops={shops}
+                            value={filters.shop ?? ''}
+                            onChange={(shopId) => applyFilters({ shop: shopId ? Number(shopId) : null, page: null })}
+                            label="Filter by assigned shop"
+                            emptyLabel="All shops"
+                        />
+                    </div>
+                    <select
+                        value={filters.design ?? ''}
+                        onChange={(e) => applyFilters({ design: e.target.value ? Number(e.target.value) : null, page: null })}
+                        aria-label="Filter by sticker design"
+                        className={`${inputClass} md:w-56`}
+                    >
+                        <option value="">All designs</option>
+                        {designs.map((stickerDesign) => (
+                            <option key={stickerDesign.id} value={stickerDesign.id}>
+                                {stickerDesign.name} ({stickerDesign.codes_count})
+                            </option>
+                        ))}
+                    </select>
                     <div className="flex rounded-xl bg-brand-bg p-1 ring-1 ring-brand-border" role="group" aria-label="Filter by status">
                         {[
                             [null, 'All'],
@@ -809,6 +971,18 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch, des
                             </button>
                         ))}
                     </div>
+                    {hasFilters && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSearch('');
+                                applyFilters({ search: '', batch: null, shop: null, design: null, status: null, page: null });
+                            }}
+                            className={`${secondaryButton} shrink-0`}
+                        >
+                            <LuX className="h-4 w-4" /> Clear filters
+                        </button>
+                    )}
                 </div>
 
                 {/* Active batch / selection bar */}
@@ -874,6 +1048,8 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch, des
                                     <th className="px-3 py-3 font-medium">Code</th>
                                     <th className="px-3 py-3 font-medium">Batch</th>
                                     <th className="px-3 py-3 font-medium">Destination</th>
+                                    <th className="px-3 py-3 font-medium">Assigned shop</th>
+                                    <th className="px-3 py-3 font-medium">Sticker design</th>
                                     <th className="px-3 py-3 font-medium">Status</th>
                                     <th className="px-3 py-3 font-medium">Created</th>
                                     <th className="py-3 pr-4" />
@@ -911,6 +1087,12 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch, des
                                                 <span className="text-sm text-brand-muted">—</span>
                                             )}
                                         </td>
+                                        <td className="max-w-48 px-3 py-3">
+                                            <p className="truncate text-sm text-brand-text" title={qr.shop_name ?? ''}>{qr.shop_name ?? '—'}</p>
+                                        </td>
+                                        <td className="max-w-48 px-3 py-3">
+                                            <p className="truncate text-sm text-brand-text" title={qr.design_names?.join(', ') ?? ''}>{qr.design_names?.join(', ') || '—'}</p>
+                                        </td>
                                         <td className="px-3 py-3">
                                             <StatusBadge mapped={!!qr.destination_url} />
                                         </td>
@@ -940,6 +1122,8 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch, des
                                             <StatusBadge mapped={!!qr.destination_url} />
                                         </div>
                                         <p className="truncate text-sm text-brand-muted">{qr.destination_url ?? 'Not mapped yet'}</p>
+                                        {qr.shop_name && <p className="truncate text-xs font-medium text-brand-text">Shop: {qr.shop_name}</p>}
+                                        {qr.design_names?.length > 0 && <p className="truncate text-xs text-brand-muted">Design: {qr.design_names.join(', ')}</p>}
                                         <div className="flex items-center justify-between gap-2">
                                             <p className="truncate text-xs text-brand-muted">
                                                 {qr.batch_label} · {qr.created_at}
@@ -956,7 +1140,7 @@ export default function Index({ codes, batches, stats, filters, maxPerBatch, des
                 <Pagination paginator={codes} />
             </Panel>
 
-            {editing && <QrDetails qr={editing} design={design} onClose={() => setEditing(null)} onPdf={printOne} confirm={confirm} />}
+            {editing && <QrDetails qr={editing} shops={shops} design={design} onClose={() => setEditing(null)} onPdf={printOne} confirm={confirm} />}
 
             {confirmDialog}
 

@@ -118,10 +118,11 @@ function customFields(array $overrides = []): array
     ];
 }
 
-test('the default Tap2Stamp theme has three brand colours: navy, mint and white', function () {
+test('the default Tada Tap theme has three brand colours: navy, mint and white', function () {
     $theme = ThemeCatalog::forShop(null);
 
     expect($theme['slug'])->toBe('tap2stamp')
+        ->and($theme['name'])->toBe('Tada Tap')
         ->and($theme['deep'])->toBe('#0F2A46')
         ->and($theme['accent'])->toBe('#17C68B')
         ->and($theme['card_bg'])->toBe('#FFFFFF');

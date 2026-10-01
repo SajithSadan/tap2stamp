@@ -22,6 +22,7 @@ class StampLog extends Model
         'customer_id',
         'shop_id',
         'staff_member_id',
+        'owner_user_id',
         'action_type',
     ];
 
@@ -45,5 +46,10 @@ class StampLog extends Model
     public function staffMember(): BelongsTo
     {
         return $this->belongsTo(StaffMember::class);
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_user_id');
     }
 }

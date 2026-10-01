@@ -3,6 +3,7 @@
 use App\Enums\UserRole;
 use App\Models\QrBatch;
 use App\Models\QrCode;
+use App\Models\QrDesign;
 use App\Models\Shop;
 use App\Models\User;
 
@@ -71,8 +72,9 @@ test('the quantity must be between 1 and the per-batch maximum', function (mixed
 
 test('the QR page lists codes with stats and batches', function () {
     $batch = QrBatch::factory()->create(['name' => 'Posters']);
+    $shop = Shop::factory()->create(['name' => 'Artisan Cafe']);
     QrCode::factory()->count(2)->create(['qr_batch_id' => $batch->id]);
-    QrCode::factory()->mapped()->create(['qr_batch_id' => $batch->id]);
+    QrCode::factory()->mapped()->create(['qr_batch_id' => $batch->id, 'shop_id' => $shop->id]);
 
     $this->actingAs(qrAdmin())->get('/admin/qr-codes')->assertOk()->assertInertia(fn ($page) => $page
         ->component('Admin/QrCodes/Index')
@@ -82,9 +84,43 @@ test('the QR page lists codes with stats and batches', function () {
         ->where('stats.batches', 1)
         ->where('batches.0.label', "Batch #{$batch->id} · Posters")
         ->where('batches.0.mapped_count', 1)
+        ->where('shops.0.name', 'Artisan Cafe')
+        ->where('shops.0.qr_codes_count', 1)
         ->has('codes.data', 3)
+        ->where('codes.data.2.shop_name', 'Artisan Cafe')
         ->where('codes.data.0.scan_url', fn ($url) => str_ends_with($url, '/qr/'.QrCode::orderBy('id')->first()->code))
     );
+});
+
+test('QR codes are automatically assigned when mapped to a shop card and can be filtered by shop', function () {
+    $batch = QrBatch::factory()->create();
+    $shop = Shop::factory()->create(['name' => 'Artisan Cafe', 'slug' => 'artisan-cafe']);
+    $assigned = QrCode::factory()->create(['qr_batch_id' => $batch->id]);
+
+    $admin = qrAdmin();
+    $this->actingAs($admin)->put("/admin/qr-codes/{$assigned->id}", [
+        'destination_url' => route('card.show', $shop->slug),
+    ])->assertRedirect();
+
+    expect($assigned->fresh()->shop_id)->toBe($shop->id);
+
+    $this->actingAs($admin)->get("/admin/qr-codes?shop={$shop->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('filters.shop', $shop->id)
+            ->has('codes.data', 1)
+            ->where('codes.data.0.shop_name', 'Artisan Cafe')
+        );
+});
+
+test('a destination on another site is not automatically assigned by a matching path', function () {
+    $shop = Shop::factory()->create(['slug' => 'artisan-cafe']);
+    $qr = QrCode::factory()->mapped(route('card.show', $shop->slug))->create(['shop_id' => $shop->id]);
+
+    $this->actingAs(qrAdmin())->put("/admin/qr-codes/{$qr->id}", [
+        'destination_url' => 'https://example.com/s/artisan-cafe',
+    ])->assertRedirect();
+
+    expect($qr->fresh()->shop_id)->toBeNull();
 });
 
 test('codes can be searched and filtered by batch and mapping status', function () {
@@ -250,7 +286,45 @@ test('print data returns just the selected codes', function () {
         ->assertOk()
         ->assertJsonCount(2, 'codes')
         ->assertJsonPath('codes.0.code', $codes[1]->code)
-        ->assertJsonPath('codes.1.code', $codes[3]->code);
+        ->assertJsonPath('codes.1.code', $codes[3]->code)
+        ->assertJsonPath('codes.0.id', $codes[1]->id);
+});
+
+test('a successful print records every sticker design used for each QR', function () {
+    $batch = QrBatch::factory()->create();
+    $codes = QrCode::factory()->count(2)->create(['qr_batch_id' => $batch->id]);
+    $front = QrDesign::create([
+        'name' => 'Table card', 'image_path' => 'designs/table.png', 'image_width' => 600, 'image_height' => 600,
+        'qr_x' => 0.2, 'qr_y' => 0.2, 'qr_size' => 0.5, 'width_mm' => 60,
+    ]);
+    $back = QrDesign::create([
+        'name' => 'Back side', 'image_path' => 'designs/back.png', 'image_width' => 600, 'image_height' => 600,
+        'qr_x' => 0.2, 'qr_y' => 0.2, 'qr_size' => 0.5, 'width_mm' => 60,
+    ]);
+
+    $this->actingAs(qrAdmin())->postJson('/admin/qr-codes/record-print', [
+        'ids' => $codes->pluck('id')->all(),
+        'design_ids' => [$front->id, $back->id],
+    ])->assertOk()->assertJsonPath('recorded', 2);
+
+    foreach ($codes as $code) {
+        expect($code->designs()->pluck('qr_designs.id')->all())->toEqualCanonicalizing([$front->id, $back->id]);
+    }
+
+    $this->actingAs(qrAdmin())->get('/admin/qr-codes?design='.$front->id)
+        ->assertInertia(fn ($page) => $page
+            ->where('filters.design', $front->id)
+            ->where('designs.0.codes_count', 2)
+            ->has('codes.data', 2)
+            ->where('codes.data.0.design_names', ['Table card', 'Back side'])
+        );
+});
+
+test('print design tracking validates QR and design IDs', function () {
+    $this->actingAs(qrAdmin())->postJson('/admin/qr-codes/record-print', [
+        'ids' => [999999],
+        'design_ids' => [999999],
+    ])->assertUnprocessable()->assertJsonValidationErrors(['ids.0', 'design_ids.0']);
 });
 
 test('print data needs a batch or a selection', function () {

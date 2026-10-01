@@ -1,12 +1,22 @@
-import { Link, useForm } from '@inertiajs/react';
-import AuthShell, { AuthField, GoogleButton, OrDivider, PasswordInput, authButtonClass, authInputClass } from '@/Components/AuthShell';
+import { Link, useForm } from "@inertiajs/react";
+import AuthShell, {
+    AuthField,
+    GoogleButton,
+    OrDivider,
+    PasswordInput,
+    authButtonClass,
+    authInputClass,
+} from "@/Components/AuthShell";
 
 export default function Login({ googleEnabled }) {
-    const { data, setData, post, processing, errors } = useForm({ email: '', password: '' });
+    const { data, setData, post, processing, errors } = useForm({
+        email: "",
+        password: "",
+    });
 
     function handleSubmit(e) {
         e.preventDefault();
-        post('/login');
+        post("/login");
     }
 
     return (
@@ -16,8 +26,11 @@ export default function Login({ googleEnabled }) {
             subheading="Log in to your shop dashboard."
             footer={
                 <>
-                    New to tap2stamp?{' '}
-                    <Link href="/register" className="font-semibold text-brand-accent hover:underline">
+                    New to TaDa Tap?{" "}
+                    <Link
+                        href="/register"
+                        className="font-semibold text-brand-accent hover:underline"
+                    >
                         Start free
                     </Link>
                 </>
@@ -30,24 +43,41 @@ export default function Login({ googleEnabled }) {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} noValidate className={`space-y-4 ${googleEnabled ? 'mt-6' : ''}`}>
+            <form
+                onSubmit={handleSubmit}
+                noValidate
+                className={`space-y-4 ${googleEnabled ? "mt-6" : ""}`}
+            >
                 <AuthField id="email" label="Email" error={errors.email}>
                     <input
                         id="email"
                         type="email"
                         value={data.email}
-                        onChange={(e) => setData('email', e.target.value)}
+                        onChange={(e) => setData("email", e.target.value)}
                         autoComplete="email"
                         className={authInputClass}
                     />
                 </AuthField>
 
-                <AuthField id="password" label="Password" error={errors.password}>
-                    <PasswordInput id="password" value={data.password} onChange={(v) => setData('password', v)} autoComplete="current-password" />
+                <AuthField
+                    id="password"
+                    label="Password"
+                    error={errors.password}
+                >
+                    <PasswordInput
+                        id="password"
+                        value={data.password}
+                        onChange={(v) => setData("password", v)}
+                        autoComplete="current-password"
+                    />
                 </AuthField>
 
-                <button type="submit" disabled={processing} className={`${authButtonClass} mt-2`}>
-                    {processing ? 'Logging in…' : 'Log in'}
+                <button
+                    type="submit"
+                    disabled={processing}
+                    className={`${authButtonClass} mt-2`}
+                >
+                    {processing ? "Logging in…" : "Log in"}
                 </button>
             </form>
         </AuthShell>

@@ -787,7 +787,7 @@ export default function Theme({
                 </div>
 
                 <div className="min-w-0 lg:order-1">
-                    <div className="mb-5 flex gap-1 rounded-xl border border-brand-border bg-brand-card p-1" role="tablist">
+                    <div className="mb-5 flex min-w-0 gap-1 rounded-xl border border-brand-border bg-brand-card p-1" role="tablist">
                         {TABS.map(({ id, label, icon: Icon }) => (
                             <button
                                 key={id}
@@ -795,12 +795,14 @@ export default function Theme({
                                 role="tab"
                                 aria-selected={tab === id}
                                 onClick={() => setTab(id)}
-                                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
+                                className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-sm font-medium transition-[flex-grow,color,background-color] duration-300 ease-out sm:gap-2 sm:px-2 lg:flex-1 ${
+                                    tab === id ? 'flex-[2.5]' : 'flex-1'
+                                } ${
                                     tab === id ? 'bg-brand-accent text-brand-accent-text' : 'text-brand-muted hover:bg-brand-bg hover:text-brand-text'
                                 }`}
                             >
                                 <Icon className="h-4 w-4 shrink-0" />
-                                <span className="truncate">{label}</span>
+                                <span className={`truncate ${tab === id ? 'inline' : 'hidden'} lg:inline`}>{label}</span>
                             </button>
                         ))}
                     </div>

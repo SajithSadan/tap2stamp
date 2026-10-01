@@ -10,8 +10,8 @@ import RegistrationModal from '@/Components/RegistrationModal';
 import RatingTile from '@/Components/RatingTile';
 import { HiSparkles } from 'react-icons/hi2';
 import { FaInstagram } from 'react-icons/fa6';
+import { LuChevronRight, LuScan, LuWifi } from 'react-icons/lu';
 import { IoStarOutline } from 'react-icons/io5';
-import { LuScan, LuWifi } from 'react-icons/lu';
 import { PiStorefrontFill } from 'react-icons/pi';
 import { StampIcon } from '@/lib/stampIcons';
 import { headerTextStyle, headerTintStyle } from '@/lib/headerStyle';
@@ -103,6 +103,48 @@ function Celebration() {
     );
 }
 
+const SHOWER_COLORS = ['var(--color-brand-accent)', '#F5B400', '#F4775B', '#5B8DEF', '#FFFFFF'];
+
+function StampShower() {
+    const pieces = useMemo(
+        () => Array.from({ length: 72 }, (_, id) => ({
+            id,
+            left: `${2 + Math.random() * 96}%`,
+            delay: Math.random() * 1.05,
+            duration: 2.35 + Math.random() * 1.15,
+            drift: (Math.random() - 0.5) * 220,
+            spin: (Math.random() - 0.5) * 1260,
+            color: SHOWER_COLORS[id % SHOWER_COLORS.length],
+            ribbon: id % 3 === 0,
+            round: id % 7 === 0,
+        })),
+        [],
+    );
+
+    return (
+        <div className="pointer-events-none fixed inset-0 z-30 overflow-hidden" aria-hidden="true">
+            {pieces.map((piece) => (
+                <motion.span
+                    key={piece.id}
+                    initial={{ opacity: 0, y: -40, x: 0, rotate: 0, scale: 0.5 }}
+                    animate={{ opacity: [0, 1, 1, 1, 0], y: '110vh', x: piece.drift, rotate: piece.spin, scale: [0.5, 1.2, 0.9] }}
+                    transition={{ duration: piece.duration, delay: piece.delay, ease: 'easeIn' }}
+                    className={`absolute top-0 ${piece.ribbon ? 'h-10 w-2.5' : piece.round ? 'h-3 w-3' : 'h-4 w-2.5'} ${piece.round ? 'rounded-full' : 'rounded-sm'}`}
+                    style={{ left: piece.left, backgroundColor: piece.color }}
+                />
+            ))}
+            <motion.div
+                initial={{ opacity: 0, scale: 0.25, y: 18, x: 0 }}
+                animate={{ opacity: [0, 1, 1, 0], scale: [0.25, 1.18, 1, 1], y: [18, 0, 0, -8], x: [0, -5, 5, -3, 3, 0] }}
+                transition={{ duration: 1.25, times: [0, 0.2, 0.72, 1], ease: 'easeOut' }}
+                className="absolute left-1/2 top-[42%] flex -translate-x-1/2 items-center gap-2 rounded-full bg-brand-accent px-5 py-3 text-base font-bold text-brand-accent-text shadow-xl ring-4 ring-white/80"
+            >
+                <HiSparkles className="h-5 w-5" /> Stamp added!
+            </motion.div>
+        </div>
+    );
+}
+
 export default function Card({ shop, theme }) {
     // The owner's chosen look (Dashboard → Theme), applied to this page only.
     useDocumentTheme(theme);
@@ -111,6 +153,10 @@ export default function Card({ shop, theme }) {
     const [card, setCard] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [pendingJoinUuid, setPendingJoinUuid] = useState(null);
+    const [joiningShop, setJoiningShop] = useState(false);
+    const [joinError, setJoinError] = useState(null);
+    const [showReviewPrompt, setShowReviewPrompt] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
     const [qrSrc, setQrSrc] = useState(null);
@@ -119,6 +165,7 @@ export default function Card({ shop, theme }) {
     const togglePanel = (name) => setPanel((open) => (open === name ? null : name));
     const [copied, setCopied] = useState(false);
     const [celebrate, setCelebrate] = useState(false);
+    const [stampShower, setStampShower] = useState(false);
     const [redeemedToast, setRedeemedToast] = useState(false);
     const [loadError, setLoadError] = useState(false);
     const [qrOpen, setQrOpen] = useState(false);
@@ -127,6 +174,9 @@ export default function Card({ shop, theme }) {
     const wasReadyRef = useRef(false);
     const audioCtxRef = useRef(null);
     const celebrateTimeoutRef = useRef(null);
+    const stampShowerTimeoutRef = useRef(null);
+    const reviewPromptTimeoutRef = useRef(null);
+    const reviewedRef = useRef(false);
 
     useEffect(() => {
         const unlockAudio = () => {
@@ -170,17 +220,41 @@ export default function Card({ shop, theme }) {
             .get(`/s/${shop.slug}/card/${uuid}`)
             .then(({ data }) => setCard(data))
             .catch((error) => {
-                // Only a 404 means "not registered here" - anything else
-                // (offline, rate limited, server error) is temporary, and
-                // forgetting the uuid then would orphan the customer's cards.
-                if (error.response?.status === 404) {
-                    window.localStorage.removeItem(CUSTOMER_UUID_KEY);
-                    setShowModal(true);
-                } else {
+                if (error.response?.status !== 404) {
+                    // Network/server failures must not discard a valid saved identity.
                     setLoadError(true);
+                    return;
                 }
+
+                // Ask for this shop's marketing preference before creating its card.
+                setJoinError(null);
+                setPendingJoinUuid(uuid);
             })
             .finally(() => setLoading(false));
+    }
+
+    function joinShop(marketingConsent) {
+        if (!pendingJoinUuid || joiningShop) return;
+
+        setJoiningShop(true);
+        setJoinError(null);
+
+        axios
+            .post(`/s/${shop.slug}/card/${pendingJoinUuid}/join`, { marketing_consent: marketingConsent })
+            .then(({ data }) => {
+                setCard(data);
+                setPendingJoinUuid(null);
+            })
+            .catch((error) => {
+                if (error.response?.status === 404) {
+                    window.localStorage.removeItem(CUSTOMER_UUID_KEY);
+                    setPendingJoinUuid(null);
+                    setShowModal(true);
+                } else {
+                    setJoinError('Could not create your card right now. Please try again.');
+                }
+            })
+            .finally(() => setJoiningShop(false));
     }
 
     useEffect(() => {
@@ -205,6 +279,24 @@ export default function Card({ shop, theme }) {
         celebrateTimeoutRef.current = setTimeout(() => setCelebrate(false), 1000);
     }
 
+    function celebrateStamp() {
+        setStampShower(true);
+        if (stampShowerTimeoutRef.current) clearTimeout(stampShowerTimeoutRef.current);
+        stampShowerTimeoutRef.current = setTimeout(() => setStampShower(false), 4550);
+
+        if (!reviewedRef.current) {
+            if (reviewPromptTimeoutRef.current) clearTimeout(reviewPromptTimeoutRef.current);
+            reviewPromptTimeoutRef.current = setTimeout(() => {
+                setShowReviewPrompt(true);
+            }, 4650);
+        }
+    }
+
+    useEffect(() => () => {
+        if (stampShowerTimeoutRef.current) clearTimeout(stampShowerTimeoutRef.current);
+        if (reviewPromptTimeoutRef.current) clearTimeout(reviewPromptTimeoutRef.current);
+    }, []);
+
     // Detect the moment the card crosses over into "reward ready" to fire a
     // one-off celebration burst, without re-triggering on every re-render.
     useEffect(() => {
@@ -221,8 +313,18 @@ export default function Card({ shop, theme }) {
     }, [card?.stamps, card?.max_stamps]);
 
     useEffect(() => {
-        if (card) prevStampsRef.current = card.stamps;
-    }, [card?.stamps]);
+        if (card) {
+            prevStampsRef.current = card.stamps;
+            reviewedRef.current = Boolean(card.review);
+        }
+    }, [card?.stamps, card?.review]);
+
+    function handleReviewSaved(review) {
+        reviewedRef.current = true;
+        if (reviewPromptTimeoutRef.current) clearTimeout(reviewPromptTimeoutRef.current);
+        setCard((current) => current ? { ...current, review } : current);
+        setShowReviewPrompt(false);
+    }
 
     // Two-tone chime via Web Audio.
     function playChime() {
@@ -277,7 +379,12 @@ export default function Card({ shop, theme }) {
                 setCard((prev) => (prev ? { ...prev, stamps: data.stamps, max_stamps: data.max_stamps } : prev));
                 triggerCelebration();
                 playChime();
-                if (navigator.vibrate) navigator.vibrate(60);
+                if (data.action === 'stamp_added') {
+                    celebrateStamp();
+                    if (navigator.vibrate) navigator.vibrate([70, 45, 110, 35, 70]);
+                } else if (navigator.vibrate) {
+                    navigator.vibrate(60);
+                }
 
                 if (data.action === 'reward_redeemed') {
                     setRedeemedToast(true);
@@ -358,6 +465,55 @@ export default function Card({ shop, theme }) {
         <>
             <Head title={shop.name} />
             <OfflineBanner />
+            {stampShower && <StampShower />}
+
+            <AnimatePresence>
+                {pendingJoinUuid && (
+                    <motion.div
+                        className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-5 py-8"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        <motion.div
+                            role="alertdialog"
+                            aria-modal="true"
+                            aria-labelledby="shop-join-title"
+                            aria-describedby="shop-join-description"
+                            initial={{ opacity: 0, y: 12, scale: 0.97 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                            className="w-full max-w-sm rounded-2xl bg-brand-card p-6 text-center shadow-2xl"
+                        >
+                            <h2 id="shop-join-title" className="font-heading text-xl font-semibold text-brand-text">
+                                Your {shop.name} card is ready
+                            </h2>
+                            <p id="shop-join-description" className="mt-2 text-sm leading-relaxed text-brand-muted">
+                                Would you like to receive offers from <span className="font-semibold text-brand-text">{shop.name}</span>?
+                            </p>
+                            {joinError && <p role="alert" className="mt-3 text-sm text-red-600">{joinError}</p>}
+                            <div className="mt-6 grid gap-3">
+                                <button
+                                    type="button"
+                                    disabled={joiningShop}
+                                    onClick={() => joinShop(true)}
+                                    className="flex min-h-12 w-full items-center justify-center rounded-full bg-brand-accent px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:brightness-95 disabled:opacity-60"
+                                >
+                                    {joiningShop ? 'Setting up your card…' : 'Yes, send me offers'}
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={joiningShop}
+                                    onClick={() => joinShop(false)}
+                                    className="flex min-h-12 w-full items-center justify-center rounded-full border-2 border-brand-accent bg-white px-5 py-3 text-sm font-semibold text-brand-text transition hover:bg-brand-accent/5 disabled:opacity-60"
+                                >
+                                    No thanks, just create my card
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {redeemedToast && (
@@ -381,6 +537,7 @@ export default function Card({ shop, theme }) {
                             <img src={shop.banner_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
                             {/* Tint strength set by the owner (Theme → Banner & logo). */}
                             <div className="absolute inset-0 bg-black" style={headerTintStyle(shop.header_style)} />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
                         </>
                     )}
 
@@ -487,38 +644,54 @@ export default function Card({ shop, theme }) {
 
                     {/* Quick actions: only the ones the shop has set up. */}
                     {(shop.instagram_url || card) && (
-                        <div className="grid auto-cols-fr grid-flow-col gap-2">
-                            {shop.instagram_url && (
-                                <a href={shop.instagram_url} target="_blank" rel="noopener noreferrer" className={`${actionClass} ${surface}`}>
-                                    <FaInstagram className="h-5 w-5 text-[#E4405F]" aria-hidden="true" /> Follow
-                                </a>
-                            )}
-                            {/* One rating: saved to the shop, then optionally posted on Google too. */}
+                        <div className="space-y-2">
                             {card && (
                                 <button
                                     type="button"
-                                    onClick={() => togglePanel('rate')}
-                                    aria-expanded={panel === 'rate'}
-                                    className={`${actionClass} ${surface} ${panel === 'rate' ? 'ring-2 ring-brand-accent' : ''}`}
+                                    onClick={() => setPanel((open) => open === 'rate' ? null : 'rate')}
+                                    aria-expanded={panel === 'rate' || showReviewPrompt}
+                                    className={`flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition active:scale-[0.99] ${surface} ${panel === 'rate' ? 'ring-2 ring-brand-accent' : ''}`}
                                 >
-                                    <IoStarOutline className="h-5 w-5 text-[#F5B400]" aria-hidden="true" /> {card.review ? 'Rated' : 'Rate us'}
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-accent/10">
+                                        <IoStarOutline className="h-6 w-6 text-brand-accent" aria-hidden="true" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block font-semibold text-brand-text">{card.review ? 'Update your feedback' : 'Share feedback'}</span>
+                                        <span className="mt-0.5 block text-sm text-brand-muted">Tell us about your visit</span>
+                                    </span>
+                                    <LuChevronRight className="h-5 w-5 shrink-0 text-brand-muted" aria-hidden="true" />
                                 </button>
+                            )}
+                            {shop.instagram_url && (
+                                <a
+                                    href={shop.instagram_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition active:scale-[0.99] ${surface}`}
+                                >
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#E4405F]/10">
+                                        <FaInstagram className="h-6 w-6 text-[#E4405F]" aria-hidden="true" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block font-semibold text-brand-text">Follow us on Instagram</span>
+                                        <span className="mt-0.5 block text-sm text-brand-muted">See our latest updates</span>
+                                    </span>
+                                    <LuChevronRight className="h-5 w-5 shrink-0 text-brand-muted" aria-hidden="true" />
+                                </a>
                             )}
                             {card?.wifi_ssid && (
-                                <button
-                                    type="button"
-                                    onClick={() => togglePanel('wifi')}
-                                    aria-expanded={panel === 'wifi'}
-                                    className={`${actionClass} ${surface} ${panel === 'wifi' ? 'ring-2 ring-brand-accent' : ''}`}
-                                >
-                                    <LuWifi className="h-5 w-5 text-brand-text" aria-hidden="true" /> Wi-Fi
-                                </button>
+                                <div className="grid auto-cols-fr grid-flow-col gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => togglePanel('wifi')}
+                                        aria-expanded={panel === 'wifi'}
+                                        className={`${actionClass} ${surface} ${panel === 'wifi' ? 'ring-2 ring-brand-accent' : ''}`}
+                                    >
+                                        <LuWifi className="h-5 w-5 text-brand-text" aria-hidden="true" /> Wi-Fi
+                                    </button>
+                                </div>
                             )}
                         </div>
-                    )}
-
-                    {panel === 'rate' && card && (
-                        <RatingTile shopSlug={shop.slug} uuid={card.uuid} existingReview={card.review} googleReviewUrl={shop.google_review_url} surface={surface} />
                     )}
 
                     {panel === 'wifi' && card?.wifi_ssid && (
@@ -544,6 +717,62 @@ export default function Card({ shop, theme }) {
                             )}
                         </div>
                     )}
+
+                    <AnimatePresence>
+                        {(panel === 'rate' || showReviewPrompt) && card && (
+                            <motion.div
+                                className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-5 py-8"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                role="presentation"
+                                onClick={() => {
+                                    setShowReviewPrompt(false);
+                                    setPanel(null);
+                                }}
+                            >
+                                <motion.div
+                                    role="dialog"
+                                    aria-modal="true"
+                                    aria-labelledby="first-review-title"
+                                    initial={{ opacity: 0, y: 14, scale: 0.97 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="w-full max-w-sm rounded-2xl bg-brand-card p-5 shadow-2xl"
+                                >
+                                    <div className="mb-4 text-center">
+                                        <h2 id="first-review-title" className="font-heading text-lg font-semibold text-brand-text">
+                                            {showReviewPrompt ? 'How was your visit?' : card.review ? 'Your feedback' : 'Share feedback'}
+                                        </h2>
+                                        <p className="mt-1 text-sm text-brand-muted">
+                                            {showReviewPrompt
+                                                ? 'Tell us about your experience. Your feedback goes to the shop.'
+                                                : 'Share your experience with the shop.'}
+                                        </p>
+                                    </div>
+                                    <RatingTile
+                                        shopSlug={shop.slug}
+                                        uuid={card.uuid}
+                                        existingReview={card.review}
+                                        googleReviewUrl={shop.google_review_url}
+                                        surface=""
+                                        onSaved={handleReviewSaved}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowReviewPrompt(false);
+                                            setPanel(null);
+                                        }}
+                                        className="mt-3 w-full py-2 text-sm font-medium text-brand-muted hover:text-brand-text"
+                                    >
+                                        Close
+                                    </button>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </main>
             </div>
 

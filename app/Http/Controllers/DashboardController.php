@@ -305,6 +305,7 @@ class DashboardController extends Controller
             'id' => $shop->id,
             'slug' => $shop->slug,
             'name' => $shop->name,
+            'google_review_url' => $shop->google_review_url,
             // Read by OwnerLayout on every section; null keeps the default look.
             'dashboard_theme' => $shop->theme_in_dashboard ? $shop->appliedTheme() : null,
         ];
@@ -313,7 +314,7 @@ class DashboardController extends Controller
     private function activityQuery(Shop $shop)
     {
         return $shop->stampLogs()
-            ->with(['customer:id,name', 'staffMember:id,name'])
+            ->with(['customer:id,name', 'staffMember:id,name', 'owner:id,name'])
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }
@@ -323,7 +324,7 @@ class DashboardController extends Controller
         return [
             'id' => $log->id,
             'customer_name' => $log->customer->name,
-            'staff_name' => $log->staffMember?->name,
+            'staff_name' => $log->staffMember?->name ?? $log->owner?->name ?? '—',
             'action' => $log->action_type->value,
             'created_at' => $log->created_at->timezone('Europe/London')->format('j M, g:i A'),
         ];

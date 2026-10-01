@@ -95,6 +95,11 @@ class Shop extends Model
         return $this->hasMany(StaffMember::class);
     }
 
+    public function qrCodes(): HasMany
+    {
+        return $this->hasMany(QrCode::class);
+    }
+
     /** The look customers see: the catalog theme plus any of the owner's own tweaks. */
     public function appliedTheme(): array
     {

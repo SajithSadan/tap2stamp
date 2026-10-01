@@ -11,8 +11,8 @@ use Inertia\Response;
 
 /**
  * Dev-only internal tool: browse the built-in theme catalog and (via
- * CustomThemeController) save customized variants to the database. Tap2Stamp
- * (the brand look from the WordPress landing page) is the real site's default
+ * CustomThemeController) save customized variants to the database. Tada Tap
+ * (the brand look from the marketing site) is the real site's default
  * (see resources/css/app.css); this tool stays around as ongoing tooling, not
  * one-time scaffolding.
  *

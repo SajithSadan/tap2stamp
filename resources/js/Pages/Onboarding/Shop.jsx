@@ -230,7 +230,7 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
                     <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand-accent/20 blur-3xl" />
                     <div className="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-brand-accent/10 blur-3xl" />
 
-                    <Wordmark className="relative text-2xl" />
+                    <Wordmark variant="light" className="relative" />
 
                     <div className="relative mt-14">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">Shop setup</p>
@@ -244,7 +244,7 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
 
                 <div className="flex min-w-0 flex-1 flex-col">
                     <header className="flex items-center justify-between px-5 py-5 sm:px-10 xl:px-16">
-                        <Wordmark className="text-xl text-brand-text lg:invisible" />
+                        <Wordmark className="h-7 lg:invisible" />
                         <Link href="/logout" method="post" as="button" className="inline-flex items-center gap-1.5 text-sm text-brand-muted transition hover:text-brand-text">
                             <LuLogOut className="h-4 w-4" /> Log out
                         </Link>

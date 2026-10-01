@@ -105,6 +105,51 @@ test('the same customer registering at a second shop gets a separate card', func
     expect(CustomerShopCard::count())->toBe(2);
 });
 
+test('an existing customer can join another shop with their saved uuid without re-entering personal details', function () {
+    $shopOne = Shop::factory()->create();
+    $shopTwo = Shop::factory()->create();
+
+    $firstCard = $this->postJson("/s/{$shopOne->slug}/register", registerPayload(['name' => 'Jamie Smith', 'marketing_consent' => true]))
+        ->assertOk()
+        ->json();
+
+    $response = $this->postJson("/s/{$shopTwo->slug}/card/{$firstCard['uuid']}/join", ['marketing_consent' => false]);
+
+    $response->assertOk()->assertJson([
+        'uuid' => $firstCard['uuid'],
+        'shop_id' => $shopTwo->id,
+        'stamps' => 0,
+    ]);
+
+    expect(Customer::count())->toBe(1)
+        ->and(Customer::first()->name)->toBe('Jamie Smith')
+        ->and(CustomerShopCard::count())->toBe(2)
+        ->and(CustomerShopCard::where('shop_id', $shopOne->id)->first()->marketing_consent)->toBeTrue()
+        ->and(CustomerShopCard::where('shop_id', $shopTwo->id)->first()->marketing_consent)->toBeFalse();
+});
+
+test('an existing customer can opt in to offers when joining another shop', function () {
+    $shopOne = Shop::factory()->create();
+    $shopTwo = Shop::factory()->create();
+    $customer = Customer::factory()->create(['name' => 'Jamie Smith', 'phone' => '+447911123456']);
+    CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shopOne->id]);
+
+    $this->postJson("/s/{$shopTwo->slug}/card/{$customer->uuid}/join", ['marketing_consent' => true])->assertOk();
+
+    $newShopCard = CustomerShopCard::where('customer_id', $customer->id)->where('shop_id', $shopTwo->id)->firstOrFail();
+    expect($newShopCard->marketing_consent)->toBeTrue()
+        ->and($newShopCard->marketing_consent_at)->not->toBeNull();
+});
+
+test('joining a shop with an unknown saved uuid returns not found', function () {
+    $shop = Shop::factory()->create();
+
+    $this->postJson("/s/{$shop->slug}/card/11111111-1111-1111-1111-111111111111/join")
+        ->assertNotFound();
+
+    expect(CustomerShopCard::count())->toBe(0);
+});
+
 test('a customer can register without marketing consent', function () {
     $shop = Shop::factory()->create();
 
