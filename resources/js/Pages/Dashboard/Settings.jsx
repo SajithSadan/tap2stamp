@@ -317,15 +317,30 @@ export default function Settings({ shop, contact }) {
                                 <div className="sm:col-span-2 rounded-xl border border-brand-border bg-brand-bg/60 p-3.5">
                                     <Switch
                                         checked={form.data.google_review_direct}
-                                        disabled={!form.data.google_review_url && !form.data.google_review_direct}
-                                        onChange={(enabled) => form.setData("google_review_direct", enabled)}
+                                        disabled={
+                                            !form.data.google_review_url &&
+                                            !form.data.google_review_direct
+                                        }
+                                        onChange={(enabled) =>
+                                            form.setData(
+                                                "google_review_direct",
+                                                enabled,
+                                            )
+                                        }
                                         label="Go directly to Google Reviews"
-                                        description={form.data.google_review_direct
-                                            ? "The customer card action opens this Google link directly. In-app feedback is skipped."
-                                            : "Customers send feedback to your shop in-app, then can optionally share it on Google."}
+                                        description={
+                                            form.data.google_review_direct
+                                                ? "The customer card action opens this Google link directly. In-app feedback is skipped."
+                                                : "Customers send feedback to your shop in-app, then can optionally share it on Google."
+                                        }
                                     />
                                     {!form.data.google_review_url && (
-                                        <p className="mt-2 text-xs text-amber-800">Add a Google review URL above to enable direct Google reviews. Without a URL, the card uses in-app feedback.</p>
+                                        <p className="mt-2 text-xs text-amber-800">
+                                            Add a Google review URL above to
+                                            enable direct Google reviews.
+                                            Without a URL, the card uses in-app
+                                            feedback.
+                                        </p>
                                     )}
                                 </div>
                             </div>

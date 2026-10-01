@@ -1,7 +1,25 @@
-import { flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
-import { useEffect, useRef, useState } from 'react';
-import { LuArrowDown, LuArrowUp, LuArrowUpDown, LuChevronLeft, LuChevronRight, LuColumns3, LuDownload, LuFilterX, LuSearch, LuX } from 'react-icons/lu';
-import { inputClass, secondaryButton } from '@/Components/Dashboard/Ui';
+import {
+    flexRender,
+    getCoreRowModel,
+    getFilteredRowModel,
+    getPaginationRowModel,
+    getSortedRowModel,
+    useReactTable,
+} from "@tanstack/react-table";
+import { useEffect, useRef, useState } from "react";
+import {
+    LuArrowDown,
+    LuArrowUp,
+    LuArrowUpDown,
+    LuChevronLeft,
+    LuChevronRight,
+    LuColumns3,
+    LuDownload,
+    LuFilterX,
+    LuSearch,
+    LuX,
+} from "react-icons/lu";
+import { inputClass, secondaryButton } from "@/Components/Dashboard/Ui";
 
 /**
  * Data grid on TanStack Table (headless - the logic is theirs, the look is
@@ -20,7 +38,7 @@ import { inputClass, secondaryButton } from '@/Components/Dashboard/Ui';
 
 function readStored(key) {
     try {
-        return JSON.parse(window.localStorage.getItem(key) ?? 'null');
+        return JSON.parse(window.localStorage.getItem(key) ?? "null");
     } catch {
         return null;
     }
@@ -36,7 +54,7 @@ function writeStored(key, value) {
 
 /** Spreadsheet-safe CSV cell: quoted, and formula-looking text neutralised. */
 function csvCell(value) {
-    let text = value === null || value === undefined ? '' : String(value);
+    let text = value === null || value === undefined ? "" : String(value);
     if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
 
     return `"${text.replace(/"/g, '""')}"`;
@@ -49,13 +67,13 @@ function ColumnsMenu({ table }) {
     useEffect(() => {
         if (!open) return undefined;
         const close = (e) => !ref.current?.contains(e.target) && setOpen(false);
-        const onKey = (e) => e.key === 'Escape' && setOpen(false);
-        document.addEventListener('mousedown', close);
-        document.addEventListener('keydown', onKey);
+        const onKey = (e) => e.key === "Escape" && setOpen(false);
+        document.addEventListener("mousedown", close);
+        document.addEventListener("keydown", onKey);
 
         return () => {
-            document.removeEventListener('mousedown', close);
-            document.removeEventListener('keydown', onKey);
+            document.removeEventListener("mousedown", close);
+            document.removeEventListener("keydown", onKey);
         };
     }, [open]);
 
@@ -63,14 +81,28 @@ function ColumnsMenu({ table }) {
 
     return (
         <div ref={ref} className="relative">
-            <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className={`${secondaryButton} h-[42px]`}>
-                <LuColumns3 className="h-4 w-4" /> <span className="hidden sm:inline">Columns</span>
+            <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                aria-expanded={open}
+                className={`${secondaryButton} h-[42px]`}
+            >
+                <LuColumns3 className="h-4 w-4" />{" "}
+                <span className="hidden sm:inline">Columns</span>
             </button>
             {open && (
                 <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-brand-border bg-brand-card p-2 shadow-lg">
                     {hideable.map((column) => (
-                        <label key={column.id} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-brand-text hover:bg-brand-bg">
-                            <input type="checkbox" checked={column.getIsVisible()} onChange={column.getToggleVisibilityHandler()} className="h-4 w-4 accent-[var(--color-brand-accent)]" />
+                        <label
+                            key={column.id}
+                            className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-brand-text hover:bg-brand-bg"
+                        >
+                            <input
+                                type="checkbox"
+                                checked={column.getIsVisible()}
+                                onChange={column.getToggleVisibilityHandler()}
+                                className="h-4 w-4 accent-[var(--color-brand-accent)]"
+                            />
                             {column.columnDef.meta?.label ?? column.id}
                         </label>
                     ))}
@@ -88,10 +120,14 @@ function ColumnsMenu({ table }) {
 }
 
 function SortIcon({ state }) {
-    if (state === 'asc') return <LuArrowUp className="h-3.5 w-3.5 text-brand-text" />;
-    if (state === 'desc') return <LuArrowDown className="h-3.5 w-3.5 text-brand-text" />;
+    if (state === "asc")
+        return <LuArrowUp className="h-3.5 w-3.5 text-brand-text" />;
+    if (state === "desc")
+        return <LuArrowDown className="h-3.5 w-3.5 text-brand-text" />;
 
-    return <LuArrowUpDown className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-60" />;
+    return (
+        <LuArrowUpDown className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-60" />
+    );
 }
 
 export default function DataTable({
@@ -99,9 +135,9 @@ export default function DataTable({
     columns,
     initialSorting = [],
     initialHidden = {},
-    searchPlaceholder = 'Search',
+    searchPlaceholder = "Search",
     toolbar = null,
-    exportName = 'export',
+    exportName = "export",
     storageKey = null,
     empty = null,
     onClearAll = null,
@@ -111,12 +147,21 @@ export default function DataTable({
     const stored = storageKey ? readStored(storageKey) : null;
 
     const [sorting, setSorting] = useState(initialSorting);
-    const [globalFilter, setGlobalFilter] = useState('');
-    const [columnVisibility, setColumnVisibility] = useState(stored?.columns ?? initialHidden);
-    const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: stored?.pageSize ?? pageSizes[1] ?? pageSizes[0] });
+    const [globalFilter, setGlobalFilter] = useState("");
+    const [columnVisibility, setColumnVisibility] = useState(
+        stored?.columns ?? initialHidden,
+    );
+    const [pagination, setPagination] = useState({
+        pageIndex: 0,
+        pageSize: stored?.pageSize ?? pageSizes[1] ?? pageSizes[0],
+    });
 
     useEffect(() => {
-        if (storageKey) writeStored(storageKey, { columns: columnVisibility, pageSize: pagination.pageSize });
+        if (storageKey)
+            writeStored(storageKey, {
+                columns: columnVisibility,
+                pageSize: pagination.pageSize,
+            });
     }, [storageKey, columnVisibility, pagination.pageSize]);
 
     const table = useReactTable({
@@ -131,7 +176,7 @@ export default function DataTable({
         getFilteredRowModel: getFilteredRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
-        globalFilterFn: 'includesString',
+        globalFilterFn: "includesString",
         autoResetPageIndex: true,
         enableMultiSort: true,
     });
@@ -145,31 +190,49 @@ export default function DataTable({
     const from = total === 0 ? 0 : pageIndex * pageSize + 1;
     const to = Math.min(total, (pageIndex + 1) * pageSize);
     const visibleColumns = table.getVisibleLeafColumns();
-    const isFiltered = globalFilter !== '' || filteredExternally;
+    const isFiltered = globalFilter !== "" || filteredExternally;
 
     function clearAll() {
-        setGlobalFilter('');
+        setGlobalFilter("");
         onClearAll?.();
     }
 
     function exportCsv() {
-        const cols = visibleColumns.filter((c) => c.columnDef.meta?.csv !== false);
-        const header = cols.map((c) => csvCell(c.columnDef.meta?.label ?? c.id)).join(',');
+        const cols = visibleColumns.filter(
+            (c) => c.columnDef.meta?.csv !== false,
+        );
+        const header = cols
+            .map((c) => csvCell(c.columnDef.meta?.label ?? c.id))
+            .join(",");
         const lines = filteredRows.map((row) =>
-            cols.map((c) => csvCell(typeof c.columnDef.meta?.csv === 'function' ? c.columnDef.meta.csv(row.original) : row.getValue(c.id))).join(','),
+            cols
+                .map((c) =>
+                    csvCell(
+                        typeof c.columnDef.meta?.csv === "function"
+                            ? c.columnDef.meta.csv(row.original)
+                            : row.getValue(c.id),
+                    ),
+                )
+                .join(","),
         );
 
-        const blob = new Blob([`﻿${[header, ...lines].join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
-        const link = document.createElement('a');
+        const blob = new Blob([`﻿${[header, ...lines].join("\r\n")}`], {
+            type: "text/csv;charset=utf-8",
+        });
+        const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
         link.download = `${exportName}-${new Date().toISOString().slice(0, 10)}.csv`;
         link.click();
         setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     }
 
-    const alignClass = (column) => (column.columnDef.meta?.align === 'right' ? 'text-right' : 'text-left');
-    const stickyFirst = (i, bg) => (i === 0 ? `sticky left-0 ${bg} pl-5` : '');
-    const stickyRight = (column, bg) => (column.columnDef.meta?.stickyRight ? `sticky right-0 ${bg} shadow-[-8px_0_10px_-10px_rgba(15,23,42,0.45)]` : '');
+    const alignClass = (column) =>
+        column.columnDef.meta?.align === "right" ? "text-right" : "text-left";
+    const stickyFirst = (i, bg) => (i === 0 ? `sticky left-0 ${bg} pl-5` : "");
+    const stickyRight = (column, bg) =>
+        column.columnDef.meta?.stickyRight
+            ? `sticky right-0 ${bg} shadow-[-8px_0_10px_-10px_rgba(15,23,42,0.45)]`
+            : "";
 
     return (
         <div className="min-w-0 rounded-2xl border border-brand-border bg-brand-card shadow-sm">
@@ -194,7 +257,7 @@ export default function DataTable({
                         {globalFilter && (
                             <button
                                 type="button"
-                                onClick={() => setGlobalFilter('')}
+                                onClick={() => setGlobalFilter("")}
                                 aria-label="Clear search"
                                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-brand-muted hover:text-brand-text"
                             >
@@ -203,8 +266,15 @@ export default function DataTable({
                         )}
                     </div>
                     <ColumnsMenu table={table} />
-                    <button type="button" onClick={exportCsv} disabled={total === 0} className={`${secondaryButton} h-[42px]`} title="Download the rows shown as CSV">
-                        <LuDownload className="h-4 w-4" /> <span className="hidden sm:inline">CSV</span>
+                    <button
+                        type="button"
+                        onClick={exportCsv}
+                        disabled={total === 0}
+                        className={`${secondaryButton} h-[42px]`}
+                        title="Download the rows shown as CSV"
+                    >
+                        <LuDownload className="h-4 w-4" />{" "}
+                        <span className="hidden sm:inline">CSV</span>
                     </button>
                 </div>
             </div>
@@ -223,8 +293,14 @@ export default function DataTable({
                                         <th
                                             key={header.id}
                                             scope="col"
-                                            aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
-                                            className={`whitespace-nowrap border-b border-brand-border bg-brand-bg px-4 py-3 text-xs font-medium uppercase tracking-wide text-brand-muted ${alignClass(header.column)} ${stickyFirst(i, 'z-20 bg-brand-bg')} ${stickyRight(header.column, 'z-30 bg-brand-bg')}`}
+                                            aria-sort={
+                                                sorted === "asc"
+                                                    ? "ascending"
+                                                    : sorted === "desc"
+                                                      ? "descending"
+                                                      : undefined
+                                            }
+                                            className={`whitespace-nowrap border-b border-brand-border bg-brand-bg px-4 py-3 text-xs font-medium uppercase tracking-wide text-brand-muted ${alignClass(header.column)} ${stickyFirst(i, "z-20 bg-brand-bg")} ${stickyRight(header.column, "z-30 bg-brand-bg")}`}
                                         >
                                             {header.isPlaceholder ? null : canSort ? (
                                                 <button
@@ -232,14 +308,26 @@ export default function DataTable({
                                                     onClick={header.column.getToggleSortingHandler()}
                                                     title="Sort (shift-click to add a second sort)"
                                                     className={`group inline-flex items-center gap-1 uppercase hover:text-brand-text ${
-                                                        header.column.columnDef.meta?.align === 'right' ? 'flex-row-reverse' : ''
-                                                    } ${sorted ? 'text-brand-text' : ''}`}
+                                                        header.column.columnDef
+                                                            .meta?.align ===
+                                                        "right"
+                                                            ? "flex-row-reverse"
+                                                            : ""
+                                                    } ${sorted ? "text-brand-text" : ""}`}
                                                 >
-                                                    {flexRender(header.column.columnDef.header, header.getContext())}
+                                                    {flexRender(
+                                                        header.column.columnDef
+                                                            .header,
+                                                        header.getContext(),
+                                                    )}
                                                     <SortIcon state={sorted} />
                                                 </button>
                                             ) : (
-                                                flexRender(header.column.columnDef.header, header.getContext())
+                                                flexRender(
+                                                    header.column.columnDef
+                                                        .header,
+                                                    header.getContext(),
+                                                )
                                             )}
                                         </th>
                                     );
@@ -250,14 +338,26 @@ export default function DataTable({
                     <tbody>
                         {total === 0 ? (
                             <tr>
-                                <td colSpan={visibleColumns.length} className="border-b border-brand-border">
+                                <td
+                                    colSpan={visibleColumns.length}
+                                    className="border-b border-brand-border"
+                                >
                                     {/* Pinned to the visible width so the message sits centred even when the table scrolls sideways. */}
                                     <div className="sticky left-0 w-[min(100%,calc(100vw-4rem))] max-w-3xl">
-                                        {empty ?? <p className="px-5 py-12 text-center text-sm text-brand-muted">No rows match.</p>}
+                                        {empty ?? (
+                                            <p className="px-5 py-12 text-center text-sm text-brand-muted">
+                                                No rows match.
+                                            </p>
+                                        )}
                                         {isFiltered && (
                                             <p className="-mt-6 pb-8 text-center">
-                                                <button type="button" onClick={clearAll} className={secondaryButton}>
-                                                    <LuFilterX className="h-4 w-4" /> Clear search and filters
+                                                <button
+                                                    type="button"
+                                                    onClick={clearAll}
+                                                    className={secondaryButton}
+                                                >
+                                                    <LuFilterX className="h-4 w-4" />{" "}
+                                                    Clear search and filters
                                                 </button>
                                             </p>
                                         )}
@@ -272,10 +372,13 @@ export default function DataTable({
                                             key={cell.id}
                                             className={`border-b border-brand-border px-4 py-3 align-middle transition-colors group-hover/row:bg-brand-bg ${alignClass(cell.column)} ${stickyFirst(
                                                 i,
-                                                'z-[5] bg-brand-card',
-                                            )} ${stickyRight(cell.column, 'z-10 bg-brand-card group-hover/row:bg-brand-bg')}`}
+                                                "z-[5] bg-brand-card",
+                                            )} ${stickyRight(cell.column, "z-10 bg-brand-card group-hover/row:bg-brand-bg")}`}
                                         >
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            {flexRender(
+                                                cell.column.columnDef.cell,
+                                                cell.getContext(),
+                                            )}
                                         </td>
                                     ))}
                                 </tr>
@@ -288,15 +391,21 @@ export default function DataTable({
             {/* Footer: count + paging */}
             <div className="flex flex-col gap-3 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
                 <p className="text-brand-muted">
-                    {total === 0 ? 'No rows' : `Showing ${from}–${to} of ${total}`}
-                    {isFiltered && total !== data.length && ` (filtered from ${data.length})`}
+                    {total === 0
+                        ? "No rows"
+                        : `Showing ${from}–${to} of ${total}`}
+                    {isFiltered &&
+                        total !== data.length &&
+                        ` (filtered from ${data.length})`}
                 </p>
                 <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2 text-brand-muted">
                         Rows
                         <select
                             value={pageSize}
-                            onChange={(e) => table.setPageSize(Number(e.target.value))}
+                            onChange={(e) =>
+                                table.setPageSize(Number(e.target.value))
+                            }
                             className="rounded-lg border border-brand-border bg-brand-card px-2 py-1 text-sm text-brand-text outline-none focus:border-brand-accent"
                         >
                             {pageSizes.map((size) => (
@@ -317,7 +426,9 @@ export default function DataTable({
                             <LuChevronLeft className="h-4 w-4" />
                         </button>
                         <span className="min-w-16 text-center tabular-nums text-brand-muted">
-                            {table.getPageCount() === 0 ? '0 / 0' : `${pageIndex + 1} / ${table.getPageCount()}`}
+                            {table.getPageCount() === 0
+                                ? "0 / 0"
+                                : `${pageIndex + 1} / ${table.getPageCount()}`}
                         </span>
                         <button
                             type="button"

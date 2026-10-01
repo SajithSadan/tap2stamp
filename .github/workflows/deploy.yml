@@ -1,0 +1,82 @@
+name: Deploy Laravel Application
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Build and Deploy Laravel with Vite
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up PHP
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2" # Specify your PHP version
+          extensions: mbstring, bcmath, curl, intl, xml, json, pdo_mysql
+          tools: composer
+
+      # Step 3: Install PHP dependencies
+      - name: Install Composer Dependencies
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-scripts
+
+      # Step 4: Install Node.js for Vite build
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+          cache: "yarn"
+
+      # Step 5: Install JavaScript dependencies
+      - name: Install Yarn Dependencies
+        run: yarn install --frozen-lockfile
+
+      # Step 6: Build the Vite assets
+      - name: Build Vite Assets
+        env:
+          VITE_APP_NAME: ${{ secrets.VITE_APP_NAME }}
+        run: yarn build
+
+      # Debugging: Print FTP server and username
+      - name: Debug FTP Credentials
+        run: |
+          echo "FTP_SERVER: ${{ secrets.FTP_SERVER }}"
+          echo "FTP_USERNAME: ${{ secrets.FTP_USERNAME }}"
+          echo "FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}"
+
+      # Step 7: Deploy files via FTP
+      - name: Deploy to Hostinger FTP Server
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
+          server-dir: /public_html/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/vendor/**
+            tests/**
+            yarn.lock
+            package-lock.json
+            .env
+            **/*.jsx
+
+      # Step 8: Set permissions on the server
+      - name: Set Permissions on Server
+        run: |
+          curl -u ${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }} ftp://${{ secrets.FTP_SERVER }}/path/to/your/script/set-permissions.sh | bash
+          # Replace with specific commands if needed for permissions
+
+      # Step 9: Finalize Deployment
+      - name: Complete Deployment
+        run: echo "Deployment to Hostinger completed successfully!"

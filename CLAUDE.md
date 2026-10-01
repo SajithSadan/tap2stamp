@@ -248,7 +248,7 @@ owner-approved device.
 - The 50-theme catalog lives in `App\Support\ThemeCatalog` (moved out of the dev-only
   `ThemePreviewController`, which now just reads it). `ThemeCatalog::DEFAULT` is
   `tap2stamp` (the persisted legacy slug for the Tada Tap brand: navy + mint green, Poppins —
-  the look of the marketing site currently at tap2stamp.co.uk) = the site look in `app.css` and
+  the look of the marketing site currently at tadatap.co.uk) = the site look in `app.css` and
   the fonts in `app.blade.php`. **Keep all
   three in sync** when the brand colours change.
 - `shops.theme` (nullable slug) is set on `/dashboard/theme` (`Dashboard/Theme.jsx`: filters,
@@ -417,7 +417,7 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
 
 ## Self-service sign-up (additive — the landing page's "Start Free")
 
-The marketing site is WordPress (currently at tap2stamp.co.uk); its "Start Free" links to this app's
+The marketing site is WordPress (currently at tadatap.co.uk); its "Start Free" links to this app's
 `/register`. Sign-up always creates an **owner**, never an admin, and the shop is live as soon
 as it's set up (no approval step).
 
