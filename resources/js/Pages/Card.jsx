@@ -838,8 +838,9 @@ export default function Card({ shop, theme }) {
                     {/* Quick actions: only the ones the shop has set up. */}
                     {(shop.instagram_url || card) && (
                         <div className="space-y-2">
-                            {card && (
-                                shop.google_review_direct && shop.google_review_url ? (
+                            {card &&
+                                (shop.google_review_direct &&
+                                shop.google_review_url ? (
                                     <a
                                         href={shop.google_review_url}
                                         target="_blank"
@@ -847,34 +848,61 @@ export default function Card({ shop, theme }) {
                                         className={`flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition active:scale-[0.99] ${surface}`}
                                     >
                                         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bg">
-                                            <img src="/images/google-review-icon.png" alt="" className="h-7 w-7 object-contain" aria-hidden="true" />
+                                            <img
+                                                src="/images/google-review-icon.png"
+                                                alt=""
+                                                className="h-7 w-7 object-contain"
+                                                aria-hidden="true"
+                                            />
                                         </span>
                                         <span className="min-w-0 flex-1">
-                                            <span className="block font-semibold text-brand-text">Review us on Google</span>
-                                            <span className="mt-0.5 block text-sm text-brand-muted">Opens Google Reviews</span>
+                                            <span className="block font-semibold text-brand-text">
+                                                Review us on Google
+                                            </span>
+                                            <span className="mt-0.5 block text-sm text-brand-muted">
+                                                Opens Google Reviews
+                                            </span>
                                         </span>
-                                        <LuChevronRight className="h-5 w-5 shrink-0 text-brand-muted" aria-hidden="true" />
+                                        <LuChevronRight
+                                            className="h-5 w-5 shrink-0 text-brand-muted"
+                                            aria-hidden="true"
+                                        />
                                     </a>
                                 ) : (
                                     <button
                                         type="button"
-                                        onClick={() => setPanel((open) => open === "rate" ? null : "rate")}
-                                        aria-expanded={panel === "rate" || showReviewPrompt}
+                                        onClick={() =>
+                                            setPanel((open) =>
+                                                open === "rate" ? null : "rate",
+                                            )
+                                        }
+                                        aria-expanded={
+                                            panel === "rate" || showReviewPrompt
+                                        }
                                         className={`flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition active:scale-[0.99] ${surface} ${panel === "rate" ? "ring-2 ring-brand-accent" : ""}`}
                                     >
                                         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-accent/10">
-                                            <IoStarOutline className="h-6 w-6 text-brand-accent" aria-hidden="true" />
+                                            <IoStarOutline
+                                                className="h-6 w-6 text-brand-accent"
+                                                aria-hidden="true"
+                                            />
                                         </span>
                                         <span className="min-w-0 flex-1">
                                             <span className="block font-semibold text-brand-text">
-                                                {card.review ? "Update your feedback" : "Share feedback"}
+                                                {card.review
+                                                    ? "Update your feedback"
+                                                    : "Share feedback"}
                                             </span>
-                                            <span className="mt-0.5 block text-sm text-brand-muted">Tell us about your visit</span>
+                                            <span className="mt-0.5 block text-sm text-brand-muted">
+                                                Tell us about your visit
+                                            </span>
                                         </span>
-                                        <LuChevronRight className="h-5 w-5 shrink-0 text-brand-muted" aria-hidden="true" />
+                                        <LuChevronRight
+                                            className="h-5 w-5 shrink-0 text-brand-muted"
+                                            aria-hidden="true"
+                                        />
                                     </button>
-                                )
-                            )}
+                                ))}
                             {shop.instagram_url && (
                                 <a
                                     href={shop.instagram_url}
@@ -910,13 +938,23 @@ export default function Card({ shop, theme }) {
                                     className={`flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition active:scale-[0.99] ${surface} ${panel === "wifi" ? "ring-2 ring-brand-accent" : ""}`}
                                 >
                                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bg">
-                                        <LuWifi className="h-6 w-6 text-brand-text" aria-hidden="true" />
+                                        <LuWifi
+                                            className="h-6 w-6 text-brand-text"
+                                            aria-hidden="true"
+                                        />
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block font-semibold text-brand-text">Guest Wi-Fi</span>
-                                        <span className="mt-0.5 block text-sm text-brand-muted">Connect while you visit</span>
+                                        <span className="block font-semibold text-brand-text">
+                                            Guest Wi-Fi
+                                        </span>
+                                        <span className="mt-0.5 block text-sm text-brand-muted">
+                                            Connect while you visit
+                                        </span>
                                     </span>
-                                    <LuChevronRight className="h-5 w-5 shrink-0 text-brand-muted" aria-hidden="true" />
+                                    <LuChevronRight
+                                        className="h-5 w-5 shrink-0 text-brand-muted"
+                                        aria-hidden="true"
+                                    />
                                 </button>
                             )}
                         </div>
