@@ -56,3 +56,15 @@ export function priceSummary(product) {
 
     return [formatPence(product.price_pence), ...tiers.map((t) => `${formatPence(t.price_pence)} each from the ${ordinal(t.from)}`)].join(', then ');
 }
+
+/**
+ * Pence off `totalPence` with a coupon ({ discount_type: 'percent' | 'fixed',
+ * discount_value }), never more than the total. Mirror of
+ * Coupon::discountFor() - keep in sync (the server works out the real charge).
+ */
+export function couponDiscount(coupon, totalPence) {
+    if (!coupon) return 0;
+    const off = coupon.discount_type === 'percent' ? Math.round((totalPence * coupon.discount_value) / 100) : coupon.discount_value;
+
+    return Math.min(totalPence, off);
+}

@@ -47,8 +47,8 @@ class Navigation
             ['route' => 'admin.dashboard', 'label' => 'Dashboard', 'icon' => 'overview', 'roles' => $admin],
             // "Add shop" is a button on this page, not its own menu item.
             ['route' => 'admin.index', 'label' => 'Shops', 'icon' => 'shops', 'roles' => $admin, 'active' => ['admin.index', 'admin.shops.*']],
-            // "Products" is a button on this page, not its own menu item.
-            ['route' => 'admin.orders.index', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $admin, 'active' => ['admin.orders.*', 'admin.products.*']],
+            // "Products" and "Coupons" are buttons on this page, not their own menu items.
+            ['route' => 'admin.orders.index', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $admin, 'active' => ['admin.orders.*', 'admin.products.*', 'admin.coupons.*']],
             ['route' => 'admin.qr-codes.index', 'label' => 'QR codes', 'icon' => 'qr', 'roles' => $admin, 'active' => ['admin.qr-codes.*']],
             ['route' => 'admin.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $admin, 'active' => ['admin.settings*']],
 

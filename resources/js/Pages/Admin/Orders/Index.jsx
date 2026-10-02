@@ -7,6 +7,7 @@ import {
     LuPackageCheck,
     LuPlus,
     LuTag,
+    LuTicket,
     LuX,
     LuTruck,
 } from "react-icons/lu";
@@ -255,6 +256,7 @@ const buildColumns = (products) => [
                 </p>
                 <p className="text-xs text-brand-muted">
                     {o.payment_label}
+                    {o.coupon_code && ` · ${o.coupon_code}`}
                     {o.awaiting_payment && ` · ${o.reference}`}
                 </p>
             </div>
@@ -507,6 +509,9 @@ export default function Index({
                     />
                     <Link href="/admin/products" className={secondaryButton}>
                         <LuTag className="h-4 w-4" /> Products
+                    </Link>
+                    <Link href="/admin/coupons" className={secondaryButton}>
+                        <LuTicket className="h-4 w-4" /> Coupons
                     </Link>
                     {products.length > 0 && (
                         <button

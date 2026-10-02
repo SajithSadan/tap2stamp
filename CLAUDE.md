@@ -561,6 +561,16 @@ later maybe more (table stickers). Prices and copy live in our DB, not in Stripe
   Free goes ahead); **Stripe orders only their delivery address and note** — the amount is
   what Stripe charged. Cancelled orders and unfinished Stripe checkouts 422 (checked in
   `prepareForValidation`, before the rules).
+- **Coupons** (`coupons` table, `App\Models\Coupon`, Admin → Orders → **Coupons** button,
+  `Admin\CouponController`): `percent` (1-100) or `fixed` (pence) off the order total, optional
+  product, valid-until day (end of day UK), total uses, once per shop, on/off. Never deleted.
+  **Only paid orders count as a use.** Owners apply a code on the order forms
+  (`CouponField.jsx` → `POST /dashboard/orders/coupon`, preview only, throttled); checkout
+  re-checks it. Stripe gets a one-off Stripe coupon for the exact discount (`createCoupon`), so
+  its page and receipt show it. A coupon that makes the order £0 skips Stripe (`placeFree()`,
+  paid, method Free); one that leaves under 30p is refused. Orders keep `coupon_id` +
+  `coupon_code`; the discount is `list_total_pence - total_pence`. `Coupon::discountFor()` ↔
+  `couponDiscount()` in `lib/money.js` — **keep in sync**.
 - No subscription billing exists yet — "first year free" is only copy in the product
   description.
 
@@ -630,7 +640,7 @@ Plus (staff accounts, see above) `staff_members` (`shop_id`, `name` unique per s
 Plus `users.google_id` (nullable, unique) with `users.password` now nullable (Google-only
 owners), `users.onboarding_draft` (nullable JSON, shop setup in progress), and `qr_batches` / `qr_codes` / `qr_designs` (see "Bulk QR stickers").
 Plus `shops.header_style` (nullable JSON, card page header text/tint/shadow).
-Plus `products`, `orders` and `shops.product_ordered_at` (see "Products & orders").
+Plus `products`, `orders`, `shops.product_ordered_at`, `coupons` and `orders.coupon_id/coupon_code` (see "Products & orders").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to texts from **that one shop**, unticked by default,
 and customers can register without it. `CustomerRegistrar` only ever turns it on: an unticked

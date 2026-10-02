@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
 use App\Mail\OrderDelivered;
 use App\Mail\OrderDispatched;
+use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Shop;
@@ -26,15 +27,34 @@ class OrderService
 {
     public function __construct(private StripeGateway $stripe) {}
 
+    /** Stripe's smallest card payment in GBP; a coupon can't leave less than this (but can make it free). */
+    public const STRIPE_MINIMUM_PENCE = 30;
+
+    /**
+     * What $quantity of $product costs with $coupon (if any).
+     *
+     * @return array{list: int, discount: int, total: int}
+     */
+    public function price(Product $product, int $quantity, ?Coupon $coupon = null): array
+    {
+        $list = $product->totalFor($quantity);
+        $discount = $coupon?->discountFor($list) ?? 0;
+
+        return ['list' => $list, 'discount' => $discount, 'total' => $list - $discount];
+    }
+
     /**
      * Opens a Stripe Checkout page for one product (any quantity). Reuses the shop's
      * unfinished order for the same product, so going back and forth to
-     * Stripe doesn't pile up pending orders.
+     * Stripe doesn't pile up pending orders. A coupon's discount is passed to
+     * Stripe as a one-off Stripe coupon for that exact amount.
      *
      * @return string the Stripe Checkout URL to send the owner to
      */
-    public function startCheckout(Shop $shop, Product $product, User $owner, int $quantity = 1): string
+    public function startCheckout(Shop $shop, Product $product, User $owner, int $quantity = 1, ?Coupon $coupon = null): string
     {
+        $price = $this->price($product, $quantity, $coupon);
+
         $order = $shop->orders()
             ->where('product_id', $product->id)
             ->where('status', OrderStatus::Pending)
@@ -48,12 +68,22 @@ class OrderService
             'product_name' => $product->name,
             'quantity' => $quantity,
             'unit_price_pence' => $product->price_pence,
-            'total_pence' => $product->totalFor($quantity),
-            'list_total_pence' => $product->totalFor($quantity),
+            'total_pence' => $price['total'],
+            'list_total_pence' => $price['list'],
+            'coupon_id' => $coupon?->id,
+            'coupon_code' => $coupon?->code,
             'payment_method' => PaymentMethod::Stripe,
             'status' => OrderStatus::Pending,
             'delivery_address' => $shop->deliveryAddress(),
         ])->save();
+
+        $discounts = $price['discount'] > 0 ? [['coupon' => $this->stripe->createCoupon([
+            'amount_off' => $price['discount'],
+            'currency' => 'gbp',
+            'duration' => 'once',
+            'max_redemptions' => 1,
+            'name' => $coupon->code,
+        ])]] : [];
 
         $session = $this->stripe->createCheckoutSession([
             'mode' => 'payment',
@@ -70,6 +100,7 @@ class OrderService
                     ]),
                 ],
             ])->all(),
+            ...($discounts ? ['discounts' => $discounts] : []),
             'customer_email' => $owner->email,
             'client_reference_id' => (string) $order->id,
             'metadata' => ['order_id' => $order->id, 'shop_id' => $shop->id],
@@ -80,6 +111,29 @@ class OrderService
         $order->update(['stripe_session_id' => $session['id']]);
 
         return $session['url'];
+    }
+
+    /** A coupon took the whole price off: nothing to pay, so the order goes straight ahead. */
+    public function placeFree(Shop $shop, Product $product, User $owner, int $quantity, Coupon $coupon): Order
+    {
+        return DB::transaction(function () use ($shop, $product, $owner, $quantity, $coupon) {
+            $order = $shop->orders()->create([
+                'product_id' => $product->id,
+                'user_id' => $owner->id,
+                'product_name' => $product->name,
+                'quantity' => $quantity,
+                'unit_price_pence' => $product->price_pence,
+                'total_pence' => 0,
+                'list_total_pence' => $product->totalFor($quantity),
+                'coupon_id' => $coupon->id,
+                'coupon_code' => $coupon->code,
+                'payment_method' => PaymentMethod::Free,
+                'status' => OrderStatus::Pending,
+                'delivery_address' => $shop->deliveryAddress(),
+            ]);
+
+            return $this->markPaid($order);
+        });
     }
 
     /**

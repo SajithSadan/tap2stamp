@@ -1,8 +1,9 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { LuArrowRight, LuCircleAlert, LuMapPin, LuNfc } from 'react-icons/lu';
+import CouponField from '@/Components/Dashboard/CouponField';
 import QuantityStepper from '@/Components/Dashboard/QuantityStepper';
-import { formatPence, priceFor, priceSummary } from '@/lib/money';
+import { couponDiscount, formatPence, priceFor, priceSummary } from '@/lib/money';
 
 /**
  * "What's next? Order your counter display" - the first thing on the owner's
@@ -14,11 +15,13 @@ export default function OrderOffer({ offer }) {
     const { errors } = usePage().props;
     const [processing, setProcessing] = useState(false);
     const [quantity, setQuantity] = useState(1);
-    const total = priceFor(offer, Number(quantity) || 1);
+    const [coupon, setCoupon] = useState(null);
+    const list = priceFor(offer, Number(quantity) || 1);
+    const total = list - couponDiscount(coupon, list);
 
     function order() {
-        // The server answers with an Inertia::location to Stripe Checkout.
-        router.post('/dashboard/orders', { product_id: offer.product_id, quantity: Number(quantity) || 1 }, {
+        // The server answers with an Inertia::location to Stripe Checkout (or, when a coupon makes it free, back to Orders).
+        router.post('/dashboard/orders', { product_id: offer.product_id, quantity: Number(quantity) || 1, coupon: coupon?.code ?? null }, {
             preserveScroll: true,
             onStart: () => setProcessing(true),
             onFinish: () => setProcessing(false),
@@ -75,9 +78,11 @@ export default function OrderOffer({ offer }) {
                             disabled={processing}
                             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-accent px-5 py-3 text-sm font-semibold text-brand-accent-text shadow-sm transition hover:brightness-95 disabled:opacity-60"
                         >
-                            {processing ? 'Opening secure checkout…' : `Order now · ${formatPence(total)}`}
+                            {processing ? 'Opening secure checkout…' : `Order now · ${total === 0 ? 'Free' : formatPence(total)}`}
+                            {!processing && total < list && <s className="font-normal opacity-70">{formatPence(list)}</s>}
                             {!processing && <LuArrowRight className="h-4 w-4" />}
                         </button>
+                        <CouponField productId={offer.product_id} quantity={Number(quantity) || 1} coupon={coupon} onChange={setCoupon} tone="dark" />
                         </>
                     )}
                     {offer.can_pay_online && offer.delivery_address && <p className="text-xs text-white/50">Secure payment by Stripe</p>}

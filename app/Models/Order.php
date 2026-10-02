@@ -24,6 +24,8 @@ class Order extends Model
         'unit_price_pence',
         'total_pence',
         'list_total_pence',
+        'coupon_id',
+        'coupon_code',
         'payment_method',
         'status',
         'stripe_session_id',
@@ -66,6 +68,11 @@ class Order extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function coupon(): BelongsTo
+    {
+        return $this->belongsTo(Coupon::class);
     }
 
     public function placedBy(): BelongsTo
@@ -119,6 +126,7 @@ class Order extends Model
             'total_pence' => $this->total_pence,
             // The normal price; more than total_pence when a discount was agreed.
             'list_total_pence' => $this->list_total_pence ?? $this->total_pence,
+            'coupon_code' => $this->coupon_code,
             'payment_method' => $this->payment_method->value,
             'payment_label' => $this->payment_method->label(),
             'status' => $this->status->value,

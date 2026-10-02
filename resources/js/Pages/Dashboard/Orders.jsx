@@ -5,18 +5,22 @@ import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
 import OrderTracker from '@/Components/Dashboard/OrderTracker';
 import QuantityStepper from '@/Components/Dashboard/QuantityStepper';
 import { CopyButton, EmptyState, Panel, primaryButton } from '@/Components/Dashboard/Ui';
-import { formatPence, priceFor, priceSummary } from '@/lib/money';
+import CouponField from '@/Components/Dashboard/CouponField';
+import { couponDiscount, formatPence, priceFor, priceSummary } from '@/lib/money';
 
 /** One product with a quantity and "Order" (→ Stripe Checkout). */
 function ProductRow({ product, canOrder, maxQuantity }) {
     const [quantity, setQuantity] = useState(1);
     const [processing, setProcessing] = useState(false);
+    const [coupon, setCoupon] = useState(null);
     const count = Number(quantity) || 1;
+    const list = priceFor(product, count);
+    const total = list - couponDiscount(coupon, list);
 
     function order() {
         router.post(
             '/dashboard/orders',
-            { product_id: product.id, quantity: count },
+            { product_id: product.id, quantity: count, coupon: coupon?.code ?? null },
             { preserveScroll: true, onStart: () => setProcessing(true), onFinish: () => setProcessing(false) },
         );
     }
@@ -33,11 +37,15 @@ function ProductRow({ product, canOrder, maxQuantity }) {
                 {product.description && <p className="mt-0.5 text-sm text-brand-muted">{product.description}</p>}
             </div>
             {canOrder && (
-                <div className="flex flex-wrap items-center gap-3">
-                    <QuantityStepper value={quantity} onChange={setQuantity} max={maxQuantity} label={`How many ${product.name}`} />
-                    <button type="button" onClick={order} disabled={processing} className={primaryButton}>
-                        {processing ? 'Opening checkout…' : `Order · ${formatPence(priceFor(product, count))}`}
-                    </button>
+                <div className="flex flex-col gap-2 sm:items-end">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <QuantityStepper value={quantity} onChange={setQuantity} max={maxQuantity} label={`How many ${product.name}`} />
+                        <button type="button" onClick={order} disabled={processing} className={primaryButton}>
+                            {processing ? 'Opening checkout…' : `Order · ${total === 0 ? 'Free' : formatPence(total)}`}
+                            {!processing && total < list && <s className="font-normal opacity-70">{formatPence(list)}</s>}
+                        </button>
+                    </div>
+                    <CouponField productId={product.id} quantity={count} coupon={coupon} onChange={setCoupon} />
                 </div>
             )}
         </li>
@@ -92,7 +100,10 @@ function OrderCard({ order, bank }) {
                     <p className="text-xs text-brand-muted">
                         Order #{order.id} · {order.created_label} ·{' '}
                         {order.total_pence === 0 && order.list_total_pence > 0 ? 'Free' : formatPence(order.total_pence)}
-                        {order.list_total_pence > order.total_pence && order.total_pence > 0 && ` (${formatPence(order.list_total_pence - order.total_pence)} off)`}
+                        {order.list_total_pence > order.total_pence &&
+                            order.total_pence > 0 &&
+                            ` (${formatPence(order.list_total_pence - order.total_pence)} off${order.coupon_code ? ` with ${order.coupon_code}` : ''})`}
+                        {order.total_pence === 0 && order.coupon_code && ` with ${order.coupon_code}`}
                         {!order.awaiting_payment && ` · ${order.payment_label}`}
                     </p>
                 </div>

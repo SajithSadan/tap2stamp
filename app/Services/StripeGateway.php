@@ -28,6 +28,15 @@ class StripeGateway
     }
 
     /**
+     * A one-off Stripe coupon for one checkout's discount (our coupons live
+     * in our DB), so Stripe's page and receipt show the code and the saving.
+     */
+    public function createCoupon(array $params): string
+    {
+        return $this->client()->coupons->create($params)->id;
+    }
+
+    /**
      * @return array{id: string, payment_status: string, payment_intent: ?string}
      */
     public function retrieveCheckoutSession(string $id): array

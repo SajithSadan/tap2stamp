@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AddressLookupController;
+use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController;
@@ -128,6 +129,9 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
     Route::post('/products', [ProductController::class, 'store'])->name('products.store');
     Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
+    Route::get('/coupons', [CouponController::class, 'index'])->name('coupons.index');
+    Route::post('/coupons', [CouponController::class, 'store'])->name('coupons.store');
+    Route::put('/coupons/{coupon}', [CouponController::class, 'update'])->name('coupons.update');
 
     // Bulk QR stickers: generate in batches, map each to a destination later,
     // print as a PDF (built client-side from printData's JSON).
@@ -202,6 +206,8 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     // Ordering products (any quantity) through Stripe Checkout, and tracking them.
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');
     Route::post('/orders', [OrderController::class, 'checkout'])->middleware('throttle:10,1')->name('orders.checkout');
+    // Checks a coupon code before ordering (throttled, so codes can't be guessed).
+    Route::post('/orders/coupon', [OrderController::class, 'coupon'])->middleware('throttle:10,1')->name('orders.coupon');
     Route::get('/orders/{order}/success', [OrderController::class, 'success'])->name('orders.success');
 
     Route::post('/staff-members', [StaffMemberController::class, 'store'])->name('staff-members.store');
