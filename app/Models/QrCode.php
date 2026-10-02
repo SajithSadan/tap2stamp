@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Database\Factories\QrCodeFactory;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +17,7 @@ class QrCode extends Model
         'qr_batch_id',
         'shop_id',
         'code',
+        'serial',
         'destination_url',
         'mapped_at',
     ];
@@ -25,6 +25,7 @@ class QrCode extends Model
     protected function casts(): array
     {
         return [
+            'serial' => 'integer',
             'mapped_at' => 'datetime',
         ];
     }
@@ -45,19 +46,16 @@ class QrCode extends Model
     }
 
     /**
-     * Adds `serial`: the code's position in its batch (1, 2, 3 …, in generation
-     * order), printed as 001, 002 … on designs that show it. Stable, so a
-     * reprint of one code carries the same number as the original.
+     * `serial` is the code's number in its batch (1, 2, 3 …, in generation
+     * order), printed as 001, 002 … on designs that show it. Stored, not
+     * counted, so deleting a code never renumbers the stickers after it.
+     * The generator sets it; one-off creates (tests) get the next free one.
      */
-    public function scopeWithSerial(Builder $query): void
+    protected static function booted(): void
     {
-        $query->select('qr_codes.*')->selectSub(
-            static::query()->from('qr_codes as siblings')
-                ->selectRaw('count(*)')
-                ->whereColumn('siblings.qr_batch_id', 'qr_codes.qr_batch_id')
-                ->whereColumn('siblings.id', '<=', 'qr_codes.id'),
-            'serial',
-        );
+        static::creating(function (QrCode $qr) {
+            $qr->serial ??= (int) static::where('qr_batch_id', $qr->qr_batch_id)->max('serial') + 1;
+        });
     }
 
     /** The permanent link printed inside the QR image. */

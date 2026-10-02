@@ -139,6 +139,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::post('/qr-codes', [QrCodeController::class, 'store'])->name('qr-codes.store');
     Route::post('/qr-codes/print', [QrCodeController::class, 'printData'])->name('qr-codes.print');
     Route::post('/qr-codes/record-print', [QrCodeController::class, 'recordPrint'])->name('qr-codes.record-print');
+    Route::delete('/qr-codes', [QrCodeController::class, 'destroy'])->name('qr-codes.destroy');
     Route::delete('/qr-codes/batches/{qrBatch}', [QrCodeController::class, 'destroyBatch'])->name('qr-codes.batches.destroy');
 
     // Sticker designs: a background image + where the QR goes on it, picked at print time.

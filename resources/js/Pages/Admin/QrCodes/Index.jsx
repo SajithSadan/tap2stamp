@@ -688,7 +688,7 @@ function Modal({ title, onClose, wide = false, children }) {
 }
 
 /** One code up close: preview, its permanent link, the mapping form and downloads. */
-function QrDetails({ qr, shops, design, onClose, onPdf, confirm }) {
+function QrDetails({ qr, shops, design, onClose, onPdf, onDelete, confirm }) {
     const [preview, setPreview] = useState(null);
     const form = useForm({ destination_url: qr.destination_url ?? "" });
 
@@ -845,6 +845,15 @@ function QrDetails({ qr, shops, design, onClose, onPdf, confirm }) {
                 <p className="-mt-3 text-center text-xs text-brand-muted">
                     {design ? `On the “${design.name}” design.` : "Plain QR."}
                 </p>
+                <div className="border-t border-brand-border pt-4 text-center">
+                    <button
+                        type="button"
+                        onClick={() => onDelete([qr.id])}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                    >
+                        <LuTrash2 className="h-4 w-4" /> Delete this code
+                    </button>
+                </div>
             </div>
         </Modal>
     );
@@ -1069,6 +1078,51 @@ export default function Index({
             preserveScroll: true,
             // Selected codes may have been in that batch.
             onSuccess: () => setSelected(new Set()),
+        });
+    }
+
+    /**
+     * Deletes single codes (the details dialog, or the selection). Printed
+     * stickers with them stop working, so it always asks - and you type
+     * DELETE when any is mapped (or selected on another page, so we can't tell).
+     */
+    async function deleteCodes(ids) {
+        const onPage = codes.data.filter((qr) => ids.includes(qr.id));
+        const mapped = onPage.filter((qr) => qr.destination_url).length;
+        const unseen = ids.length - onPage.length;
+        const what =
+            ids.length === 1 && onPage.length === 1
+                ? onPage[0].code
+                : plural(ids.length, "code");
+
+        const ok = await confirm({
+            title: `Delete ${what}?`,
+            message:
+                `Any printed stickers with ${ids.length === 1 ? "it" : "them"} will stop working (they’ll show “Nothing found”). The rest of the batch keeps its serial numbers. This can’t be undone.` +
+                (mapped > 0
+                    ? `\n\n${mapped === ids.length && ids.length === 1 ? "It's" : `${mapped} of them ${mapped === 1 ? "is" : "are"}`} mapped, so probably in use.`
+                    : "") +
+                (unseen > 0
+                    ? `\n\n${unseen} selected on other pages ${unseen === 1 ? "isn't" : "aren't"} shown here.`
+                    : ""),
+            confirmLabel: ids.length === 1 ? "Delete code" : `Delete ${plural(ids.length, "code")}`,
+            danger: true,
+            requireText: mapped > 0 || unseen > 0 ? "DELETE" : null,
+        });
+        if (!ok) return;
+
+        router.delete("/admin/qr-codes", {
+            data: { ids },
+            preserveScroll: true,
+            onSuccess: () => {
+                setEditing(null);
+                setSelected((prev) => {
+                    const next = new Set(prev);
+                    ids.forEach((id) => next.delete(id));
+
+                    return next;
+                });
+            },
         });
     }
 
@@ -1304,9 +1358,17 @@ export default function Index({
                                 </button>
                                 <button
                                     type="button"
+                                    onClick={() => deleteCodes([...selected])}
+                                    className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                >
+                                    <LuTrash2 className="h-3.5 w-3.5" /> Delete
+                                    selected
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={printSelected}
                                     disabled={!!printing}
-                                    className={`${primaryButton} ml-auto px-3 py-1.5 text-xs`}
+                                    className={`${primaryButton} px-3 py-1.5 text-xs`}
                                 >
                                     {printing?.key === "selected" ? (
                                         <LuLoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -1583,6 +1645,7 @@ export default function Index({
                     design={design}
                     onClose={() => setEditing(null)}
                     onPdf={printOne}
+                    onDelete={deleteCodes}
                     confirm={confirm}
                 />
             )}

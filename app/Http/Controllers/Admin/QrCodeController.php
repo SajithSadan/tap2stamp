@@ -29,7 +29,7 @@ class QrCodeController extends Controller
         $shopId = $request->integer('shop') ?: null;
         $designId = $request->integer('design') ?: null;
 
-        $codes = QrCode::with(['batch', 'shop', 'designs'])->withSerial()
+        $codes = QrCode::with(['batch', 'shop', 'designs'])
             ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('destination_url', 'like', "%{$search}%")))
@@ -54,7 +54,7 @@ class QrCodeController extends Controller
                 'design_names' => $qr->designs->pluck('name')->values(),
                 'batch_id' => $qr->qr_batch_id,
                 'batch_label' => $qr->batch->label(),
-                'serial' => (int) $qr->serial,
+                'serial' => $qr->serial,
                 'mapped_at' => $qr->mapped_at?->diffForHumans(),
                 'created_at' => $qr->created_at->format('j M Y'),
             ]);
@@ -161,10 +161,39 @@ class QrCodeController extends Controller
             ->with('status', "Deleted {$label} and its {$count} ".($count === 1 ? 'code' : 'codes').'.');
     }
 
+    /**
+     * Deletes the chosen codes (one, or a selection). Printed stickers with
+     * them stop working. Batches left with no codes go too. Serials are
+     * stored, so the rest of a batch keeps the numbers on its stickers.
+     */
+    public function destroy(Request $request): RedirectResponse
+    {
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:'.QrCodeGenerator::MAX_PER_BATCH],
+            'ids.*' => ['integer', 'distinct'],
+        ])['ids'];
+
+        [$deleted, $emptied] = DB::transaction(function () use ($ids) {
+            $batchIds = QrCode::whereIn('id', $ids)->distinct()->pluck('qr_batch_id');
+            $deleted = QrCode::whereIn('id', $ids)->delete();
+            $emptied = QrBatch::whereIn('id', $batchIds)->doesntHave('codes')->get();
+            QrBatch::whereKey($emptied->modelKeys())->delete();
+
+            return [$deleted, $emptied];
+        });
+
+        $message = 'Deleted '.$deleted.' '.($deleted === 1 ? 'code' : 'codes');
+        if ($emptied->isNotEmpty()) {
+            $message .= ' and the now-empty '.$emptied->map->label()->join(', ', ' and ');
+        }
+
+        return back()->with('status', $message.'.');
+    }
+
     /** Codes + scan links for the client-side PDF (the server never builds the PDF itself). */
     public function printData(PrintQrCodesRequest $request): JsonResponse
     {
-        $codes = QrCode::query()->withSerial()
+        $codes = QrCode::query()
             ->when($request->filled('batch'), fn ($q) => $q->where('qr_batch_id', $request->integer('batch')))
             ->when(! $request->filled('batch'), fn ($q) => $q->whereIn('qr_codes.id', $request->input('ids', [])))
             ->orderByDesc('qr_batch_id')
@@ -181,7 +210,7 @@ class QrCodeController extends Controller
                 'code' => $qr->code,
                 'scan_url' => $qr->scanUrl(),
                 // Its position in its batch, for designs that print a serial number.
-                'serial' => (int) $qr->serial,
+                'serial' => $qr->serial,
             ]),
         ]);
     }

@@ -372,6 +372,9 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
   (`DELETE /admin/qr-codes/batches/{qrBatch}`) removes the batch and all its codes in one
   transaction — printed stickers from it then show "Nothing found", so the page confirms, and
   asks to type DELETE when any code in it is mapped.
+  **Delete codes** (`DELETE /admin/qr-codes`, `ids[]`): "Delete selected" on the selection
+  bar or "Delete this code" in a code's dialog; batches left empty are deleted too. Asks to
+  type DELETE when any is mapped (or selected on another page).
 - **Sticker designs** (`/admin/qr-codes/designs`, `Admin\QrDesignController`, `qr_designs`
   table): a background image (JPG/PNG/WebP ≤ 5 MB, on the `uploads` disk under `qr-designs/`)
     - where the QR "block" goes, stored as **fractions of the image** (`qr_x`/`qr_size` of its
@@ -406,9 +409,10 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
   keep in sync; the QR's position and the 15 mm check are relative to the artwork).
 - **Serial numbers**: a design can print each code's serial (style `serial_*`: on/off, prefix,
   size, distance from the bottom, colour) at the bottom centre of the artwork. The serial is
-  the code's **position in its batch** (`QrCode::scopeWithSerial()`, a correlated count in the
-  same query — no extra queries), formatted by `formatSerial()` as 001, 002 …, so a reprint
-  of one code keeps its number. Drawn as PDF text (helvetica/times/courier for the design's
+  the code's number in its batch, **stored** in `qr_codes.serial` (set by
+  `QrCodeGenerator`; a one-off create gets the batch's next number), formatted by
+  `formatSerial()` as 001, 002 …, so a reprint of one code keeps its number. Stored rather
+  than counted so deleting a code never renumbers the stickers after it. Drawn as PDF text (helvetica/times/courier for the design's
   font) and on the PNG canvas.
 - **Print view**: every Print button opens the PDF in a new tab with the print dialog
   (`openPrintWindow()` in the click, then `printQrPdf()`), falling back to a download if

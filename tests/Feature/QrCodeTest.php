@@ -434,3 +434,66 @@ test('picking a shop saves its card link and assigns the sticker to it', functio
         ->destination_url->toBe(url('/s/bean-there'))
         ->shop_id->toBe($shop->id);
 });
+
+// --- Deleting single codes -------------------------------------------------------
+
+test('generated codes are numbered 1, 2, 3 … in their batch', function () {
+    $this->actingAs(qrAdmin())->post('/admin/qr-codes', ['quantity' => 4]);
+
+    expect(QrCode::orderBy('id')->pluck('serial')->all())->toBe([1, 2, 3, 4]);
+});
+
+test('the admin can delete selected codes, and the rest of the batch keeps its serials', function () {
+    $batch = QrBatch::factory()->create();
+    $codes = QrCode::factory()->count(5)->create(['qr_batch_id' => $batch->id]);
+    $codes[1]->designs()->attach(QrDesign::create([
+        'name' => 'Table card', 'image_path' => 'designs/table.png', 'image_width' => 600, 'image_height' => 600,
+        'qr_x' => 0.2, 'qr_y' => 0.2, 'qr_size' => 0.5, 'width_mm' => 60,
+    ]));
+
+    $this->actingAs(qrAdmin())
+        ->delete('/admin/qr-codes', ['ids' => [$codes[1]->id, $codes[2]->id]])
+        ->assertRedirect()
+        ->assertSessionHas('status', 'Deleted 2 codes.');
+
+    expect(QrCode::orderBy('id')->pluck('serial')->all())->toBe([1, 4, 5])
+        ->and(QrBatch::whereKey($batch->id)->exists())->toBeTrue();
+
+    $response = $this->actingAs(qrAdmin())->postJson('/admin/qr-codes/print', ['ids' => [$codes[3]->id]]);
+    expect($response->json('codes.0.serial'))->toBe(4);
+
+    // Its sticker now shows "Nothing found".
+    $this->get("/qr/{$codes[1]->code}")->assertNotFound();
+});
+
+test('a batch left with no codes is deleted too', function () {
+    $emptied = QrBatch::factory()->create();
+    $kept = QrBatch::factory()->create();
+    $gone = QrCode::factory()->count(2)->create(['qr_batch_id' => $emptied->id]);
+    $stays = QrCode::factory()->create(['qr_batch_id' => $kept->id]);
+
+    $this->actingAs(qrAdmin())
+        ->delete('/admin/qr-codes', ['ids' => $gone->modelKeys()])
+        ->assertSessionHas('status', "Deleted 2 codes and the now-empty {$emptied->label()}.");
+
+    expect(QrBatch::whereKey($emptied->id)->exists())->toBeFalse()
+        ->and($stays->fresh())->not->toBeNull();
+});
+
+test('a new code in a batch with deleted codes gets the next number, not a reused one', function () {
+    $batch = QrBatch::factory()->create();
+    $codes = QrCode::factory()->count(3)->create(['qr_batch_id' => $batch->id]);
+    $codes[1]->delete();
+
+    expect(QrCode::factory()->create(['qr_batch_id' => $batch->id])->serial)->toBe(4);
+});
+
+test('only the admin can delete codes', function () {
+    $code = QrCode::factory()->create();
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    $this->delete('/admin/qr-codes', ['ids' => [$code->id]])->assertRedirect('/login');
+    $this->actingAs($owner)->delete('/admin/qr-codes', ['ids' => [$code->id]])->assertForbidden();
+
+    expect($code->fresh())->not->toBeNull();
+});

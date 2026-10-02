@@ -25,6 +25,7 @@ class QrCodeGenerator
         return DB::transaction(function () use ($quantity, $name) {
             $batch = QrBatch::create(['name' => $name]);
             $remaining = $quantity;
+            $serial = 0;
 
             // Draw a set of unique candidates, drop any already in the table,
             // insert the rest and top up until the batch is full. Collisions
@@ -43,12 +44,17 @@ class QrCodeGenerator
                 $now = now();
 
                 foreach (array_chunk($fresh, 500) as $chunk) {
-                    QrCode::insert(array_map(fn (string $code) => [
-                        'qr_batch_id' => $batch->id,
-                        'code' => $code,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ], $chunk));
+                    $rows = [];
+                    foreach ($chunk as $code) {
+                        $rows[] = [
+                            'qr_batch_id' => $batch->id,
+                            'code' => $code,
+                            'serial' => ++$serial,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
+                    QrCode::insert($rows);
                 }
 
                 $remaining -= count($fresh);
