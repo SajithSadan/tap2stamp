@@ -47,6 +47,13 @@ class HandleInertiaRequests extends Middleware
                     'role' => $request->user()->role->value,
                 ] : null,
             ],
+            // Admin → "View as owner": who is really looking, at which shop, and whether changes are allowed.
+            'viewAs' => fn () => ($admin = $request->attributes->get('viewAsAdmin')) ? [
+                'admin_name' => $admin->name,
+                'shop_name' => $request->user()->shop?->name,
+                'owner_name' => $request->user()->name,
+                'editing' => (bool) $request->session()->get(ViewAsOwner::EDIT_KEY),
+            ] : null,
             // Sidebar / tab-bar menu from App\Support\Navigation - only the
             // items this user's role may open. Lazy: skipped for guests.
             'navigation' => fn () => $request->user() ? Navigation::for($request->user(), $request) : null,

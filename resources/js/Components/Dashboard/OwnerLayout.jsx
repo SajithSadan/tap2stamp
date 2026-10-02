@@ -2,9 +2,12 @@ import { Head, Link, usePage } from "@inertiajs/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import {
+    LuArrowLeft,
     LuEllipsis,
     LuExternalLink,
+    LuEye,
     LuLogOut,
+    LuPencil,
     LuScanLine,
     LuStore,
     LuX,
@@ -20,6 +23,63 @@ import TechsaFooter from "@/Components/TechsaFooter";
 import OwnerScanner from "@/Components/Dashboard/OwnerScanner";
 import { navIcon } from "@/lib/navIcons";
 import { useDocumentTheme } from "@/lib/theme";
+
+/**
+ * Admin → "View as owner": whose dashboard this is, whether changes are
+ * allowed (read-only by default; the server enforces it), the switch, and
+ * the way back to the admin. Red while editing - changes are live.
+ */
+function ViewAsBanner({ viewAs, blocked }) {
+    const editing = viewAs.editing;
+
+    return (
+        <div
+            role="status"
+            className={`sticky top-0 z-30 border-b px-4 py-2.5 text-sm sm:px-6 lg:px-8 ${
+                editing ? "border-red-300 bg-red-50 text-red-950" : "border-amber-300 bg-amber-50 text-amber-950"
+            }`}
+        >
+            {/* Phones: the text on its own line, the buttons under it. */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <p className="flex min-w-0 flex-1 items-start gap-2">
+                    {editing ? <LuPencil className="mt-0.5 h-4 w-4 shrink-0" /> : <LuEye className="mt-0.5 h-4 w-4 shrink-0" />}
+                    <span>
+                        {editing ? "Editing" : "Viewing"} <strong>{viewAs.shop_name}</strong> as {viewAs.owner_name}{" "}
+                        <span className={editing ? "text-red-800" : "text-amber-800"}>
+                            · {editing ? "changes are saved to their shop" : "read-only"}
+                        </span>
+                    </span>
+                </p>
+                <div className="flex shrink-0 gap-2">
+                    <Link
+                        href="/admin/view-as-owner/editing"
+                        method="put"
+                        as="button"
+                        data={{ editing: !editing }}
+                        preserveScroll
+                        className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold sm:flex-none ${
+                            editing ? "border-red-300 bg-white text-red-900 hover:bg-red-100" : "border-amber-300 bg-white text-amber-950 hover:bg-amber-100"
+                        }`}
+                    >
+                        {editing ? <LuEye className="h-3.5 w-3.5" /> : <LuPencil className="h-3.5 w-3.5" />}
+                        {editing ? "Back to read-only" : "Allow changes"}
+                    </Link>
+                    <Link
+                        href="/admin/view-as-owner/stop"
+                        method="post"
+                        as="button"
+                        className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white sm:flex-none ${
+                            editing ? "bg-red-950 hover:bg-red-900" : "bg-amber-950 hover:bg-amber-900"
+                        }`}
+                    >
+                        <LuArrowLeft className="h-3.5 w-3.5" /> Back to admin
+                    </Link>
+                </div>
+            </div>
+            {blocked && <p className={`mt-1.5 text-xs font-medium ${editing ? "text-red-900" : "text-amber-900"}`}>{blocked}</p>}
+        </div>
+    );
+}
 
 /**
  * Owner dashboard shell: fixed sidebar on desktop, top bar + bottom tabs on
@@ -135,6 +195,7 @@ export default function OwnerLayout({
 
                 {/* Fills the screen height so the footer sits at the bottom even on short pages. */}
                 <main className="flex flex-1 flex-col pb-20 lg:pb-0 lg:pl-64">
+                    {props.viewAs && <ViewAsBanner viewAs={props.viewAs} blocked={props.errors?.view_as} />}
                     {/* Full width at every size - pages lay out their own columns inside. */}
                     <div className="w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8 2xl:px-12 2xl:py-10">
                         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">

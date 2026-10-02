@@ -1,6 +1,6 @@
 import { Link, useForm } from "@inertiajs/react";
 import { useState } from "react";
-import { LuCircleCheck, LuPackage, LuPlus } from "react-icons/lu";
+import { LuCircleCheck, LuEye, LuPackage, LuPlus } from "react-icons/lu";
 import AddressLookup from "@/Components/AddressLookup";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import { StampStepper } from "@/Components/Dashboard/ShopFields";
@@ -226,9 +226,21 @@ export default function ShopSettings({
             title="Shop settings"
             description={`Configure ${shop.name}'s loyalty card, customer links, Wi-Fi and business contact details.`}
             actions={
-                <Link href="/admin" className={secondaryButton}>
-                    Back to shops
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                    <Link href="/admin" className={secondaryButton}>
+                        Back to shops
+                    </Link>
+                    {ownerEmail && (
+                        <Link
+                            href={`/admin/shops/${shop.id}/view-as-owner`}
+                            method="post"
+                            as="button"
+                            className={primaryButton}
+                        >
+                            <LuEye className="h-4 w-4" /> View as owner
+                        </Link>
+                    )}
+                </div>
             }
         >
             <OrdersPanel

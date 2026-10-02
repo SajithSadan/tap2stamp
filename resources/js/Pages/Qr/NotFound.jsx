@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { LuScanLine } from 'react-icons/lu';
 
 /**
@@ -6,6 +6,9 @@ import { LuScanLine } from 'react-icons/lu';
  * code doesn't exist at all (code is null).
  */
 export default function NotFound({ code }) {
+    // An admin lands here after scanning an unknown or deleted sticker: send them back to the QR codes, not the home page.
+    const isAdmin = usePage().props.auth?.user?.role === 'admin';
+
     return (
         <>
             <Head title="Nothing found" />
@@ -26,9 +29,15 @@ export default function NotFound({ code }) {
                     <p className="mt-5 rounded-xl border border-brand-border bg-brand-card px-4 py-2 font-mono text-lg font-bold tracking-widest">{code}</p>
                 )}
 
-                <a href="/" className="mt-8 rounded-brand bg-brand-accent px-5 py-2.5 text-sm font-semibold text-brand-accent-text">
-                    Go to home
-                </a>
+                {isAdmin ? (
+                    <Link href="/admin/qr-codes" className="mt-8 rounded-brand bg-brand-accent px-5 py-2.5 text-sm font-semibold text-brand-accent-text">
+                        Back to QR codes
+                    </Link>
+                ) : (
+                    <a href="/" className="mt-8 rounded-brand bg-brand-accent px-5 py-2.5 text-sm font-semibold text-brand-accent-text">
+                        Go to home
+                    </a>
+                )}
             </main>
         </>
     );

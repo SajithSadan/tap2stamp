@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\QrDesignController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShopOwnerController;
 use App\Http\Controllers\Admin\ShopSettingsController;
+use App\Http\Controllers\Admin\ViewAsOwnerController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -117,6 +118,10 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::post('/shops', [ShopOwnerController::class, 'store'])->name('shops.store');
     Route::get('/shops/{shop}/settings', [ShopSettingsController::class, 'edit'])->name('shops.settings.edit');
     Route::put('/shops/{shop}/settings', [ShopSettingsController::class, 'update'])->name('shops.settings.update');
+    // "View as owner": the shop's owner dashboard, as the owner sees it (read-only until changes are allowed).
+    Route::post('/shops/{shop}/view-as-owner', [ViewAsOwnerController::class, 'start'])->name('shops.view-as-owner');
+    Route::put('/view-as-owner/editing', [ViewAsOwnerController::class, 'editing'])->name('view-as-owner.editing');
+    Route::post('/view-as-owner/stop', [ViewAsOwnerController::class, 'stop'])->name('view-as-owner.stop');
     // Payment taken outside the app (bank transfer / cash) - hides the owner's order banner.
     Route::post('/shops/{shop}/orders', [AdminOrderController::class, 'store'])->name('shops.orders.store');
 

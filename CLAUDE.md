@@ -111,6 +111,19 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   `firstOrCreate()`s the admin. Idempotent: safe to call on every deploy, never overwrites an
   existing admin's password. Locally, `DatabaseSeeder` creates a dev admin instead
   (`admin@loyaltyhub.test` / `password`).
+- **View as owner** (admin support): eye button on the Shops grid / "View as owner" on a shop's
+  settings page → `POST /admin/shops/{shop}/view-as-owner` puts `view_as_shop_id` in the admin's
+  session. The `ViewAsOwner` web middleware then, **on `dashboard.*` routes only**, swaps in the
+  shop's owner for that request (`Auth::setUser`, never written to the session, restored to the
+  admin afterwards), so every owner screen is the real one. Starts **read-only** (anything but
+  GET → `view_as` validation error / 403 JSON); the banner's **Allow changes** switch
+  (`PUT /admin/view-as-owner/editing`, `view_as_editing`, reset on every new view) lets the admin
+  set up staff, devices, settings, theme for a non-technical owner. Even then `OWNER_ONLY`
+  routes stay blocked: Stripe checkout / coupon (use Record order) and the owner scanner (stamps
+  would be credited to the owner). Every change made as the owner is logged
+  (`Admin changed a shop as its owner`, admin id + shop + action). Shared `viewAs` prop
+  (incl. `editing`) → amber (read-only) / red (editing) banner in `OwnerLayout` with
+  "Back to admin" (`POST /admin/view-as-owner/stop`). Owner dashboard routes still take no shop param.
 - **Staff devices** (Stage 4's other task, doc-scoped): `staff_devices` table, only
   `token_hash` (sha256) is ever persisted — the plain 64-char token is flashed once via
   `session('staffToken')` when a device is added, same one-time-reveal pattern as the owner
@@ -137,8 +150,12 @@ Stage 6's endpoint exists too.
   UI). Debounces identical decodes within 2s. Beep via Web Audio (no audio file asset) +
   `navigator.vibrate`, auto-dismiss after 3s. PWA: `public/manifest.webmanifest`, a minimal
   `public/sw.js` that caches only `/build/*` and `/icons/*` — **never** the HTML page or
-  `/api/*`, so the scanner always sees fresh auth state and stamp counts. Icons generated via
-  PHP's GD extension (see git history if regenerating).
+  `/api/*`, so the scanner always sees fresh auth state and stamp counts. Icons (`public/icons/`) are
+  made from the app icon `public/images/favicon-512.png` with PHP GD: `icon-192/512` = the icon
+  as-is (`purpose: any`); `icon-maskable-192/512` and `apple-touch-icon` (180, opaque, also the
+  site-wide one) = the logo lifted off its background onto the same navy → black gradient,
+  logo at 80% for maskable (Android's safe zone). Bump `CACHE_NAME` in `sw.js` when they change
+  - the SW serves `/icons/*` cache-first.
 - **`StampService::scan()`**: the only place stamp/redeem logic lives. Strict payload regex →
   shop match against the _authenticated device's_ shop (never trust the QR's own SHOP: value
   alone) → `lockForUpdate()` inside `DB::transaction()` → full card redeems (resets to 0,

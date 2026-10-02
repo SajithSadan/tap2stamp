@@ -2,6 +2,7 @@ import { Head } from "@inertiajs/react";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { Html5Qrcode } from "html5-qrcode";
+import { stopScanner } from "@/lib/scanner";
 import { useEffect, useRef, useState } from "react";
 import {
     LuCamera,
@@ -398,7 +399,7 @@ function ScanTab({ api, onScanned, onApiError }) {
     useEffect(() => {
         const scanner = new Html5Qrcode(READER_ID);
 
-        scanner
+        const started = scanner
             .start(
                 { facingMode: "environment" },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -409,10 +410,7 @@ function ScanTab({ api, onScanned, onApiError }) {
 
         return () => {
             if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-            scanner
-                .stop()
-                .then(() => scanner.clear())
-                .catch(() => {});
+            stopScanner(scanner, started);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -758,7 +756,7 @@ export default function Dashboard() {
     const headTags = (
         <Head title="Staff">
             <link rel="manifest" href="/manifest.webmanifest" />
-            <meta name="theme-color" content="#c1272d" />
+            <meta name="theme-color" content="#0f2a46" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
             <meta
                 name="apple-mobile-web-app-status-bar-style"

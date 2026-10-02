@@ -1,7 +1,8 @@
 // Minimal PWA shell cache for /staff - deliberately does NOT cache the HTML
 // page itself or anything under /api/, so the scanner always sees fresh
 // auth state and stamp data. Only speeds up reloads of static build assets.
-const CACHE_NAME = 'staff-scanner-shell-v1';
+// Bump when cached files change (v2: Tada Tap app icons) - activate deletes older caches.
+const CACHE_NAME = 'staff-scanner-shell-v2';
 
 self.addEventListener('install', () => {
     self.skipWaiting();

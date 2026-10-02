@@ -8,6 +8,7 @@ import {
     LuKeyRound,
     LuPackageCheck,
     LuPlus,
+    LuEye,
     LuSettings,
     LuStore,
     LuX,
@@ -519,6 +520,18 @@ function buildColumns(origin) {
                     >
                         <LuSettings className="h-4 w-4" />
                     </Link>
+                    {s.owner_email && (
+                        <Link
+                            href={`/admin/shops/${s.id}/view-as-owner`}
+                            method="post"
+                            as="button"
+                            aria-label={`View ${s.name} as its owner`}
+                            title="View as owner (read-only)"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-muted transition-colors hover:bg-brand-bg hover:text-brand-text"
+                        >
+                            <LuEye className="h-4 w-4" />
+                        </Link>
+                    )}
                     <CopyButton
                         text={`${origin}/s/${s.slug}`}
                         label={`Copy ${s.name}'s card link`}

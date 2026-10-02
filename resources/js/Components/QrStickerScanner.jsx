@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { stopScanner } from '@/lib/scanner';
 import { useEffect, useRef, useState } from 'react';
 import { LuCameraOff, LuScanLine, LuX } from 'react-icons/lu';
 
@@ -40,7 +41,7 @@ export default function QrStickerScanner({ onClose }) {
     useEffect(() => {
         const scanner = new Html5Qrcode(READER_ID);
 
-        scanner
+        const started = scanner
             .start(
                 { facingMode: 'environment' },
                 { fps: 10, qrbox: { width: 240, height: 240 } },
@@ -61,10 +62,7 @@ export default function QrStickerScanner({ onClose }) {
 
         return () => {
             clearTimeout(notOursTimer.current);
-            scanner
-                .stop()
-                .then(() => scanner.clear())
-                .catch(() => {});
+            stopScanner(scanner, started);
         };
     }, []);
 

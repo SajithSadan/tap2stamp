@@ -232,6 +232,8 @@ test('an admin scanning a sticker gets the map screen instead of the customer vi
         ->component('Admin/QrCodes/Scan')
         ->where('qr.id', $qr->id)
         ->where('qr.code', 'K7F2QX')
+        // The sticker's own link (for "Copy link" → NFC tag), never the destination.
+        ->where('qr.scan_url', url('/qr/K7F2QX'))
         ->where('qr.destination_url', $mapped ? 'https://example.com/menu' : null)
     );
 })->with(['unmapped' => false, 'mapped' => true]);

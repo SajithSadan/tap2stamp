@@ -1,5 +1,6 @@
 import axios from "axios";
 import { Html5Qrcode } from "html5-qrcode";
+import { stopScanner } from "@/lib/scanner";
 import { useEffect, useRef, useState } from "react";
 import { LuCamera, LuCheck, LuScanLine, LuX } from "react-icons/lu";
 
@@ -97,7 +98,7 @@ export default function OwnerScanner({ onClose }) {
         let cancelled = false;
         const scanner = new Html5Qrcode(READER_ID);
 
-        scanner
+        const started = scanner
             .start(
                 { facingMode: "environment" },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -111,10 +112,7 @@ export default function OwnerScanner({ onClose }) {
         return () => {
             cancelled = true;
             if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-            scanner
-                .stop()
-                .then(() => scanner.clear())
-                .catch(() => {});
+            stopScanner(scanner, started);
         };
         // Scanner is started once when this overlay mounts.
         // eslint-disable-next-line react-hooks/exhaustive-deps
