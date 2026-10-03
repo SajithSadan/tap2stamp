@@ -262,7 +262,8 @@ Route::post('/stripe/webhook', StripeWebhookController::class)
 // Runs `php artisan migrate` / bootstraps the admin account over HTTP for
 // hosting plans without SSH access. Must work in every environment (it's for
 // production), so both are protected by a bearer token (DEPLOY_MIGRATE_TOKEN)
-// instead of an environment gate.
+// instead of an environment gate. Called by the deploy pipeline (DEPLOYMENT.md);
+// the browser version without a token is GET /api/deploy/migrate in api.php.
 Route::post('/deploy/migrate', [DeployController::class, 'migrate'])
     ->middleware('throttle:5,1')
     ->name('deploy.migrate');

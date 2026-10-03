@@ -43,6 +43,15 @@ test('a request with the correct token runs the migration and succeeds', functio
     $response->assertJsonStructure(['status', 'output']);
 });
 
+test('migrations can be run from the browser with a plain GET, no token or sign-in', function () {
+    config(['deploy.migrate_token' => 'the-real-token']);
+
+    $this->get('/api/deploy/migrate')
+        ->assertOk()
+        ->assertJson(['status' => 'ok'])
+        ->assertJsonStructure(['status', 'output']);
+});
+
 test('seed-admin rejects an unauthenticated request the same way migrate does', function () {
     config(['deploy.migrate_token' => 'the-real-token']);
 

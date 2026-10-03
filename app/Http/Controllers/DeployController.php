@@ -15,10 +15,11 @@ use Throwable;
  * deploy, for hosting plans (e.g. Hostinger's cheaper tiers) that don't
  * give SSH/terminal access.
  *
- * Protected by a bearer token (DEPLOY_MIGRATE_TOKEN) checked in constant
- * time; refuses to run if no token is configured (fail closed, not open).
- * Deliberately runs only `migrate --force` — never `--seed` or `:fresh`,
- * both of which could destroy real production data if this URL leaked.
+ * Two ways in: the deploy pipeline's POSTs, protected by a bearer token
+ * (DEPLOY_MIGRATE_TOKEN, checked in constant time, fail closed), and an open
+ * GET for running it from a browser (browserMigrate). Deliberately runs only
+ * `migrate --force` — never `--seed` or `:fresh`, both of which could destroy
+ * real production data.
  */
 class DeployController extends Controller
 {
@@ -30,6 +31,20 @@ class DeployController extends Controller
             abort(403);
         }
 
+        return $this->runMigrations($request);
+    }
+
+    /**
+     * The same migrate, opened in a browser (GET /api/deploy/migrate). No token
+     * and no sign-in on purpose: a pending migration can break the admin login.
+     */
+    public function browserMigrate(Request $request): JsonResponse
+    {
+        return $this->runMigrations($request);
+    }
+
+    private function runMigrations(Request $request): JsonResponse
+    {
         try {
             Artisan::call('migrate', ['--force' => true]);
         } catch (Throwable $e) {
@@ -41,7 +56,7 @@ class DeployController extends Controller
             ], 500);
         }
 
-        Log::info('Deploy migration run via HTTP', ['ip' => $request->ip()]);
+        Log::info('Deploy migration run via HTTP', ['ip' => $request->ip(), 'path' => $request->path()]);
 
         return response()->json([
             'status' => 'ok',
