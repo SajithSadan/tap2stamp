@@ -1,8 +1,10 @@
 <?php
 
+use App\Enums\UserRole;
 use App\Models\Customer;
 use App\Models\CustomerShopCard;
 use App\Models\Shop;
+use App\Models\User;
 
 function registerPayload(array $overrides = []): array
 {
@@ -33,6 +35,50 @@ test('the card page renders with the shop props', function () {
         ->where('shop.instagram_url', 'https://instagram.com/demo')
         // Shown as the "Review" button next to Instagram.
         ->has('shop.google_review_url')
+    );
+});
+
+test('the normal card page sends no preview card', function () {
+    $shop = Shop::factory()->create();
+
+    $this->get("/s/{$shop->slug}")->assertInertia(fn ($page) => $page
+        ->component('Card')
+        ->where('preview', null)
+    );
+});
+
+test('preview mode sends a sample card and creates nothing', function () {
+    $shop = Shop::factory()->create(['max_stamps' => 8, 'wifi_ssid' => 'CafeGuest', 'wifi_password' => 'secret123']);
+
+    $this->get("/s/{$shop->slug}?preview=1")->assertInertia(fn ($page) => $page
+        ->component('Card')
+        ->where('preview.uuid', 'preview')
+        ->where('preview.stamps', 3)
+        ->where('preview.max_stamps', 8)
+        // Wi-Fi is for registered customers; a guest adding ?preview=1 doesn't get it.
+        ->missing('preview.wifi_ssid')
+        ->missing('preview.wifi_password')
+    );
+
+    expect(Customer::count())->toBe(0)
+        ->and(CustomerShopCard::count())->toBe(0);
+});
+
+test('the shop owner and admins see the wifi details in preview', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id, 'wifi_ssid' => 'CafeGuest', 'wifi_password' => 'secret123']);
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $otherOwner = User::factory()->create(['role' => UserRole::Owner]);
+
+    foreach ([$owner, $admin] as $user) {
+        $this->actingAs($user)->get("/s/{$shop->slug}?preview=1")->assertInertia(fn ($page) => $page
+            ->where('preview.wifi_ssid', 'CafeGuest')
+            ->where('preview.wifi_password', 'secret123')
+        );
+    }
+
+    $this->actingAs($otherOwner)->get("/s/{$shop->slug}?preview=1")->assertInertia(fn ($page) => $page
+        ->missing('preview.wifi_ssid')
     );
 });
 

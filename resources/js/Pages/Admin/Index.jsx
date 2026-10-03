@@ -81,7 +81,7 @@ function CredentialsNotice({ password, email }) {
                 )}
                 <div className="min-w-0">
                     <p className="text-xs font-medium uppercase tracking-wide text-brand-muted">
-                        Temporary password
+                        Password
                     </p>
                     <p className="mt-1 select-all break-all rounded-lg bg-brand-bg px-3 py-2 font-mono text-sm text-brand-text">
                         {password}
@@ -537,7 +537,7 @@ function buildColumns(origin) {
                         label={`Copy ${s.name}'s card link`}
                     />
                     <a
-                        href={`/s/${s.slug}`}
+                        href={`/s/${s.slug}?preview=1`}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Open ${s.name}'s customer page`}

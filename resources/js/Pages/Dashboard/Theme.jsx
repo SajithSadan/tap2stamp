@@ -31,6 +31,7 @@ import { STAMP_ICONS } from "@/lib/stampIcons";
 import {
     CUSTOM_COLOR_FIELDS,
     fontNameOf,
+    THEME_CATEGORY_LABELS,
     themeVars,
     useThemeFonts,
     withCustomisation,
@@ -41,15 +42,7 @@ import {
     headerTintStyle,
 } from "@/lib/headerStyle";
 
-const CATEGORY_LABELS = {
-    cafe: "Cafe",
-    bakery: "Bakery",
-    barber: "Barber",
-    pub: "Pub & bar",
-    dessert: "Dessert",
-    retail: "Retail",
-    general: "General",
-};
+const CATEGORY_LABELS = THEME_CATEGORY_LABELS;
 
 const TABS = [
     { id: "themes", label: "Themes", icon: LuPalette },
@@ -1192,12 +1185,12 @@ export default function Theme({
                             {/* Only when the admin lets this shop see its card link. */}
                             {shop.slug && (
                                 <a
-                                    href={`/s/${shop.slug}`}
+                                    href={`/s/${shop.slug}?preview=1`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="mt-3 block text-center text-xs font-medium text-brand-accent"
                                 >
-                                    Open your live card page
+                                    Preview your card page
                                 </a>
                             )}
                         </Panel>

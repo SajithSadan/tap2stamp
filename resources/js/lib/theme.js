@@ -22,6 +22,17 @@ export function themeVars(theme) {
     };
 }
 
+/** ThemeCatalog `category` values as filter labels. */
+export const THEME_CATEGORY_LABELS = {
+    cafe: 'Cafe',
+    bakery: 'Bakery',
+    barber: 'Barber',
+    pub: 'Pub & bar',
+    dessert: 'Dessert',
+    retail: 'Retail',
+    general: 'General',
+};
+
 /** Colours an owner can customise - mirrors ThemeCatalog::CUSTOM_COLORS. */
 export const CUSTOM_COLOR_FIELDS = [
     ['page_bg', 'Page background'],

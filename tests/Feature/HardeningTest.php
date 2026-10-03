@@ -87,10 +87,12 @@ test('customer-facing routes have no way to change stamps', function () {
         ->values()
         ->all();
 
-    // Only registration and reviews write anything, and neither touches stamps
+    // Only registration (new customer, or a known one joining another shop)
+    // and reviews write anything, and none of them touches stamps
     // (covered by CardRegistrationTest / ReviewTest).
     expect($customerRoutes)->toEqualCanonicalizing([
         's/{shop}/register',
+        's/{shop}/card/{customer}/join',
         's/{shop}/card/{customer}/review',
     ]);
 });

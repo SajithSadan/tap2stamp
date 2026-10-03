@@ -308,7 +308,7 @@ function ShopComparison({ shops: { rows: shops, range } }) {
                             {rows.map((shop) => (
                                 <tr key={shop.id} className="transition-colors hover:bg-brand-bg/60">
                                     <td className="max-w-60 py-3 pl-5">
-                                        <a href={`/s/${shop.slug}`} target="_blank" rel="noopener noreferrer" className="group block min-w-0">
+                                        <a href={`/s/${shop.slug}?preview=1`} target="_blank" rel="noopener noreferrer" className="group block min-w-0">
                                             <span className="flex items-center gap-1.5 truncate text-sm font-semibold text-brand-text group-hover:underline">
                                                 {shop.name}
                                                 <LuExternalLink className="h-3.5 w-3.5 shrink-0 text-brand-muted opacity-0 group-hover:opacity-100" />
@@ -503,7 +503,7 @@ function QuietShops({ shops, days }) {
                                 </p>
                             </div>
                             <a
-                                href={`/s/${shop.slug}`}
+                                href={`/s/${shop.slug}?preview=1`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 aria-label={`Open ${shop.name}'s customer page`}

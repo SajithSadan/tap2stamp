@@ -79,6 +79,54 @@ class Shop extends Model
         });
     }
 
+    /**
+     * A free card link based on $source ("Corner Bakery" -> corner-bakery,
+     * or corner-bakery-2 when that's taken). Used to auto-suggest the link
+     * on the admin "Add shop" form; the unique rule still has the last word.
+     */
+    public static function suggestSlug(string $source): string
+    {
+        $base = Str::limit(Str::slug($source), 140, '') ?: 'shop';
+        $slug = $base;
+
+        for ($n = 2; static::where('slug', $slug)->exists(); $n++) {
+            $slug = "{$base}-{$n}";
+        }
+
+        return $slug;
+    }
+
+    /**
+     * A few free card links to pick from for a shop name: the full name,
+     * the name without filler words ("shop", "the", "ltd"…), run together,
+     * and with a short ending. Only links nobody has yet, in that order.
+     */
+    public static function slugIdeas(string $name, int $limit = 4): array
+    {
+        $words = array_values(array_filter(explode('-', Str::limit(Str::slug($name), 60, ''))));
+        if ($words === []) {
+            return [];
+        }
+
+        $filler = ['the', 'and', 'shop', 'shops', 'store', 'stores', 'ltd', 'limited', 'co', 'uk'];
+        $core = array_values(array_diff($words, $filler)) ?: $words;
+        $coreSlug = implode('-', $core);
+
+        $candidates = array_values(array_unique(array_filter([
+            implode('-', $words),
+            $coreSlug,
+            implode('', $core),
+            count($core) > 1 ? $core[0] : null,
+            "{$coreSlug}-rewards",
+            "{$coreSlug}-club",
+            "{$coreSlug}-card",
+        ])));
+
+        $taken = static::whereIn('slug', $candidates)->pluck('slug')->all();
+
+        return array_slice(array_values(array_diff($candidates, $taken)), 0, $limit);
+    }
+
     protected function casts(): array
     {
         return [

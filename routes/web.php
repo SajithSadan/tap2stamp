@@ -115,6 +115,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
     Route::get('/', [ShopOwnerController::class, 'index'])->name('index');
     Route::get('/shops/create', [ShopOwnerController::class, 'create'])->name('shops.create');
+    Route::get('/shops/slug', [ShopOwnerController::class, 'slug'])->name('shops.slug');
     Route::post('/shops', [ShopOwnerController::class, 'store'])->name('shops.store');
     Route::get('/shops/{shop}/settings', [ShopSettingsController::class, 'edit'])->name('shops.settings.edit');
     Route::put('/shops/{shop}/settings', [ShopSettingsController::class, 'update'])->name('shops.settings.update');

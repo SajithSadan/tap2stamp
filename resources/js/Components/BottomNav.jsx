@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { LuCopy, LuStore } from 'react-icons/lu';
+import { LuStamp, LuWalletCards } from 'react-icons/lu';
 import { LAST_SHOP_SLUG_KEY } from '@/lib/storage';
 
 function NavItem({ href, icon, label, active, disabled }) {
@@ -24,8 +24,8 @@ function NavItem({ href, icon, label, active, disabled }) {
     );
 }
 
-/** Fixed mobile footer nav for the customer-facing pages: back to the last
- *  shop visited, and the cross-shop "My Cards" list. */
+/** Fixed mobile footer nav for the customer-facing pages: "Stamp card" (back
+ *  to the last shop visited) and "Wallet" (the cross-shop My Cards list). */
 export default function BottomNav() {
     const { url } = usePage();
     const [lastShopSlug, setLastShopSlug] = useState(null);
@@ -49,10 +49,10 @@ export default function BottomNav() {
                 href={shopHref}
                 disabled={!shopHref}
                 active={Boolean(shopHref) && url.startsWith(`/s/${lastShopSlug}`)}
-                icon={<LuStore className="h-5 w-5" />}
-                label="My Card"
+                icon={<LuStamp className="h-5 w-5" />}
+                label="Stamp card"
             />
-            <NavItem href="/my-cards" active={url.startsWith('/my-cards')} icon={<LuCopy className="h-5 w-5" />} label="My Cards" />
+            <NavItem href="/my-cards" active={url.startsWith('/my-cards')} icon={<LuWalletCards className="h-5 w-5" />} label="Wallet" />
         </nav>
     );
 }

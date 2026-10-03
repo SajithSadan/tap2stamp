@@ -166,7 +166,7 @@ export default function MyCards() {
             .finally(() => setLoading(false));
     }, []);
 
-    // The page wears the theme of the shop the customer came from (the "My Card" tab), so
+    // The page wears the theme of the shop the customer came from (the "Stamp card" tab), so
     // switching tabs doesn't jump back to the site's default look.
     const [lastSlug] = useState(() => {
         try {

@@ -18,12 +18,20 @@ import OrderPaymentActions from "@/Components/Dashboard/OrderPaymentActions";
 import OrderStageEditor from "@/Components/Dashboard/OrderStageEditor";
 import { formatPence } from "@/lib/money";
 
-function Field({ label, error, hint, children }) {
+/**
+ * Wraps its input in a <label> so clicking the label focuses it. Pass `id` for
+ * controls with buttons inside (the stamp stepper): a wrapping label would
+ * "click" its first button (−) whenever any empty space in it is clicked.
+ */
+function Field({ id, label, error, hint, children }) {
+    const Wrapper = id ? 'div' : 'label';
+    const Label = id ? 'label' : 'span';
+
     return (
-        <label className="block min-w-0">
-            <span className="mb-1.5 block text-sm font-medium text-brand-text">
+        <Wrapper className="block min-w-0">
+            <Label htmlFor={id} className="mb-1.5 block text-sm font-medium text-brand-text">
                 {label}
-            </span>
+            </Label>
             {children}
             {hint && !error && (
                 <span className="mt-1 block text-xs text-brand-muted">
@@ -31,7 +39,7 @@ function Field({ label, error, hint, children }) {
                 </span>
             )}
             <FieldError message={error} />
-        </label>
+        </Wrapper>
     );
 }
 
@@ -272,6 +280,7 @@ export default function ShopSettings({
                             />
                         </Field>
                         <Field
+                            id="admin-shop-max-stamps"
                             label="Stamps for a reward"
                             error={form.errors.max_stamps}
                         >

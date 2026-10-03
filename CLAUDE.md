@@ -101,10 +101,16 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   shown (formula-looking cells neutralised). Search is `type="text"` on purpose —
   `type="search"` adds a second ✕. The Shops grid
   is client-side (all rows sent) — fine for hundreds of shops; switch to server-side paging if
-  it ever reaches thousands. Shop status: active / quiet (no stamps for 14 days) / not started. The owner's
-  password is randomly generated (`Str::password(16)`) and flashed once via
-  `session('generatedPassword')` — never chosen by the owner, never stored in plain text,
-  never shown twice. The admin shares it with the owner out of band.
+  it ever reaches thousands. Shop status: active / quiet (no stamps for 14 days) / not started.
+- **Add shop** (`Admin/Create.jsx`, redone 2026-10-01): shop name, card link, owner email +
+  password, stamp card (count, reward, stamp icon) and theme, with a live themed preview.
+  No owner-name field — `users.name` starts as the shop name. The **admin** sets the password
+  (typed, or "Generate" = 14 chars, client-side, no look-alikes; min 8); it's flashed once via
+  `session('generatedPassword')` so it can be copied with the email, never stored in plain
+  text, never shown twice. The card link follows the shop name until edited and is checked
+  live via `GET /admin/shops/slug` (`Shop::suggestSlug()` → `name`, `name-2`, …): a taken link
+  is swapped for the free one automatically while the admin hasn't typed their own. Picking
+  the default theme / tick icon stores null (same reason as theme reset).
 - **First admin account bootstrap**: same no-SSH problem as owner creation, solved the same way
   as `/deploy/migrate` — `POST /deploy/seed-admin` (same bearer token,
   `DeployController::seedAdmin()`) reads `ADMIN_EMAIL`/`ADMIN_PASSWORD` from env and
@@ -227,6 +233,12 @@ creates shops and an artisan command can't run without SSH.
   `loyalty_uuid` on a 404, and `Staff/Dashboard.jsx` only clears `staff_token` on a 401. Anything else
   shows a retry state.
 - The dashboard's activity feed shows name, action and staff name only, never a phone number.
+- **Card page preview**: `/s/{slug}?preview=1` (every admin / owner "open customer page"
+  link) renders the real look with a sample card from `CardController::previewCard()`. It
+  never reads or writes `loyalty_uuid` / `loyalty_last_shop_slug`, never shows sign-up or
+  join, doesn't post feedback, skips Pusher and hides `BottomNav`. Wi-Fi details are
+  included only for that shop's owner or an admin (anyone can add `?preview=1`). Shareable
+  card links (copy buttons, counter QR) stay without it.
 
 ## Staff accounts & dashboards (additive — changes the Stage 5 device model)
 

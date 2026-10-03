@@ -11,7 +11,11 @@ use App\Http\Requests\StoreShopOwnerRequest;
 use App\Models\Product;
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\StampIcons;
+use App\Support\ThemeCatalog;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -109,19 +113,39 @@ class ShopOwnerController extends Controller
 
     public function create(): Response
     {
-        return Inertia::render('Admin/Create');
+        return Inertia::render('Admin/Create', [
+            'themes' => ThemeCatalog::all(),
+            'defaultTheme' => ThemeCatalog::DEFAULT,
+        ]);
+    }
+
+    /**
+     * Live card-link check for the "Add shop" form: is the typed link free,
+     * and if not, a free one based on it.
+     */
+    public function slug(Request $request): JsonResponse
+    {
+        $slug = Str::slug($request->string('slug')->value());
+
+        return response()->json([
+            'available' => $slug !== '' && ! Shop::where('slug', $slug)->exists(),
+            'suggestion' => Shop::suggestSlug($slug),
+            'ideas' => Shop::slugIdeas($request->string('name')->value()),
+        ]);
     }
 
     public function store(StoreShopOwnerRequest $request): RedirectResponse
     {
-        // Randomly generated rather than owner-chosen: there's no self-service
-        // registration (see CLAUDE.md), so the admin hands this to the owner
-        // out of band. Shown once via the flashed 'generatedPassword' prop.
-        $password = Str::password(16);
+        // Set by the admin (typed or generated on the form), who hands it to
+        // the owner out of band. Flashed once so it can be copied with the email.
+        $password = $request->string('owner_password')->value();
+        $theme = $request->string('shop_theme')->value();
+        $stampIcon = $request->string('shop_stamp_icon')->value();
 
-        DB::transaction(function () use ($request, $password) {
+        DB::transaction(function () use ($request, $password, $theme, $stampIcon) {
             $owner = User::create([
-                'name' => $request->string('owner_name')->value(),
+                // The form only asks for a login; the owner's display name starts as the shop's.
+                'name' => $request->string('shop_name')->value(),
                 'email' => $request->string('owner_email')->value(),
                 'password' => $password,
                 'role' => UserRole::Owner,
@@ -136,6 +160,9 @@ class ShopOwnerController extends Controller
                 // The owner is the business contact until someone says otherwise.
                 'contact_name' => $owner->name,
                 'contact_email' => $owner->email,
+                // Defaults stay null, so a later change of the default still reaches this shop.
+                'theme' => $theme === ThemeCatalog::DEFAULT ? null : $theme,
+                'stamp_icon' => $stampIcon === StampIcons::DEFAULT ? null : $stampIcon,
             ]);
         });
 

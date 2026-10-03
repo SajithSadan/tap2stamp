@@ -1,5 +1,4 @@
 import { LuCheck, LuGift, LuMinus, LuPlus } from 'react-icons/lu';
-import { inputClass } from '@/Components/Dashboard/Ui';
 
 // Shop setup pieces shared by the admin "Add shop" form and the owner's
 // own shop setup after sign-up (Onboarding/Shop).
@@ -17,28 +16,50 @@ export function slugify(value) {
         .replace(/(^-|-$)/g, '');
 }
 
+// The card sizes most shops pick, offered as one-tap choices beside the stepper.
+const STAMP_PRESETS = [6, 8, 10, 12];
+
+/** One joined − / number / + control, plus one-tap common sizes. */
 export function StampStepper({ id, value, onChange }) {
     const stepClass =
-        'flex h-10 w-10 items-center justify-center rounded-xl border border-brand-border bg-brand-card text-brand-text transition-colors hover:bg-brand-bg disabled:opacity-40';
+        'flex w-10 items-center justify-center text-brand-text transition-colors hover:bg-brand-bg disabled:pointer-events-none disabled:opacity-30';
 
     return (
-        <div className="flex items-center gap-2">
-            <button type="button" aria-label="Fewer stamps" onClick={() => onChange(clamp(value - 1))} disabled={value <= MIN_STAMPS} className={stepClass}>
-                <LuMinus className="h-4 w-4" />
-            </button>
-            <input
-                id={id}
-                type="number"
-                min={MIN_STAMPS}
-                max={MAX_STAMPS}
-                value={value}
-                onChange={(e) => onChange(Number(e.target.value))}
-                onBlur={() => onChange(clamp(value || MIN_STAMPS))}
-                className={`${inputClass} w-20 text-center tabular-nums`}
-            />
-            <button type="button" aria-label="More stamps" onClick={() => onChange(clamp(value + 1))} disabled={value >= MAX_STAMPS} className={stepClass}>
-                <LuPlus className="h-4 w-4" />
-            </button>
+        <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-[42px] items-stretch overflow-hidden rounded-xl border border-brand-border bg-brand-card focus-within:border-brand-accent focus-within:ring-4 focus-within:ring-brand-accent/10">
+                <button type="button" aria-label="Fewer stamps" onClick={() => onChange(clamp(value - 1))} disabled={value <= MIN_STAMPS} className={stepClass}>
+                    <LuMinus className="h-4 w-4" />
+                </button>
+                <input
+                    id={id}
+                    type="number"
+                    min={MIN_STAMPS}
+                    max={MAX_STAMPS}
+                    value={value}
+                    onChange={(e) => onChange(Number(e.target.value))}
+                    onBlur={() => onChange(clamp(value || MIN_STAMPS))}
+                    className="w-12 border-x border-brand-border bg-transparent text-center text-sm font-semibold tabular-nums text-brand-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <button type="button" aria-label="More stamps" onClick={() => onChange(clamp(value + 1))} disabled={value >= MAX_STAMPS} className={stepClass}>
+                    <LuPlus className="h-4 w-4" />
+                </button>
+            </div>
+
+            <div className="flex gap-1.5" role="group" aria-label="Common card sizes">
+                {STAMP_PRESETS.map((n) => (
+                    <button
+                        key={n}
+                        type="button"
+                        onClick={() => onChange(n)}
+                        aria-pressed={value === n}
+                        className={`h-8 min-w-8 rounded-full px-2.5 text-xs font-semibold tabular-nums transition-colors ${
+                            value === n ? 'bg-brand-accent text-brand-accent-text' : 'bg-brand-bg text-brand-text hover:bg-brand-border'
+                        }`}
+                    >
+                        {n}
+                    </button>
+                ))}
+            </div>
         </div>
     );
 }

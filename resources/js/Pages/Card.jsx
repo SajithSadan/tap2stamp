@@ -12,7 +12,6 @@ import RatingTile from "@/Components/RatingTile";
 import { HiSparkles } from "react-icons/hi2";
 import { FaInstagram } from "react-icons/fa6";
 import { LuChevronRight, LuScan, LuWifi } from "react-icons/lu";
-import { IoStarOutline } from "react-icons/io5";
 import { PiStorefrontFill } from "react-icons/pi";
 import { StampIcon } from "@/lib/stampIcons";
 import { headerTextStyle, headerTintStyle } from "@/lib/headerStyle";
@@ -194,7 +193,12 @@ function StampShower() {
     );
 }
 
-export default function Card({ shop, theme }) {
+/**
+ * `preview`: a sample card from the server (admin / owner "open customer page").
+ * In preview the page never reads or writes the saved customer, never asks to
+ * sign up or join, and never posts anything.
+ */
+export default function Card({ shop, theme, preview = null }) {
     // The owner's chosen look (Dashboard → Theme), applied to this page only.
     useDocumentTheme(theme);
     const surface = SURFACE;
@@ -252,10 +256,16 @@ export default function Card({ shop, theme }) {
     }, []);
 
     useEffect(() => {
-        window.localStorage.setItem(LAST_SHOP_SLUG_KEY, shop.slug);
+        if (!preview) window.localStorage.setItem(LAST_SHOP_SLUG_KEY, shop.slug);
     }, [shop.slug]);
 
     function loadCard() {
+        if (preview) {
+            setCard(preview);
+            setLoading(false);
+            return;
+        }
+
         const uuid = window.localStorage.getItem(CUSTOMER_UUID_KEY);
 
         if (!uuid) {
@@ -438,7 +448,7 @@ export default function Card({ shop, theme }) {
     // isn't configured or the connection fails, the page still works via
     // the normal fetch-on-load path above - this is purely additive.
     useEffect(() => {
-        if (!card?.uuid) return;
+        if (!card?.uuid || preview) return;
 
         const key = import.meta.env.VITE_PUSHER_APP_KEY;
         if (!key) return;
@@ -498,7 +508,7 @@ export default function Card({ shop, theme }) {
     // backgrounded (Pusher connections can drop silently on mobile).
     useEffect(() => {
         function handleVisibility() {
-            if (document.visibilityState !== "visible" || !card?.uuid) return;
+            if (document.visibilityState !== "visible" || !card?.uuid || preview) return;
 
             axios
                 .get(`/s/${shop.slug}/card/${card.uuid}`)
@@ -565,6 +575,11 @@ export default function Card({ shop, theme }) {
         <>
             <Head title={shop.name} />
             <OfflineBanner />
+            {preview && (
+                <p className="fixed inset-x-0 top-3 z-20 mx-auto w-fit rounded-full bg-neutral-900 px-3 py-1 text-xs font-medium text-white">
+                    Preview · sample card, nothing is saved
+                </p>
+            )}
             {stampShower && <StampShower />}
 
             <AnimatePresence>
@@ -871,21 +886,14 @@ export default function Card({ shop, theme }) {
                                 ) : (
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            setPanel((open) =>
-                                                open === "rate" ? null : "rate",
-                                            )
-                                        }
-                                        aria-expanded={
-                                            panel === "rate" || showReviewPrompt
-                                        }
+                                        // Preview: shown for the look only - feedback needs a real card.
+                                        onClick={() => !preview && setPanel((open) => open === "rate" ? null : "rate")}
+                                        aria-disabled={preview ? true : undefined}
+                                        aria-expanded={panel === "rate" || showReviewPrompt}
                                         className={`flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition active:scale-[0.99] ${surface} ${panel === "rate" ? "ring-2 ring-brand-accent" : ""}`}
                                     >
-                                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-accent/10">
-                                            <IoStarOutline
-                                                className="h-6 w-6 text-brand-accent"
-                                                aria-hidden="true"
-                                            />
+                                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bg">
+                                            <img src="/images/google-review-icon.png" alt="" className="h-7 w-7 object-contain" aria-hidden="true" />
                                         </span>
                                         <span className="min-w-0 flex-1">
                                             <span className="block font-semibold text-brand-text">
@@ -996,7 +1004,7 @@ export default function Card({ shop, theme }) {
 
                     {createPortal(
                         <AnimatePresence>
-                            {(panel === "rate" || showReviewPrompt) && card && (
+                            {(panel === "rate" || showReviewPrompt) && card && !preview && (
                                 <motion.div
                                     className="fixed inset-0 z-100 flex min-h-dvh w-screen items-center justify-center bg-black/60 px-5 py-8"
                                     initial={{ opacity: 0 }}
@@ -1111,7 +1119,8 @@ export default function Card({ shop, theme }) {
             </AnimatePresence>
 
             {/* Hidden behind the sign-up modal it would only peek out from under. */}
-            {!showModal && <BottomNav />}
+            {/* Preview hides it too: its tabs lead to the saved customer's own cards. */}
+            {!showModal && !preview && <BottomNav />}
         </>
     );
 }

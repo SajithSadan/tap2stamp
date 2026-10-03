@@ -471,7 +471,7 @@ export default function Settings({ shop, contact }) {
                                 </a>
                             )}
                             <a
-                                href={`/s/${shop.slug}`}
+                                href={`/s/${shop.slug}?preview=1`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className={secondaryButton}

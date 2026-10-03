@@ -22,9 +22,14 @@ class CardController extends Controller
      * client-side (localStorage isn't available server-side) - this only
      * sends the public shop info needed either way.
      */
-    public function show(Shop $shop): Response
+    public function show(Request $request, Shop $shop): Response
     {
+        // ?preview=1 (the admin / owner "open customer page" buttons): the
+        // page shows a sample card and never reads or saves a customer.
+        $preview = $request->boolean('preview');
+
         return Inertia::render('Card', [
+            'preview' => $preview ? $this->previewCard($request, $shop) : null,
             'shop' => [
                 'id' => $shop->id,
                 'slug' => $shop->slug,
@@ -47,6 +52,31 @@ class CardController extends Controller
             // The look the owner picked on /dashboard/theme (or the default).
             'theme' => $shop->appliedTheme(),
         ]);
+    }
+
+    /**
+     * A sample card in the same shape as cardPayload(). Wi-Fi details are
+     * normally only for registered customers, so the preview includes them
+     * only for this shop's owner or an admin - anyone can add ?preview=1.
+     *
+     * @return array<string, mixed>
+     */
+    private function previewCard(Request $request, Shop $shop): array
+    {
+        $user = $request->user();
+        $canSeeWifi = $user && ($user->isAdmin() || $user->id === $shop->user_id);
+
+        return array_filter([
+            'uuid' => 'preview',
+            'stamps' => min(3, $shop->max_stamps - 1),
+            'max_stamps' => $shop->max_stamps,
+            'reward_title' => $shop->reward_title,
+            'rewards_claimed' => 0,
+            'shop_id' => $shop->id,
+            'instagram_url' => $shop->instagram_url,
+            'wifi_ssid' => $canSeeWifi ? $shop->wifi_ssid : null,
+            'wifi_password' => $canSeeWifi ? $shop->wifi_password : null,
+        ], fn ($value) => $value !== null);
     }
 
     public function register(RegisterCustomerRequest $request, Shop $shop, CustomerRegistrar $registrar): JsonResponse
