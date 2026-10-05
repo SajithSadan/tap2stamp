@@ -19,6 +19,7 @@ use App\Models\Shop;
 use App\Models\StaffDevice;
 use App\Models\StaffMember;
 use App\Models\StampLog;
+use App\Services\ShopInsights;
 use App\Services\StripeGateway;
 use App\Support\CuratedFonts;
 use App\Support\HeaderStyle;
@@ -158,6 +159,31 @@ class DashboardController extends Controller
             // Served by the stamp_logs(shop_id, created_at) index. Name only -
             // the owner never needs a customer's phone number here.
             'activity' => $this->activityQuery($shop)->paginate(15)->through($this->activityRow(...)),
+        ]);
+    }
+
+    /**
+     * Insights: regulars, who's due back or drifting away, whether the card
+     * is working, and busy times. Each section is a lazy prop with its own
+     * period (?regulars=30&loyalty=365&busy=90), so a card's filter reloads
+     * only that card - like the admin dashboard.
+     */
+    public function insights(Request $request): Response
+    {
+        $shop = $request->user()->shop;
+        $insights = new ShopInsights($shop);
+        $range = fn (string $section) => in_array($request->integer($section), ShopInsights::RANGES, true)
+            ? $request->integer($section)
+            : ShopInsights::DEFAULT_RANGE;
+
+        return Inertia::render('Dashboard/Insights', [
+            'shop' => $this->shopSummary($shop),
+            'ranges' => ShopInsights::RANGES,
+            'regulars' => fn () => $insights->regulars($range('regulars')),
+            'rewards' => fn () => $insights->closeToReward(),
+            'dueBack' => fn () => $insights->dueBack(),
+            'loyalty' => fn () => $insights->loyalty($range('loyalty')),
+            'busy' => fn () => $insights->busyTimes($range('busy')),
         ]);
     }
 

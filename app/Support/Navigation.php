@@ -55,6 +55,7 @@ class Navigation
             // --- Owner dashboard -----------------------------------------
             ['route' => 'dashboard.index', 'label' => 'Overview', 'icon' => 'overview', 'roles' => $owner, 'mobile_primary' => true],
             ['route' => 'dashboard.customers', 'label' => 'Customers', 'icon' => 'customers', 'roles' => $owner, 'mobile_primary' => true],
+            ['route' => 'dashboard.insights', 'label' => 'Insights', 'icon' => 'insights', 'roles' => $owner],
             ['route' => 'dashboard.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $owner],
             ['route' => 'dashboard.reviews', 'label' => 'Reviews', 'icon' => 'reviews', 'roles' => $owner],
             ['route' => 'dashboard.staff', 'label' => 'Staff', 'icon' => 'staff', 'roles' => $owner, 'mobile_primary' => true],

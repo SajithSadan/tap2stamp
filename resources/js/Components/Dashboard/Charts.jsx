@@ -417,8 +417,11 @@ export function PeakSummary({ grid, unit }) {
  * `describe(d, h)` words one cell for the readout / screen readers;
  * `children` renders under the legend (e.g. <PeakSummary>).
  */
-export function Heatmap({ grid, ramp = MINT_RAMP, format = formatNumber, unit = '', describe, topLabel = 'Busiest', emptyText, nullNote, children }) {
+export function Heatmap({ grid, ramp = MINT_RAMP, format = formatNumber, unit = '', describe, topLabel = 'Busiest', emptyText, nullNote, hours = [0, 23], children }) {
     const [active, setActive] = useState(null);
+    // Only these hours are drawn (e.g. a shop's opening hours); the grid itself always has 24.
+    const shown = Array.from({ length: hours[1] - hours[0] + 1 }, (_, i) => hours[0] + i);
+    const everyHour = shown.length <= 14;
     const values = grid.flat().filter((v) => v !== null);
     const max = Math.max(0, ...values);
     const shade = (v) => (v === 0 || max === 0 ? ramp[0] : ramp[Math.min(5, 1 + Math.floor((v / max) * 4.999))]);
@@ -447,30 +450,38 @@ export function Heatmap({ grid, ramp = MINT_RAMP, format = formatNumber, unit = 
             </p>
 
             <div className="overflow-x-auto pb-1">
-                <div className="grid min-w-[560px] grid-cols-[2.25rem_repeat(24,minmax(0,1fr))] gap-[2px]" onMouseLeave={() => setActive(null)}>
+                <div
+                    className="grid gap-[2px]"
+                    style={{ gridTemplateColumns: `2.25rem repeat(${shown.length}, minmax(0, 1fr))`, minWidth: `${36 + shown.length * 22}px` }}
+                    onMouseLeave={() => setActive(null)}
+                >
                     {grid.map((row, d) => [
                         <span key={`l${d}`} className="flex items-center text-[11px] text-brand-muted">
                             {WEEKDAYS[d]}
                         </span>,
-                        ...row.map((v, h) => (
-                            <button
-                                key={`${d}-${h}`}
-                                type="button"
-                                onMouseEnter={() => setActive({ d, h })}
-                                onFocus={() => setActive({ d, h })}
-                                onBlur={() => setActive(null)}
-                                aria-label={word(d, h)}
-                                className={`h-6 rounded-[3px] outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50 ${
-                                    v === null ? 'bg-brand-card ring-1 ring-inset ring-brand-border' : ''
-                                } ${active?.d === d && active?.h === h ? 'ring-2 ring-brand-text/25' : ''}`}
-                                style={v === null ? undefined : { backgroundColor: shade(v) }}
-                            />
-                        )),
+                        ...shown.map((h) => {
+                            const v = row[h];
+
+                            return (
+                                <button
+                                    key={`${d}-${h}`}
+                                    type="button"
+                                    onMouseEnter={() => setActive({ d, h })}
+                                    onFocus={() => setActive({ d, h })}
+                                    onBlur={() => setActive(null)}
+                                    aria-label={word(d, h)}
+                                    className={`h-6 rounded-[3px] outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50 ${
+                                        v === null ? 'bg-brand-card ring-1 ring-inset ring-brand-border' : ''
+                                    } ${active?.d === d && active?.h === h ? 'ring-2 ring-brand-text/25' : ''}`}
+                                    style={v === null ? undefined : { backgroundColor: shade(v) }}
+                                />
+                            );
+                        }),
                     ])}
                     <span />
-                    {Array.from({ length: 24 }, (_, h) => (
+                    {shown.map((h) => (
                         <span key={h} className="text-center text-[10px] text-brand-muted" aria-hidden="true">
-                            {h % 3 === 0 ? String(h).padStart(2, '0') : ''}
+                            {everyHour || h % 3 === 0 ? String(h).padStart(2, '0') : ''}
                         </span>
                     ))}
                 </div>
