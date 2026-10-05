@@ -189,6 +189,7 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::get('/customers', [DashboardController::class, 'customers'])->name('customers');
     Route::get('/customers/export', [DashboardController::class, 'exportCustomers'])->name('customers.export');
     Route::get('/activity', [DashboardController::class, 'activity'])->name('activity');
+    Route::get('/insights', [DashboardController::class, 'insights'])->name('insights');
     Route::get('/reviews', [DashboardController::class, 'reviews'])->name('reviews');
     Route::get('/staff', [DashboardController::class, 'staff'])->name('staff');
     Route::post('/scan', OwnerScanController::class)->middleware('throttle:30,1')->name('scan');

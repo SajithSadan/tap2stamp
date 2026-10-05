@@ -276,6 +276,30 @@ owner-approved device.
   Still never a shop param in the URL.
 - Dev seeder: Artisan Cafe has staff `Sam` (PIN 1234) and `Alex` (PIN 5678).
 
+## Owner Insights (additive)
+
+`/dashboard/insights` (`DashboardController::insights`, `Pages/Dashboard/Insights.jsx`, nav
+"Insights"); all the maths lives in `App\Services\ShopInsights` (one shop's `stamp_logs` +
+cards, no new tables). A **visit = a day a customer was scanned** (stamp or reward). Per-customer
+figures are grouped in SQL - one row per customer, never per scan.
+
+- **Sections** (each a lazy prop; `regulars`, `loyalty`, `busy` have their own 30/90/365-day
+  switch via `?regulars=30`, reloading only that card, like the admin dashboard):
+  regulars (top 10 by visits), close to a reward (ready + 1-2 to go), **due back / drifting**,
+  loyalty (second-visit rate, first vs returning visits per day/week/month, card health),
+  busy times (weekday x hour scans; the Heatmap `hours` prop trims it to the shop's hours).
+- **Due back / drifting** come from each regular's own rhythm over the last 365 days: 3+ visits
+  and usually back within 45 days; average gap = days between first and last visit / (visits-1).
+  Drifting = away >= max(2 x gap, 14 days) and <= 120 days (beyond = gone). Due = next expected
+  visit within 7 days (incl. a little late), not if they came in today.
+- **Second-visit rate**: customers whose first visit fell in the period *ending 30 days ago*
+  (so all had the full 30 days), who came back within 30 days.
+- **Card health**: median days to fill a card (from the previous reward, or first visit), share
+  who ever earned a reward, where cards untouched for 60+ days stopped; suggests fewer stamps
+  only with 20+ customers, < 25% ever earning and most stalls in the first half.
+- Every customer row shows the phone (as on Customers) and marks **marketing opt-in**
+  (`marketing_consent`) - the list a future WhatsApp Business feature should message.
+
 ## Per-shop themes (additive)
 
 - The 50-theme catalog lives in `App\Support\ThemeCatalog` (moved out of the dev-only
