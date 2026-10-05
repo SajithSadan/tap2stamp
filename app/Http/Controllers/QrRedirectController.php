@@ -31,8 +31,14 @@ class QrRedirectController extends Controller
                     'batch_label' => $qrCode->batch->label(),
                     'mapped_at' => $qrCode->mapped_at?->diffForHumans(),
                 ],
-                // For "map to a shop": picking one fills in its card link.
-                'shops' => Shop::orderBy('name')->get(['id', 'name', 'slug']),
+                // For "map to a shop" / "a shop's menu": picking one fills in its link.
+                'shops' => Shop::withCount('menuItems')->orderBy('name')->get(['id', 'name', 'slug'])
+                    ->map(fn (Shop $shop) => [
+                        'id' => $shop->id,
+                        'name' => $shop->name,
+                        'slug' => $shop->slug,
+                        'has_menu' => $shop->menu_items_count > 0,
+                    ]),
             ])->toResponse($request);
         }
 

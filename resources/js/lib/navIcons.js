@@ -14,6 +14,7 @@ import {
     LuUserCog,
     LuUsers,
 } from 'react-icons/lu';
+import { FaWhatsapp } from 'react-icons/fa6';
 
 /**
  * Icon for each `icon` key used in App\Support\Navigation - keep the two in
@@ -33,6 +34,7 @@ const NAV_ICONS = {
     shops: LuStore,
     staff: LuUserCog,
     theme: LuPalette,
+    whatsapp: FaWhatsapp,
 };
 
 export function navIcon(key) {

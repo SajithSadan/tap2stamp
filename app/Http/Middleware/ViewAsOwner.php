@@ -32,12 +32,15 @@ class ViewAsOwner
     /**
      * Never as the owner, even with changes allowed: the owner would be
      * charged (Stripe checkout - use Admin → Record order instead) or
-     * credited with stamps they didn't give.
+     * credited with stamps they didn't give - or customers would get a
+     * WhatsApp offer the owner never chose to send.
      */
     private const OWNER_ONLY = [
         'dashboard.orders.checkout',
         'dashboard.orders.coupon',
         'dashboard.scan',
+        'dashboard.marketing.store',
+        'dashboard.marketing.send',
     ];
 
     public function handle(Request $request, Closure $next): Response
@@ -61,7 +64,7 @@ class ViewAsOwner
         if (! $request->isMethodSafe()) {
             $refusal = match (true) {
                 ! $request->session()->get(self::EDIT_KEY) => "You're viewing as the owner (read-only), so nothing was changed. Switch on \"Allow changes\" to edit.",
-                $request->routeIs(self::OWNER_ONLY) => 'Only the owner can pay for orders or give stamps. Use Admin → Record order for an order.',
+                $request->routeIs(self::OWNER_ONLY) => 'Only the owner can pay for orders, give stamps or send WhatsApp offers. Use Admin → Record order for an order.',
                 default => null,
             };
 

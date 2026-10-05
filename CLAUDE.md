@@ -479,6 +479,67 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
   server-side PDF library, for the Hostinger CPU/memory limits and to avoid dompdf's attack
   surface.
 
+## Shop menus (additive — admin only, read by Gemini)
+
+One menu per shop, made and edited by the **admin only** (Admin → shop settings → **Menu**,
+`Admin\ShopMenuController`, `Pages/Admin/Menu/Edit.jsx`). Owners have no menu screen.
+
+- **Tables**: `menu_sections` (`shop_id`, `name`, `position`) → `menu_items`
+  (`menu_section_id`, `name`, `description`, `price` = display text as printed, e.g.
+  "Reg £3.20 · Lg £3.80", `tags` JSON, `position`). `Shop::menuSections()` / `menuItems()`.
+  Saving replaces the whole menu in one transaction (`App\Services\ShopMenu::replace()`).
+- **Tags are free text** (each shop's menu has its own: "Vegan", "Halal", "New", "Bestseller"…),
+  ≤ 6 per item, ≤ 24 chars. `MenuItem::tidyTags()` cleans them on save and from Gemini (which
+  copies the menu's own labels, expanding abbreviations from its key). The editor suggests the
+  menu's own tags first (`tagSuggestions()` in `lib/menuTags.js`, limits mirrored there).
+  Don't bring back a fixed list.
+- **AI reading**: `POST /admin/shops/{shop}/menu/read` (≤ 5 JPG/PNG/WebP/PDF, throttled)
+  → `App\Services\MenuReader` → Gemini `generateContent` with a JSON `responseSchema`
+  (`GEMINI_API_KEY`, `GEMINI_MODEL`; key sent server-side only). It **saves nothing**: the
+  result loads into the editor (replace or append) and the admin checks it, then saves. The
+  browser shrinks photos to ≤ 2400 px JPEG first (Gemini's inline limit is 20 MB). Unreadable
+  → 422, key/quota/outage → 503 (logged, never echoed). No key = reader hidden, typing still works.
+- **Public page**: `GET /menu/{shop}` (`MenuController`, `Pages/Menu.jsx`, shop header).
+  By **id, not slug**, so a menu sticker doesn't reveal the card link (see below). Sticky
+  section chips (scroll-tracked), search from 12 items.
+- **Menu themes** (separate from the card's `ThemeCatalog`): `App\Support\MenuThemes` — each
+  is colours + fonts + a **layout** (`list` / `classic` / `cards`). `shops.menu_theme`
+  (null = `MenuThemes::DEFAULT`), read via `Shop::menuTheme()`. Picked with the editor's
+  **Theme** button (`PUT /admin/shops/{shop}/menu/theme`, saved immediately; the picker
+  renders every theme with the shop's own items). One renderer, `Components/MenuView.jsx`,
+  draws the public page, the editor's live phone preview and the picker cards — add a
+  layout there and in `MenuThemes::LAYOUTS`.
+- **QR stickers**: `QrDestinationField` has a **Menu** tab (fills `/menu/{id}`);
+  `QrCodeController::shopIdForDestination()` assigns those stickers to the shop too.
+
+## WhatsApp marketing (additive — owner dashboard)
+
+Owners send offers to customers who ticked "send me offers from {shop} on WhatsApp" at sign-up.
+
+- **Page**: `/dashboard/marketing` (`MarketingController`, `Dashboard/Marketing.jsx`, nav
+  "WhatsApp"): audience (everyone / regulars = stamp in 30 days / win back), message (one
+  paragraph, ≤ 500), live WhatsApp preview, history (counts only, never phone numbers).
+- **Delivery**: WhatsApp Cloud API via `App\Services\WhatsAppGateway` (thin, mockable). One
+  Tada Tap business number sends for every shop with **one Meta-approved marketing template**
+  (`WHATSAPP_TEMPLATE`): body = `WhatsAppGateway::TEMPLATE_BODY` ({{1}} first name, {{2}} shop,
+  {{3}} message — parameters can't contain line breaks, so `tidyMessage()` flattens them) +
+  a URL button "Unsubscribe" → `{APP_URL}/u/{{1}}`. The owner's preview renders the same constant.
+- **Poster** (optional, JPG/PNG ≤ 5 MB, big photos shrunk client-side): stored on the `uploads`
+  disk under `marketing/{shop}` (`marketing_campaigns.image_path`) and sent as an **image header**
+  by its absolute URL (`MarketingCampaign::posterUrl()` — Meta downloads it, so it must be public
+  https). A template's header type is fixed at approval, so poster campaigns use a second
+  template, `WHATSAPP_TEMPLATE_IMAGE` (same body + button, Image header).
+- **No queue workers**, so `MarketingService::start()` stores one `marketing_messages` row per
+  recipient and the open page calls `POST /dashboard/marketing/{campaign}/send` until done
+  (`marketing_batch_size` per call). Rows are claimed `pending → sending` under
+  `lockForUpdate()`; claims left by a dead batch (> 5 min) become **failed, never resent** — a
+  customer must not get an offer twice. Consent is re-checked per message.
+- **Limits**: one campaign per shop per `marketing_cooldown_hours` (24). Sending is
+  `OWNER_ONLY` in `ViewAsOwner` — an admin can't send for a shop.
+- **Unsubscribe**: `GET /u/{token}` only shows the page (link previews fetch it);
+  `POST` sets `marketing_consent = false` + `marketing_opted_out_at` for that one card.
+- Not built: delivery/read receipts (Meta status webhook) and replies.
+
 ## Owners don't get their card link (additive — protects counter display sales)
 
 Owners could otherwise print their own QR of `/s/{slug}` instead of buying our counter
@@ -702,10 +763,13 @@ Plus `users.google_id` (nullable, unique) with `users.password` now nullable (Go
 owners), `users.onboarding_draft` (nullable JSON, shop setup in progress), and `qr_batches` / `qr_codes` / `qr_designs` (see "Bulk QR stickers").
 Plus `shops.header_style` (nullable JSON, card page header text/tint/shadow).
 Plus `products`, `orders`, `shops.product_ordered_at`, `coupons` and `orders.coupon_id/coupon_code` (see "Products & orders").
+Plus `menu_sections` / `menu_items` and `shops.menu_theme` (see "Shop menus").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
-(timestamp). This is an optional opt-in to texts from **that one shop**, unticked by default,
-and customers can register without it. `CustomerRegistrar` only ever turns it on: an unticked
-box on a repeat registration is not a withdrawal. There's no opt-out UI and no SMS sending yet.
+(timestamp). This is an optional opt-in to **WhatsApp** offers from **that one shop**, unticked by
+default, and customers can register without it. `CustomerRegistrar` only ever turns it on: an
+unticked box on a repeat registration is not a withdrawal. Withdrawal is the unsubscribe link
+(see "WhatsApp marketing"). Plus `marketing_unsubscribe_token`, `marketing_opted_out_at`,
+`marketing_campaigns`, `marketing_messages`.
 
 ## Working rules
 

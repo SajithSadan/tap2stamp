@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\HeaderStyle;
+use App\Support\MenuThemes;
 use App\Support\ShopContact;
 use App\Support\ThemeCatalog;
 use Database\Factories\ShopFactory;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -47,6 +49,7 @@ class Shop extends Model
         'wifi_password',
         'product_ordered_at',
         'show_card_link',
+        'menu_theme',
     ];
 
     /** Stamps-for-a-reward range. Keep in sync with MIN_STAMPS / MAX_STAMPS in Components/Dashboard/ShopFields.jsx. */
@@ -175,6 +178,16 @@ class Shop extends Model
         return $this->hasMany(Order::class);
     }
 
+    public function menuSections(): HasMany
+    {
+        return $this->hasMany(MenuSection::class)->orderBy('position');
+    }
+
+    public function menuItems(): HasManyThrough
+    {
+        return $this->hasManyThrough(MenuItem::class, MenuSection::class);
+    }
+
     /**
      * Where an order gets posted: the separate delivery address if given,
      * else the shop address. Null when neither is filled in (older shops).
@@ -227,6 +240,12 @@ class Shop extends Model
     public function appliedTheme(): array
     {
         return ThemeCatalog::forShop($this->theme, $this->theme_custom);
+    }
+
+    /** The menu page's look (colours, fonts and layout), picked by the admin. */
+    public function menuTheme(): array
+    {
+        return MenuThemes::resolve($this->menu_theme);
     }
 
     /** Card page header text colour, banner tint and title shadow, defaults filled in. */

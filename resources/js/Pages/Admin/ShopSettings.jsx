@@ -1,10 +1,20 @@
 import { Link, useForm } from "@inertiajs/react";
-import { useState } from "react";
-import { LuCircleCheck, LuEye, LuPackage, LuPlus } from "react-icons/lu";
+import { useEffect, useState } from "react";
+import {
+    LuBuilding2,
+    LuExternalLink,
+    LuEye,
+    LuPackage,
+    LuPlus,
+    LuSmartphone,
+    LuStamp,
+    LuUtensils,
+} from "react-icons/lu";
 import AddressLookup from "@/Components/AddressLookup";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import { StampStepper } from "@/Components/Dashboard/ShopFields";
 import {
+    CopyButton,
     FieldError,
     inputClass,
     Panel,
@@ -18,32 +28,63 @@ import OrderPaymentActions from "@/Components/Dashboard/OrderPaymentActions";
 import OrderStageEditor from "@/Components/Dashboard/OrderStageEditor";
 import { formatPence } from "@/lib/money";
 
-/**
- * Wraps its input in a <label> so clicking the label focuses it. Pass `id` for
- * controls with buttons inside (the stamp stepper): a wrapping label would
- * "click" its first button (−) whenever any empty space in it is clicked.
- */
-function Field({ id, label, error, hint, children }) {
-    const Wrapper = id ? 'div' : 'label';
-    const Label = id ? 'label' : 'span';
+/** The page's tabs, and which form fields live on each (to flag errors). */
+const TABS = [
+    { key: "card", label: "Loyalty card", icon: LuStamp, fields: ["name", "max_stamps", "reward_title", "show_card_link"] },
+    {
+        key: "customer",
+        label: "Customer page",
+        icon: LuSmartphone,
+        fields: ["instagram_url", "google_review_url", "google_review_direct", "wifi_ssid", "wifi_password"],
+    },
+    { key: "menu", label: "Menu", icon: LuUtensils, fields: [] },
+    { key: "orders", label: "Orders", icon: LuPackage, fields: [] },
+    {
+        key: "business",
+        label: "Business",
+        icon: LuBuilding2,
+        fields: [
+            "contact_name", "contact_email", "contact_phone",
+            "address_line1", "address_line2", "town", "postcode", "delivery_address",
+        ],
+    },
+];
 
+function initialTab() {
+    const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
+    return TABS.some((t) => t.key === hash) ? hash : "card";
+}
+
+/**
+ * One setting: label (and an optional short hint) on the left, the control
+ * on the right; stacked on phones. Rows sit in one panel, split by hairlines.
+ */
+function Row({ id, label, hint, error, children }) {
     return (
-        <Wrapper className="block min-w-0">
-            <Label htmlFor={id} className="mb-1.5 block text-sm font-medium text-brand-text">
-                {label}
-            </Label>
-            {children}
-            {hint && !error && (
-                <span className="mt-1 block text-xs text-brand-muted">
-                    {hint}
-                </span>
-            )}
-            <FieldError message={error} />
-        </Wrapper>
+        <div className="grid gap-x-6 gap-y-1.5 px-5 py-4 sm:grid-cols-[13rem_minmax(0,1fr)]">
+            <div>
+                <label htmlFor={id} className="block text-sm font-medium text-brand-text">
+                    {label}
+                </label>
+                {hint && <p className="mt-0.5 text-xs text-brand-muted">{hint}</p>}
+            </div>
+            <div className="min-w-0 max-w-xl">
+                {children}
+                <FieldError message={error} />
+            </div>
+        </div>
     );
 }
 
-/** One line of an order's status, for the shop page list. */
+function Section({ title, children }) {
+    return (
+        <Panel title={title} bodyClassName="divide-y divide-brand-border">
+            {children}
+        </Panel>
+    );
+}
+
+/** One line of an order's status. */
 function orderStatusText(order) {
     if (order.status === "cancelled") return "Cancelled";
     if (order.awaiting_payment) return `Awaiting payment · ${order.reference}`;
@@ -54,55 +95,33 @@ function orderStatusText(order) {
 }
 
 /**
- * The shop's product orders, and creating one arranged with the owner (phone,
- * visit, promotion): paid already, or awaiting their bank transfer until
- * confirmed. Any paid order hides the owner's "Order your counter display"
- * banner, and so does one awaiting their transfer.
+ * The shop's product orders, and recording one arranged with the owner
+ * (phone, visit, promotion). Any paid or arranged order hides the owner's
+ * "Order your counter display" banner.
  */
-function OrdersPanel({
-    shop,
-    orders,
-    products,
-    productOrderedAt,
-    deliveryAddress,
-    bankDetailsSet,
-}) {
+function OrdersTab({ shop, orders, products, productOrderedAt, deliveryAddress, bankDetailsSet }) {
     const [open, setOpen] = useState(false);
 
     return (
         <Panel
-            className="mb-4"
             title="Counter display & orders"
-            description="Owners can pay online from their dashboard. Arranged it with them yourself? Create the order here."
+            description={
+                productOrderedAt
+                    ? `Ordered on ${productOrderedAt}.`
+                    : "Not ordered yet - the owner sees an order banner until they do."
+            }
             action={
                 !open &&
                 products.length > 0 && (
-                    <button
-                        type="button"
-                        onClick={() => setOpen(true)}
-                        className={secondaryButton}
-                    >
+                    <button type="button" onClick={() => setOpen(true)} className={secondaryButton}>
                         <LuPlus className="h-4 w-4" /> New order
                     </button>
                 )
             }
+            bodyClassName=""
         >
-            {productOrderedAt ? (
-                <p className="flex items-start gap-2 rounded-xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800">
-                    <LuCircleCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                    Ordered on {productOrderedAt}. The owner no longer sees the
-                    order banner.
-                </p>
-            ) : (
-                <p className="rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
-                    Not ordered yet - the owner sees “Order your counter
-                    display” on their dashboard until an order is paid or
-                    arranged here.
-                </p>
-            )}
-
             {open && (
-                <div className="mt-4 rounded-xl border border-brand-border p-4">
+                <div className="border-b border-brand-border p-5">
                     <ManualOrderForm
                         shop={shop}
                         products={products}
@@ -113,57 +132,65 @@ function OrdersPanel({
                 </div>
             )}
 
-            {orders.length > 0 && (
-                <ul className="mt-4 divide-y divide-brand-border rounded-xl border border-brand-border">
+            {orders.length === 0 ? (
+                !open && <p className="px-5 py-8 text-center text-sm text-brand-muted">No orders yet.</p>
+            ) : (
+                <ul className="divide-y divide-brand-border">
                     {orders.map((order) => (
-                        <li
-                            key={order.id}
-                            className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm"
-                        >
-                            <LuPackage className="h-4 w-4 shrink-0 text-brand-muted" />
+                        <li key={order.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 text-sm">
                             <span className="min-w-0 flex-1 truncate text-brand-text">
-                                #{order.id} · {order.quantity} ×{" "}
-                                {order.product_name}
+                                #{order.id} · {order.quantity} × {order.product_name}
                             </span>
                             <span className="tabular-nums text-brand-text">
-                                {order.total_pence === 0 && order.list_total_pence > 0
-                                    ? "Free"
-                                    : formatPence(order.total_pence)}
-                                {order.list_total_pence > order.total_pence &&
-                                    order.total_pence > 0 && (
-                                        <span className="text-emerald-700">
-                                            {" "}
-                                            (
-                                            {formatPence(
-                                                order.list_total_pence -
-                                                    order.total_pence,
-                                            )}{" "}
-                                            off)
-                                        </span>
-                                    )}
-                                <span className="text-brand-muted">
-                                    {" "}
-                                    · {order.payment_label}
-                                </span>
+                                {order.total_pence === 0 && order.list_total_pence > 0 ? "Free" : formatPence(order.total_pence)}
+                                {order.list_total_pence > order.total_pence && order.total_pence > 0 && (
+                                    <span className="text-emerald-700">
+                                        {" "}({formatPence(order.list_total_pence - order.total_pence)} off)
+                                    </span>
+                                )}
+                                <span className="text-brand-muted"> · {order.payment_label}</span>
                             </span>
-                            <span className="text-brand-muted">
-                                {orderStatusText(order)}
-                            </span>
+                            <span className="text-brand-muted">{orderStatusText(order)}</span>
                             <OrderPaymentActions order={order} compact />
                             <OrderEditDialog
                                 order={{ ...order, shop_name: null }}
                                 products={products}
                                 buttonClassName={`${secondaryButton} !px-2.5 !py-1.5 text-xs`}
                             />
-                            <OrderStageEditor
-                                order={order}
-                                buttonClassName={`${secondaryButton} !px-2.5 !py-1.5 text-xs`}
-                            />
+                            <OrderStageEditor order={order} buttonClassName={`${secondaryButton} !px-2.5 !py-1.5 text-xs`} />
                         </li>
                     ))}
                 </ul>
             )}
         </Panel>
+    );
+}
+
+function MenuTab({ shop, menuItemsCount, menuUrl }) {
+    return (
+        <Section title="Menu">
+            <Row label="Menu" hint="Read from a photo with AI, then checked and saved.">
+                <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-sm text-brand-text">
+                        {menuItemsCount > 0 ? `${menuItemsCount} items` : "Not set up"}
+                    </span>
+                    <Link href={`/admin/shops/${shop.id}/menu`} className={primaryButton}>
+                        <LuUtensils className="h-4 w-4" /> {menuItemsCount > 0 ? "Edit menu" : "Create menu"}
+                    </Link>
+                </div>
+            </Row>
+            {menuItemsCount > 0 && (
+                <Row label="Menu link" hint="Map a QR sticker to it (QR codes → Menu).">
+                    <div className="flex items-center gap-1">
+                        <input value={menuUrl} readOnly className={`${inputClass} bg-brand-bg text-brand-muted`} />
+                        <CopyButton text={menuUrl} label="Copy menu link" />
+                        <a href={menuUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-muted hover:bg-brand-bg hover:text-brand-text" aria-label="Open menu page">
+                            <LuExternalLink className="h-4 w-4" />
+                        </a>
+                    </div>
+                </Row>
+            )}
+        </Section>
     );
 }
 
@@ -175,7 +202,11 @@ export default function ShopSettings({
     deliveryAddress,
     bankDetailsSet,
     ownerEmail,
+    menuItemsCount,
+    menuUrl,
+    previewUrl,
 }) {
+    const [tab, setTab] = useState(initialTab);
     const form = useForm({
         name: shop.name ?? "",
         max_stamps: shop.max_stamps,
@@ -198,6 +229,20 @@ export default function ShopSettings({
         delivery_address: shop.delivery_address ?? "",
     });
 
+    const tabHasError = (t) => t.fields.some((field) => form.errors[field]);
+
+    function openTab(key) {
+        setTab(key);
+        window.history.replaceState(window.history.state, "", `#${key}`);
+    }
+
+    // After a failed save, show the first tab with a problem on it.
+    useEffect(() => {
+        if (TABS.find((t) => t.key === tab && tabHasError(t))) return;
+        const withError = TABS.find(tabHasError);
+        if (withError) openTab(withError.key);
+    }, [form.errors]);
+
     // Unticking starts the box from the shop address, so only the difference needs typing.
     function setDeliverySame(same) {
         form.setData((data) => ({
@@ -205,12 +250,7 @@ export default function ShopSettings({
             delivery_same: same,
             delivery_address:
                 !same && !data.delivery_address.trim()
-                    ? [
-                          data.name,
-                          data.address_line1,
-                          data.address_line2,
-                          [data.town, data.postcode].filter(Boolean).join(", "),
-                      ]
+                    ? [data.name, data.address_line1, data.address_line2, [data.town, data.postcode].filter(Boolean).join(", ")]
                           .map((line) => (line ?? "").trim())
                           .filter(Boolean)
                           .join("\n")
@@ -219,6 +259,7 @@ export default function ShopSettings({
     }
 
     const text = (key) => ({
+        id: key,
         value: form.data[key],
         onChange: (event) => form.setData(key, event.target.value),
         className: inputClass,
@@ -226,307 +267,218 @@ export default function ShopSettings({
 
     function submit(event) {
         event.preventDefault();
-        form.put(`/admin/shops/${shop.id}/settings`, { preserveScroll: true });
+        form.put(`/admin/shops/${shop.id}/settings`, {
+            preserveScroll: true,
+            onSuccess: () => form.setDefaults(),
+        });
     }
+
+    const emailIsLogin = ownerEmail && form.data.contact_email.trim().toLowerCase() === ownerEmail.toLowerCase();
 
     return (
         <AdminLayout
-            title="Shop settings"
-            description={`Configure ${shop.name}'s loyalty card, customer links, Wi-Fi and business contact details.`}
+            title={shop.name}
+            description={ownerEmail ? `Owner: ${ownerEmail}` : "No owner account"}
             actions={
                 <div className="flex flex-wrap gap-2">
-                    <Link href="/admin" className={secondaryButton}>
-                        Back to shops
-                    </Link>
+                    <a href={previewUrl} target="_blank" rel="noreferrer" className={secondaryButton}>
+                        <LuExternalLink className="h-4 w-4" /> Customer page
+                    </a>
                     {ownerEmail && (
-                        <Link
-                            href={`/admin/shops/${shop.id}/view-as-owner`}
-                            method="post"
-                            as="button"
-                            className={primaryButton}
-                        >
+                        <Link href={`/admin/shops/${shop.id}/view-as-owner`} method="post" as="button" className={primaryButton}>
                             <LuEye className="h-4 w-4" /> View as owner
                         </Link>
                     )}
                 </div>
             }
         >
-            <OrdersPanel
-                shop={shop}
-                orders={orders}
-                products={products}
-                productOrderedAt={productOrderedAt}
-                deliveryAddress={deliveryAddress}
-                bankDetailsSet={bankDetailsSet}
-            />
+            <nav role="tablist" aria-label="Shop settings" className="-mx-1 mb-4 flex gap-1 overflow-x-auto border-b border-brand-border px-1 [scrollbar-width:none]">
+                {TABS.map((t) => {
+                    const count = t.key === "menu" ? menuItemsCount : t.key === "orders" ? orders.length : null;
 
+                    return (
+                        <button
+                            key={t.key}
+                            type="button"
+                            role="tab"
+                            aria-selected={tab === t.key}
+                            onClick={() => openTab(t.key)}
+                            className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                                tab === t.key ? "border-brand-accent text-brand-text" : "border-transparent text-brand-muted hover:text-brand-text"
+                            }`}
+                        >
+                            <t.icon className="h-4 w-4" />
+                            {t.label}
+                            {count > 0 && <span className="text-xs tabular-nums text-brand-muted">{count}</span>}
+                            {tabHasError(t) && <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-label="has errors" />}
+                        </button>
+                    );
+                })}
+            </nav>
+
+            {tab === "menu" && <MenuTab shop={shop} menuItemsCount={menuItemsCount} menuUrl={menuUrl} />}
+
+            {tab === "orders" && (
+                <OrdersTab
+                    shop={shop}
+                    orders={orders}
+                    products={products}
+                    productOrderedAt={productOrderedAt}
+                    deliveryAddress={deliveryAddress}
+                    bankDetailsSet={bankDetailsSet}
+                />
+            )}
+
+            {/* One form across the card / customer page / business tabs, one save. */}
             <form onSubmit={submit} noValidate className="space-y-4">
-                <Panel
-                    title="Loyalty card"
-                    description="The details customers see on their card."
-                >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="Shop name" error={form.errors.name}>
+                {tab === "card" && (
+                    <Section title="Loyalty card">
+                        <Row id="name" label="Shop name" error={form.errors.name}>
                             <input type="text" {...text("name")} />
-                        </Field>
-                        <Field
-                            label="Shop link"
-                            hint="The shop URL slug cannot be changed here."
-                        >
-                            <input
-                                value={`/s/${shop.slug}`}
-                                readOnly
-                                className={`${inputClass} bg-brand-bg text-brand-muted`}
-                            />
-                        </Field>
-                        <Field
-                            id="admin-shop-max-stamps"
-                            label="Stamps for a reward"
-                            error={form.errors.max_stamps}
-                        >
+                        </Row>
+                        <Row id="admin-shop-max-stamps" label="Stamps for a reward" error={form.errors.max_stamps}>
                             <StampStepper
                                 id="admin-shop-max-stamps"
                                 value={form.data.max_stamps}
-                                onChange={(value) =>
-                                    form.setData("max_stamps", value)
-                                }
+                                onChange={(value) => form.setData("max_stamps", value)}
                             />
-                        </Field>
-                        <Field label="Reward" error={form.errors.reward_title}>
-                            <input type="text" {...text("reward_title")} />
-                        </Field>
-                        <div className="rounded-xl border border-brand-border bg-brand-bg/60 p-3.5 sm:col-span-2">
-                            <Switch
-                                checked={form.data.show_card_link}
-                                onChange={(on) =>
-                                    form.setData("show_card_link", on)
-                                }
-                                label="Show the card link to the owner"
-                                description={
-                                    form.data.show_card_link
-                                        ? "The owner sees their card link, a printable counter QR (Settings) and “Customer page” links."
-                                        : "Hidden (default): customers join through our counter display, so the owner can't print their own QR."
-                                }
-                            />
-                        </div>
-                    </div>
-                </Panel>
+                        </Row>
+                        <Row id="reward_title" label="Reward" error={form.errors.reward_title}>
+                            <input type="text" placeholder="Free coffee" {...text("reward_title")} />
+                        </Row>
+                        <Row label="Card link" hint="Can't be changed.">
+                            <div className="flex items-center gap-1">
+                                <input value={`/s/${shop.slug}`} readOnly className={`${inputClass} bg-brand-bg text-brand-muted`} />
+                                <CopyButton text={`${window.location.origin}/s/${shop.slug}`} label="Copy card link" />
+                            </div>
+                        </Row>
+                        <Row label="Owner sees the card link" hint="Off: they order our counter display instead of printing their own QR.">
+                            <Switch checked={form.data.show_card_link} onChange={(on) => form.setData("show_card_link", on)} />
+                        </Row>
+                    </Section>
+                )}
 
-                <Panel
-                    title="Customer links"
-                    description="Choose what customers can open from their card."
-                >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field
-                            label="Instagram URL"
-                            error={form.errors.instagram_url}
-                        >
-                            <input
-                                type="url"
-                                placeholder="https://instagram.com/…"
-                                {...text("instagram_url")}
-                            />
-                        </Field>
-                        <Field
-                            label="Google review URL"
-                            error={form.errors.google_review_url}
-                            hint="Required to enable direct Google Reviews."
-                        >
-                            <input
-                                type="url"
-                                placeholder="https://g.page/r/…"
-                                {...text("google_review_url")}
-                            />
-                        </Field>
-                        <div className="rounded-xl border border-brand-border bg-brand-bg/60 p-3.5 sm:col-span-2">
-                            <Switch
-                                checked={form.data.google_review_direct}
-                                disabled={
-                                    !form.data.google_review_url &&
-                                    !form.data.google_review_direct
-                                }
-                                onChange={(enabled) =>
-                                    form.setData(
-                                        "google_review_direct",
-                                        enabled,
-                                    )
-                                }
-                                label="Go directly to Google Reviews"
-                                description={
-                                    form.data.google_review_direct
-                                        ? "The customer card action opens Google directly; in-app feedback is skipped."
-                                        : "Customers leave feedback in-app first, then can optionally share it on Google."
-                                }
-                            />
-                        </div>
-                    </div>
-                </Panel>
+                {tab === "customer" && (
+                    <>
+                        <Section title="Reviews & social">
+                            <Row id="instagram_url" label="Instagram" error={form.errors.instagram_url}>
+                                <input type="url" placeholder="https://instagram.com/…" {...text("instagram_url")} />
+                            </Row>
+                            <Row id="google_review_url" label="Google review link" error={form.errors.google_review_url}>
+                                <input type="url" placeholder="https://g.page/r/…" {...text("google_review_url")} />
+                            </Row>
+                            <Row
+                                label="Send reviews straight to Google"
+                                hint={form.data.google_review_url ? "Off: customers rate in-app first." : "Add a Google review link first."}
+                            >
+                                <Switch
+                                    checked={form.data.google_review_direct}
+                                    disabled={!form.data.google_review_url && !form.data.google_review_direct}
+                                    onChange={(on) => form.setData("google_review_direct", on)}
+                                />
+                            </Row>
+                        </Section>
+                        <Section title="Guest Wi-Fi">
+                            <Row id="wifi_ssid" label="Network name" hint="Shown to customers with a card." error={form.errors.wifi_ssid}>
+                                <input type="text" {...text("wifi_ssid")} />
+                            </Row>
+                            <Row id="wifi_password" label="Password" error={form.errors.wifi_password}>
+                                <input type="text" {...text("wifi_password")} />
+                            </Row>
+                        </Section>
+                    </>
+                )}
 
-                <Panel
-                    title="Guest Wi-Fi"
-                    description="Optional network details shown to customers."
-                >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field
-                            label="Network name"
-                            error={form.errors.wifi_ssid}
-                        >
-                            <input type="text" {...text("wifi_ssid")} />
-                        </Field>
-                        <Field
-                            label="Password"
-                            error={form.errors.wifi_password}
-                        >
-                            <input type="text" {...text("wifi_password")} />
-                        </Field>
-                    </div>
-                </Panel>
-
-                <Panel
-                    title="Business contact & location"
-                    description="Optional contact and address details collected for this shop."
-                >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field
-                            label="Contact person"
-                            error={form.errors.contact_name}
-                        >
-                            <input type="text" {...text("contact_name")} />
-                        </Field>
-                        <div className="min-w-0">
-                            <Field
-                                label="Contact email"
+                {tab === "business" && (
+                    <>
+                        <Section title="Contact">
+                            <Row id="contact_name" label="Contact person" error={form.errors.contact_name}>
+                                <input type="text" {...text("contact_name")} />
+                            </Row>
+                            <Row
+                                id="contact_email"
+                                label="Email"
+                                hint={emailIsLogin ? "Same as the owner's login." : null}
                                 error={form.errors.contact_email}
                             >
-                                <input
-                                    type="email"
-                                    {...text("contact_email")}
-                                />
-                            </Field>
-                            {/* Defaults to the owner's login; offer it back if changed. */}
-                            {ownerEmail &&
-                                !form.errors.contact_email &&
-                                (form.data.contact_email.trim().toLowerCase() ===
-                                ownerEmail.toLowerCase() ? (
-                                    <p className="mt-1 text-xs text-brand-muted">
-                                        Same as the owner's login.
-                                    </p>
-                                ) : (
+                                <input type="email" {...text("contact_email")} />
+                                {ownerEmail && !emailIsLogin && !form.errors.contact_email && (
                                     <p className="mt-1 text-xs text-brand-muted">
                                         Owner's login: {ownerEmail} ·{" "}
                                         <button
                                             type="button"
-                                            onClick={() =>
-                                                form.setData(
-                                                    "contact_email",
-                                                    ownerEmail,
-                                                )
-                                            }
+                                            onClick={() => form.setData("contact_email", ownerEmail)}
                                             className="font-semibold text-brand-accent hover:underline"
                                         >
                                             Use this
                                         </button>
                                     </p>
-                                ))}
-                        </div>
-                        <Field
-                            label="Contact phone"
-                            error={form.errors.contact_phone}
-                            hint="Use international format, e.g. +442079460000."
-                        >
-                            <input type="tel" {...text("contact_phone")} />
-                        </Field>
-                        {/* findaddress.io via our /address-lookup proxy (key stays server-side). */}
-                        <div className="sm:col-span-2">
-                            <AddressLookup
-                                initialPostcode={form.data.postcode}
-                                onFound={(address) =>
-                                    form.setData((data) => ({
-                                        ...data,
-                                        ...address,
-                                    }))
-                                }
-                                inputClassName={inputClass}
-                                buttonClassName={secondaryButton}
-                            />
-                        </div>
-                        <Field
-                            label="Address line 1"
-                            error={form.errors.address_line1}
-                        >
-                            <input type="text" {...text("address_line1")} />
-                        </Field>
-                        <Field
-                            label="Address line 2"
-                            error={form.errors.address_line2}
-                        >
-                            <input type="text" {...text("address_line2")} />
-                        </Field>
-                        <Field label="Town / city" error={form.errors.town}>
-                            <input type="text" {...text("town")} />
-                        </Field>
-                        <Field
-                            label="Postcode / PIN code"
-                            error={form.errors.postcode}
-                        >
-                            <input
-                                type="text"
-                                autoCapitalize="characters"
-                                {...text("postcode")}
-                            />
-                        </Field>
-                        <div className="space-y-3 sm:col-span-2">
-                            <label className="flex cursor-pointer items-center gap-3 text-sm text-brand-text">
-                                <input
-                                    type="checkbox"
-                                    checked={form.data.delivery_same}
-                                    onChange={(e) =>
-                                        setDeliverySame(e.target.checked)
-                                    }
-                                    className="h-4 w-4 accent-[var(--color-brand-accent)]"
+                                )}
+                            </Row>
+                            <Row id="contact_phone" label="Phone" hint="e.g. +442079460000" error={form.errors.contact_phone}>
+                                <input type="tel" {...text("contact_phone")} />
+                            </Row>
+                        </Section>
+
+                        <Section title="Address">
+                            {/* findaddress.io via our /address-lookup proxy (key stays server-side). */}
+                            <Row label="Find address">
+                                <AddressLookup
+                                    initialPostcode={form.data.postcode}
+                                    onFound={(address) => form.setData((data) => ({ ...data, ...address }))}
+                                    inputClassName={inputClass}
+                                    buttonClassName={secondaryButton}
                                 />
-                                Orders are delivered to the shop address
-                            </label>
-                            {!form.data.delivery_same && (
-                                <Field
-                                    label="Delivery address"
-                                    error={form.errors.delivery_address}
-                                >
+                            </Row>
+                            <Row id="address_line1" label="Address line 1" error={form.errors.address_line1}>
+                                <input type="text" {...text("address_line1")} />
+                            </Row>
+                            <Row id="address_line2" label="Address line 2" error={form.errors.address_line2}>
+                                <input type="text" {...text("address_line2")} />
+                            </Row>
+                            <Row id="town" label="Town / city" error={form.errors.town}>
+                                <input type="text" {...text("town")} />
+                            </Row>
+                            <Row id="postcode" label="Postcode" error={form.errors.postcode}>
+                                <input type="text" autoCapitalize="characters" {...text("postcode")} />
+                            </Row>
+                            <Row label="Deliver orders to" error={form.errors.delivery_address}>
+                                <label className="flex cursor-pointer items-center gap-3 text-sm text-brand-text">
+                                    <input
+                                        type="checkbox"
+                                        checked={form.data.delivery_same}
+                                        onChange={(e) => setDeliverySame(e.target.checked)}
+                                        className="h-4 w-4 accent-[var(--color-brand-accent)]"
+                                    />
+                                    The shop address
+                                </label>
+                                {!form.data.delivery_same && (
                                     <textarea
                                         rows={3}
+                                        aria-label="Delivery address"
                                         value={form.data.delivery_address}
-                                        onChange={(e) =>
-                                            form.setData(
-                                                "delivery_address",
-                                                e.target.value,
-                                            )
-                                        }
-                                        placeholder={
-                                            "Name / company\nStreet\nTown, postcode"
-                                        }
-                                        className={`${inputClass} resize-y`}
+                                        onChange={(e) => form.setData("delivery_address", e.target.value)}
+                                        placeholder={"Name / company\nStreet\nTown, postcode"}
+                                        className={`${inputClass} mt-2 resize-y`}
                                     />
-                                </Field>
-                            )}
-                        </div>
-                    </div>
-                </Panel>
+                                )}
+                            </Row>
+                        </Section>
+                    </>
+                )}
 
-                <div className="flex flex-wrap items-center gap-3">
-                    <button
-                        type="submit"
-                        disabled={form.processing}
-                        className={primaryButton}
-                    >
-                        {form.processing ? "Saving…" : "Save shop settings"}
-                    </button>
-                    <Link href="/admin" className={secondaryButton}>
-                        Cancel
-                    </Link>
-                    {form.recentlySuccessful && (
-                        <span className="text-sm text-green-700">Saved</span>
-                    )}
-                </div>
+                {/* Only while something's changed: one save for all three tabs. */}
+                {(form.isDirty || form.processing) && (
+                    <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-brand-border bg-brand-bg py-3">
+                        <button type="submit" disabled={form.processing} className={primaryButton}>
+                            {form.processing ? "Saving…" : "Save changes"}
+                        </button>
+                        <button type="button" disabled={form.processing} onClick={() => form.reset()} className={secondaryButton}>
+                            Discard
+                        </button>
+                        <span className="text-sm text-brand-muted">Unsaved changes</span>
+                    </div>
+                )}
             </form>
         </AdminLayout>
     );

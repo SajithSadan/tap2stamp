@@ -454,7 +454,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function shopSummary(Shop $shop): array
+    public static function shopSummary(Shop $shop): array
     {
         return [
             'id' => $shop->id,

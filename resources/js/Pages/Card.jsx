@@ -610,7 +610,7 @@ export default function Card({ shop, theme, preview = null }) {
                                 id="shop-join-description"
                                 className="mt-2 text-sm leading-relaxed text-brand-muted"
                             >
-                                Would you like to receive offers from{" "}
+                                Would you like WhatsApp offers from{" "}
                                 <span className="font-semibold text-brand-text">
                                     {shop.name}
                                 </span>

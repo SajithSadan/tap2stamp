@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LuChevronDown, LuLink, LuSearch, LuStore } from "react-icons/lu";
+import { LuChevronDown, LuLink, LuSearch, LuStore, LuUtensils } from "react-icons/lu";
 import { FieldError, inputClass } from "@/Components/Dashboard/Ui";
 
 /**
@@ -147,15 +147,34 @@ export function shopForDestination(url, shops) {
     }
 }
 
+/** A shop's public menu page (same origin, /menu/{id}). */
+export function menuUrl(shop) {
+    return `${window.location.origin}/menu/${shop.id}`;
+}
+
+/** Which shop a destination URL is the menu page of, if any. */
+export function menuShopForDestination(url, shops) {
+    try {
+        const destination = new URL(url);
+        if (destination.origin !== window.location.origin) return null;
+
+        const match = destination.pathname.match(/^\/menu\/(\d+)\/?$/);
+        return match ? (shops.find((shop) => shop.id === Number(match[1])) ?? null) : null;
+    } catch {
+        return null;
+    }
+}
+
 /**
- * Where a QR sticker sends people: either one of our shops (picked from the
- * list - its card link is filled in for you) or any web address. Both end
- * up as `destination_url`; the server spots shop links and assigns the
- * sticker to that shop.
+ * Where a QR sticker sends people: one of our shops' loyalty card or menu
+ * (picked from the list - the link is filled in for you), or any web
+ * address. All end up as `destination_url`; the server spots our links and
+ * assigns the sticker to that shop.
  */
 export default function QrDestinationField({ value, onChange, shops, error, label = "Destination", autoFocus = false }) {
     const matched = shopForDestination(value, shops);
-    const [mode, setMode] = useState(() => (value && !matched ? "url" : "shop"));
+    const matchedMenu = menuShopForDestination(value, shops);
+    const [mode, setMode] = useState(() => (matchedMenu ? "menu" : value && !matched ? "url" : "shop"));
 
     const tab = (key, Icon, text) => (
         <button
@@ -176,11 +195,39 @@ export default function QrDestinationField({ value, onChange, shops, error, labe
             <p className="mb-1.5 text-sm font-medium text-brand-text">{label}</p>
             <div role="tablist" aria-label="Destination type" className="flex gap-1 rounded-xl bg-brand-bg p-1 ring-1 ring-inset ring-brand-border">
                 {tab("shop", LuStore, "A shop")}
+                {tab("menu", LuUtensils, "Menu")}
                 {tab("url", LuLink, "Web address")}
             </div>
 
             <div className="mt-3">
-                {mode === "shop" ? (
+                {mode === "menu" ? (
+                    <>
+                        <ShopPicker
+                            id="destination-menu"
+                            shops={shops}
+                            value={matchedMenu?.id ?? ""}
+                            onChange={(shopId) => {
+                                const shop = shops.find((s) => s.id === Number(shopId));
+                                onChange(shop ? menuUrl(shop) : "");
+                            }}
+                            label="Choose a shop"
+                            emptyLabel="No shop"
+                        />
+                        {matchedMenu && matchedMenu.has_menu === false ? (
+                            <p className="mt-1.5 text-xs text-amber-700">
+                                {matchedMenu.name} has no menu yet -{" "}
+                                <a href={`/admin/shops/${matchedMenu.id}/menu`} className="font-semibold underline">
+                                    add it
+                                </a>{" "}
+                                before printing.
+                            </p>
+                        ) : (
+                            <p className="mt-1.5 text-xs text-brand-muted">
+                                Scanning it opens the shop's menu, and the sticker is assigned to the shop.
+                            </p>
+                        )}
+                    </>
+                ) : mode === "shop" ? (
                     <>
                         <ShopPicker
                             id="destination-shop"
@@ -215,9 +262,9 @@ export default function QrDestinationField({ value, onChange, shops, error, labe
                         />
                         {!error && (
                             <p className="mt-1.5 text-xs text-brand-muted">
-                                {matched ? (
+                                {matched || matchedMenu ? (
                                     <>
-                                        That's <strong className="font-semibold text-brand-text">{matched.name}</strong>'s card - the sticker is assigned to them.
+                                        That's <strong className="font-semibold text-brand-text">{(matched ?? matchedMenu).name}</strong>'s {matched ? "card" : "menu"} - the sticker is assigned to them.
                                     </>
                                 ) : (
                                     "Any http(s) address. Leave empty to unmap."

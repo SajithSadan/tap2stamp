@@ -27,6 +27,9 @@ class ShopSettingsController extends Controller
                 ...$shop->contactDetails(),
             ],
             'ownerEmail' => $shop->owner?->email,
+            'menuItemsCount' => $shop->menuItems()->count(),
+            'menuUrl' => route('menu.show', $shop),
+            'previewUrl' => route('card.show', ['shop' => $shop, 'preview' => 1]),
             // Product orders: what's been ordered, and the "record an order"
             // form for payments taken outside the app.
             'productOrderedAt' => $shop->product_ordered_at?->timezone('Europe/London')->format('j M Y'),

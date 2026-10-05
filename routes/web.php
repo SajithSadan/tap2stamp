@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\QrCodeController;
 use App\Http\Controllers\Admin\QrDesignController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Controllers\Admin\ShopOwnerController;
 use App\Http\Controllers\Admin\ShopSettingsController;
 use App\Http\Controllers\Admin\ViewAsOwnerController;
@@ -19,6 +20,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\Dev\CustomThemeController;
 use App\Http\Controllers\Dev\ThemePreviewController;
+use App\Http\Controllers\MarketingController;
+use App\Http\Controllers\MenuController;
 use App\Http\Controllers\MyCardsController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OwnerScanController;
@@ -32,6 +35,7 @@ use App\Http\Controllers\StaffDeviceController;
 use App\Http\Controllers\StaffMemberController;
 use App\Http\Controllers\StaffSetupController;
 use App\Http\Controllers\StripeWebhookController;
+use App\Http\Controllers\UnsubscribeController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -69,6 +73,20 @@ Route::post('/s/{shop:slug}/card/{customer:uuid}/review', [ReviewController::cla
     ->middleware('throttle:10,1')
     ->name('card.review.store')
     ->withoutScopedBindings();
+
+// The "Unsubscribe" button on WhatsApp offers. GET only shows the page (link
+// previews open it too); the POST withdraws consent for that one shop.
+Route::get('/u/{token}', [UnsubscribeController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]{32}')
+    ->middleware('throttle:30,1')
+    ->name('marketing.unsubscribe');
+Route::post('/u/{token}', [UnsubscribeController::class, 'store'])
+    ->where('token', '[A-Za-z0-9]{32}')
+    ->middleware('throttle:10,1');
+
+// A shop's public menu, for QR stickers mapped to it. By id, not slug: the
+// URL mustn't reveal the shop's card link.
+Route::get('/menu/{shop}', [MenuController::class, 'show'])->name('menu.show');
 
 // Cross-shop view: the mobile bottom nav's "My Cards" tab. Same uuid-in-
 // localStorage identity as the card routes above - no shop in the URL
@@ -125,6 +143,12 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::post('/view-as-owner/stop', [ViewAsOwnerController::class, 'stop'])->name('view-as-owner.stop');
     // Payment taken outside the app (bank transfer / cash) - hides the owner's order banner.
     Route::post('/shops/{shop}/orders', [AdminOrderController::class, 'store'])->name('shops.orders.store');
+    // The shop's menu: Gemini reads a photo/PDF into the editor, the admin checks it and saves.
+    Route::get('/shops/{shop}/menu', [ShopMenuController::class, 'edit'])->name('shops.menu.edit');
+    Route::post('/shops/{shop}/menu/read', [ShopMenuController::class, 'read'])->middleware('throttle:10,1')->name('shops.menu.read');
+    Route::put('/shops/{shop}/menu', [ShopMenuController::class, 'update'])->name('shops.menu.update');
+    Route::delete('/shops/{shop}/menu', [ShopMenuController::class, 'destroy'])->name('shops.menu.destroy');
+    Route::put('/shops/{shop}/menu/theme', [ShopMenuController::class, 'updateTheme'])->name('shops.menu.theme');
 
     // Product orders (to post out) and the products shops can order.
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
@@ -210,6 +234,11 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::delete('/theme/banner', [ShopBannerController::class, 'destroy'])->name('theme.banner.destroy');
     Route::post('/theme/logo', [ShopLogoController::class, 'update'])->name('theme.logo');
     Route::delete('/theme/logo', [ShopLogoController::class, 'destroy'])->name('theme.logo.destroy');
+
+    // WhatsApp offers to this shop's opted-in customers, sent in batches by the open page.
+    Route::get('/marketing', [MarketingController::class, 'index'])->name('marketing');
+    Route::post('/marketing', [MarketingController::class, 'store'])->middleware('throttle:5,1')->name('marketing.store');
+    Route::post('/marketing/{campaign}/send', [MarketingController::class, 'send'])->middleware('throttle:60,1')->name('marketing.send');
 
     // Ordering products (any quantity) through Stripe Checkout, and tracking them.
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');

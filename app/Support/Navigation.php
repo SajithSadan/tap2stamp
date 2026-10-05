@@ -58,6 +58,7 @@ class Navigation
             ['route' => 'dashboard.insights', 'label' => 'Insights', 'icon' => 'insights', 'roles' => $owner],
             ['route' => 'dashboard.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $owner],
             ['route' => 'dashboard.reviews', 'label' => 'Reviews', 'icon' => 'reviews', 'roles' => $owner],
+            ['route' => 'dashboard.marketing', 'label' => 'WhatsApp', 'icon' => 'whatsapp', 'roles' => $owner],
             ['route' => 'dashboard.staff', 'label' => 'Staff', 'icon' => 'staff', 'roles' => $owner, 'mobile_primary' => true],
             ['route' => 'dashboard.orders', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $owner, 'active' => ['dashboard.orders*']],
             ['route' => 'dashboard.theme', 'label' => 'Theme', 'icon' => 'theme', 'roles' => $owner, 'active' => ['dashboard.theme*']],

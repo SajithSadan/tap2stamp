@@ -54,6 +54,28 @@ return [
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
+    // Gemini reads photos/PDFs of a shop's menu into sections and items
+    // (Admin → shop → Menu). Server-side only (App\Services\MenuReader).
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.8-flash'),
+        // Tried when the main model is overloaded (503 "high demand" / 429).
+        'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-2.5-flash'),
+    ],
+
+    // WhatsApp Cloud API (Meta) for owners' marketing messages. One Tada Tap
+    // business number sends for every shop, using one approved template -
+    // its exact wording is App\Services\WhatsAppGateway::TEMPLATE_BODY.
+    'whatsapp' => [
+        'token' => env('WHATSAPP_TOKEN'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'template' => env('WHATSAPP_TEMPLATE', 'shop_offer'),
+        // Same body + button with an Image header, for messages with a poster.
+        'template_image' => env('WHATSAPP_TEMPLATE_IMAGE', 'shop_offer_image'),
+        'template_language' => env('WHATSAPP_TEMPLATE_LANGUAGE', 'en_GB'),
+        'api_version' => env('WHATSAPP_API_VERSION', 'v21.0'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

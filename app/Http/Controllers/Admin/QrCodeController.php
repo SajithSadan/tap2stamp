@@ -63,7 +63,7 @@ class QrCodeController extends Controller
             ->latest('id')
             ->get();
 
-        $shops = Shop::query()->withCount('qrCodes')->orderBy('name')->get(['id', 'name', 'slug']);
+        $shops = Shop::query()->withCount(['qrCodes', 'menuItems'])->orderBy('name')->get(['id', 'name', 'slug']);
         $designs = QrDesign::withCount('codes')->latest('id')->get()
             ->map(fn (QrDesign $design) => $design->toClient() + ['codes_count' => $design->codes_count]);
 
@@ -84,6 +84,7 @@ class QrCodeController extends Controller
                 'name' => $shop->name,
                 'slug' => $shop->slug,
                 'qr_codes_count' => $shop->qr_codes_count,
+                'has_menu' => $shop->menu_items_count > 0,
             ]),
             'stats' => [
                 'total' => $total,
@@ -134,6 +135,11 @@ class QrCodeController extends Controller
         }
 
         $path = parse_url($url, PHP_URL_PATH) ?: '';
+
+        // A shop's menu (/menu/{id}) belongs to that shop too.
+        if (preg_match('~^/menu/(\d+)/?$~', $path, $matches)) {
+            return Shop::query()->whereKey((int) $matches[1])->value('id');
+        }
 
         if (! preg_match('~^/s/([^/]+)/?$~', $path, $matches)) {
             return null;

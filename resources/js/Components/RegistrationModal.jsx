@@ -337,7 +337,7 @@ export default function RegistrationModal({
                                 id="offers-confirm-description"
                                 className="mt-2 text-sm leading-relaxed text-brand-muted"
                             >
-                                You won't receive offers from{" "}
+                                You won't receive WhatsApp offers from{" "}
                                 <span className="font-semibold text-brand-text">
                                     {shopName}
                                 </span>
@@ -543,7 +543,8 @@ export default function RegistrationModal({
                                         />
                                     </span>
                                     <span className="text-[13px] leading-snug text-brand-text">
-                                        Yes, send me offers from {shopName}
+                                        Yes, send me offers from {shopName} on
+                                        WhatsApp. Unsubscribe any time.
                                     </span>
                                 </label>
                             </Reveal>
