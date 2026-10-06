@@ -58,6 +58,16 @@ function Tags({ tags }) {
     );
 }
 
+/**
+ * The item's photo (AI-checked, see MenuItemImages), fixed size so rows
+ * don't jump while it loads. Nothing at all when there isn't one.
+ */
+function Photo({ item, className }) {
+    if (!item.image_url) return null;
+
+    return <img src={item.image_url} alt={item.name} loading="lazy" className={`shrink-0 object-cover ${className}`} />;
+}
+
 /* ---------- The three layouts (MenuThemes::LAYOUTS) ---------- */
 
 function ListSection({ section }) {
@@ -66,13 +76,16 @@ function ListSection({ section }) {
             <h2 className="px-4 pb-1 pt-4 font-heading text-lg font-semibold text-brand-text">{section.name}</h2>
             <ul className="divide-y divide-brand-border">
                 {section.items.map((item, i) => (
-                    <li key={i} className="px-4 py-3">
-                        <div className="flex items-baseline justify-between gap-4">
-                            <p className="min-w-0 font-medium text-brand-text">{item.name}</p>
-                            {item.price && <p className="shrink-0 font-semibold tabular-nums text-brand-text">{item.price}</p>}
+                    <li key={i} className="flex gap-3 px-4 py-3">
+                        <Photo item={item} className="h-14 w-14 rounded-xl" />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-4">
+                                <p className="min-w-0 font-medium text-brand-text">{item.name}</p>
+                                {item.price && <p className="shrink-0 font-semibold tabular-nums text-brand-text">{item.price}</p>}
+                            </div>
+                            {item.description && <p className="mt-0.5 text-sm text-brand-muted">{item.description}</p>}
+                            <Tags tags={item.tags} />
                         </div>
-                        {item.description && <p className="mt-0.5 text-sm text-brand-muted">{item.description}</p>}
-                        <Tags tags={item.tags} />
                     </li>
                 ))}
             </ul>
@@ -91,14 +104,17 @@ function ClassicSection({ section }) {
             </h2>
             <ul className="mt-4 space-y-4">
                 {section.items.map((item, i) => (
-                    <li key={i}>
-                        <div className="flex items-baseline gap-2">
-                            <p className="min-w-0 font-semibold text-brand-text">{item.name}</p>
-                            <span className="min-w-4 flex-1 -translate-y-1 border-b border-dotted border-brand-muted/60" />
-                            {item.price && <p className="shrink-0 font-semibold tabular-nums text-brand-accent">{item.price}</p>}
+                    <li key={i} className="flex gap-3">
+                        <Photo item={item} className="h-11 w-11 rounded-full" />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline gap-2">
+                                <p className="min-w-0 font-semibold text-brand-text">{item.name}</p>
+                                <span className="min-w-4 flex-1 -translate-y-1 border-b border-dotted border-brand-muted/60" />
+                                {item.price && <p className="shrink-0 font-semibold tabular-nums text-brand-accent">{item.price}</p>}
+                            </div>
+                            {item.description && <p className="mt-0.5 text-sm italic text-brand-muted">{item.description}</p>}
+                            <Tags tags={item.tags} />
                         </div>
-                        {item.description && <p className="mt-0.5 text-sm italic text-brand-muted">{item.description}</p>}
-                        <Tags tags={item.tags} />
                     </li>
                 ))}
             </ul>
@@ -113,18 +129,21 @@ function CardsSection({ section }) {
             <h2 className="mb-2 px-1 font-heading text-xl font-semibold text-brand-text">{section.name}</h2>
             <ul className="space-y-2">
                 {section.items.map((item, i) => (
-                    <li key={i} className="rounded-brand border border-brand-border bg-brand-card p-4">
-                        <div className="flex items-start justify-between gap-3">
-                            <p className="min-w-0 font-semibold text-brand-text">{item.name}</p>
-                            {item.price && (
-                                <span className="shrink-0 rounded-full bg-brand-accent px-2.5 py-1 text-xs font-bold tabular-nums text-brand-accent-text">
-                                    {item.price}
-                                </span>
-                            )}
+                    <li key={i} className="flex gap-3 rounded-brand border border-brand-border bg-brand-card p-4">
+                        <Photo item={item} className="h-16 w-16 rounded-xl" />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                                <p className="min-w-0 font-semibold text-brand-text">{item.name}</p>
+                                {item.price && (
+                                    <span className="shrink-0 rounded-full bg-brand-accent px-2.5 py-1 text-xs font-bold tabular-nums text-brand-accent-text">
+                                        {item.price}
+                                    </span>
+                                )}
+                            </div>
+                            {/* Full width under the name, not squeezed beside the price. */}
+                            {item.description && <p className="mt-1 text-sm text-brand-muted">{item.description}</p>}
+                            <Tags tags={item.tags} />
                         </div>
-                        {/* Full width under the name, not squeezed beside the price. */}
-                        {item.description && <p className="mt-1 text-sm text-brand-muted">{item.description}</p>}
-                        <Tags tags={item.tags} />
                     </li>
                 ))}
             </ul>

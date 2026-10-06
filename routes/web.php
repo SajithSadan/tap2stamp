@@ -155,6 +155,8 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::put('/shops/{shop}/menu', [ShopMenuController::class, 'update'])->name('shops.menu.update');
     Route::delete('/shops/{shop}/menu', [ShopMenuController::class, 'destroy'])->name('shops.menu.destroy');
     Route::put('/shops/{shop}/menu/theme', [ShopMenuController::class, 'updateTheme'])->name('shops.menu.theme');
+    // Photos for its items: fetched in small batches the open editor asks for (no queue workers).
+    Route::post('/shops/{shop}/menu/images', [ShopMenuController::class, 'images'])->middleware('throttle:30,1')->name('shops.menu.images');
 
     // Product orders (to post out) and the products shops can order.
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
@@ -254,6 +256,7 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::put('/menu', [OwnerMenuController::class, 'update'])->name('menu.update');
     Route::delete('/menu', [OwnerMenuController::class, 'destroy'])->name('menu.destroy');
     Route::put('/menu/theme', [OwnerMenuController::class, 'updateTheme'])->name('menu.theme');
+    Route::post('/menu/images', [OwnerMenuController::class, 'images'])->middleware('throttle:30,1')->name('menu.images');
 
     // WhatsApp offers to this shop's opted-in customers, sent in batches by the open page.
     Route::get('/marketing', [MarketingController::class, 'index'])->name('marketing');

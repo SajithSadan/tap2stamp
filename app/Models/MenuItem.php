@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class MenuItem extends Model
 {
@@ -34,11 +35,20 @@ class MenuItem extends Model
             ->all();
     }
 
-    protected $fillable = ['menu_section_id', 'name', 'description', 'price', 'tags', 'position'];
+    protected $fillable = [
+        'menu_section_id', 'name', 'description', 'price', 'tags', 'position',
+        'image_path', 'image_status', 'image_confidence', 'image_reason',
+    ];
 
     protected function casts(): array
     {
-        return ['tags' => 'array'];
+        return ['tags' => 'array', 'image_confidence' => 'float'];
+    }
+
+    /** The item's photo (fetched + AI-checked, see MenuItemImages), or null. */
+    public function imageUrl(): ?string
+    {
+        return $this->image_path ? Storage::disk('uploads')->url($this->image_path) : null;
     }
 
     public function section(): BelongsTo

@@ -27,6 +27,8 @@ class SaveShopMenuRequest extends FormRequest
             'sections.*.items.*.tags' => ['nullable', 'array', 'max:'.MenuItem::MAX_TAGS],
             // Blank ones are dropped by MenuItem::tidyTags() on save.
             'sections.*.items.*.tags.*' => ['nullable', 'string', 'max:'.MenuItem::TAG_LENGTH],
+            // Only kept if one of this shop's items already had it (ShopMenu::replace()).
+            'sections.*.items.*.image_path' => ['nullable', 'string', 'max:255'],
         ];
     }
 

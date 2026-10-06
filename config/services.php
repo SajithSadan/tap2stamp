@@ -56,7 +56,21 @@ return [
 
     // Gemini reads photos/PDFs of a shop's menu into sections and items
     // (Admin → shop → Menu). Server-side only (App\Services\MenuReader).
+    // The product catalog app menu item photos come from (HMAC-signed GETs,
+    // App\Services\ProductCatalog). Keys stay server-side.
+    'product_api' => [
+        'url' => env('PRODUCT_API_URL'),
+        'public_key' => env('PRODUCT_API_PUBLIC_KEY'),
+        'private_key' => env('PRODUCT_API_PRIVATE_KEY'),
+        // Only ever false for a local catalog with a self-signed certificate.
+        'verify_ssl' => (bool) env('PRODUCT_API_VERIFY_SSL', true),
+        // Catalog results Gemini checks per menu item before giving up.
+        'max_candidates' => 3,
+    ],
+
     'gemini' => [
+        // Lowest Gemini confidence (0-1) for a menu item photo to be kept.
+        'image_min_confidence' => (float) env('MENU_IMAGE_MIN_CONFIDENCE', 0.75),
         'key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-3.8-flash'),
         // Tried when the main model is overloaded (503 "high demand" / 429).

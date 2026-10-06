@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\MenuController;
 use App\Http\Requests\Admin\ReadMenuRequest;
 use App\Http\Requests\Admin\SaveShopMenuRequest;
+use App\Models\MenuItem;
 use App\Models\Shop;
+use App\Services\MenuItemImages;
 use App\Services\MenuReader;
 use App\Services\ShopMenu;
 use App\Support\MenuThemes;
@@ -46,10 +48,56 @@ class ShopMenuController extends Controller
             'menuUrl' => $shop->menuUrl(),
             'urls' => $urls,
             'aiEnabled' => $reader->configured(),
+            'imagesEnabled' => app(MenuItemImages::class)->enabled(),
             'maxFiles' => MenuReader::MAX_FILES,
             'themes' => collect(MenuThemes::all())->map(fn ($theme, $key) => ['key' => $key, ...$theme])->values(),
             'currentTheme' => $shop->menuTheme()['key'],
         ];
+    }
+
+    /** Next batch of menu item photos (or one item's "Find again"). */
+    public function images(Request $request, Shop $shop, MenuItemImages $images): JsonResponse
+    {
+        return self::fetchImages($request, $shop, $images);
+    }
+
+    /**
+     * Body: none = the next few items never looked for; {item, query?} =
+     * look again for one item of this shop (404 for anyone else's).
+     */
+    public static function fetchImages(Request $request, Shop $shop, MenuItemImages $images): JsonResponse
+    {
+        abort_unless($images->enabled(), 404);
+        $validated = $request->validate([
+            'item' => ['nullable', 'integer'],
+            'query' => ['nullable', 'string', 'max:120'],
+            // "Find photos" with nothing left to try: look again for items that got none
+            // (not those whose photo was taken off by hand).
+            'retry' => ['nullable', 'boolean'],
+        ]);
+
+        if ($request->boolean('retry')) {
+            MenuItem::whereIn('id', $shop->menuItems()->select('menu_items.id'))
+                ->whereIn('image_status', ['not_found', 'rejected'])
+                ->update(['image_status' => null, 'image_confidence' => null, 'image_reason' => null]);
+        }
+
+        // Catalog + Gemini calls take a few seconds each; shared hosting defaults to 30 s.
+        @set_time_limit(120);
+
+        if (isset($validated['item'])) {
+            $item = $shop->menuItems()->where('menu_items.id', $validated['item'])->select('menu_items.*')->firstOrFail();
+            $status = $images->fetchFor($item, $validated['query'] ?? null);
+
+            return response()->json([
+                'done' => $status === null ? 0 : 1,
+                'remaining' => 0,
+                'unavailable' => $status === null,
+                'items' => $status === null ? [] : [MenuItemImages::summary($item->fresh('section'))],
+            ]);
+        }
+
+        return response()->json($images->fetchNext($shop));
     }
 
     /** "Choose theme": saved straight away, it's only the look. */

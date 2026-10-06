@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Requests\Admin\ReadMenuRequest;
 use App\Http\Requests\Admin\SaveShopMenuRequest;
+use App\Services\MenuItemImages;
 use App\Services\MenuReader;
 use App\Services\ShopMenu;
 use Illuminate\Http\JsonResponse;
@@ -47,6 +48,11 @@ class OwnerMenuController extends Controller
         $menu->replace($request->user()->shop, []);
 
         return back()->with('status', 'Your menu was cleared.');
+    }
+
+    public function images(Request $request, MenuItemImages $images): JsonResponse
+    {
+        return ShopMenuController::fetchImages($request, $request->user()->shop, $images);
     }
 
     public function updateTheme(Request $request): RedirectResponse

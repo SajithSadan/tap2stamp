@@ -515,6 +515,23 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
   renders every theme with the shop's own items). One renderer, `Components/MenuView.jsx`,
   draws the public page, the editor's live phone preview and the picker cards — add a
   layout there and in `MenuThemes::LAYOUTS`.
+- **Item photos** (`menu_items.image_path/image_status/image_confidence/image_reason`): only
+  when asked (no automatic run after save / on open - the user's choice), the editor calls `POST {base}/images` (admin `/admin/shops/{shop}/menu/images`, owner
+  `/dashboard/menu/images`) until `remaining` is 0 — `App\Services\MenuItemImages` looks each
+  never-tried item up in the product catalog (`ProductCatalog`, HMAC-signed GETs to
+  `PRODUCT_API_URL`, keys server-side; full name → hyphenated → main word, since it matches text
+  as typed), `MenuImageVerifier` (Gemini) must accept a candidate (dish = any clear photo of it,
+  branded = brand + size; `MENU_IMAGE_MIN_CONFIDENCE`), and only then it's stored on the
+  `uploads` disk (`menu-items/{shop}/…`). Gemini down → nothing saved, status stays null (retried).
+  Statuses: null / found / not_found / rejected / removed. 3 items per request (no queue).
+  Triggers: toolbar **Find photos** (untried items; with none left it sends `retry` = look
+  again for not_found/rejected, never `removed`), and per saved item the thumbnail /
+  "Find photo" / "Change photo" (`{item, query}`) and "Remove photo".
+  **Whole-menu saves keep photos**: `ShopMenu::replace()` only accepts an `image_path` this
+  shop's items already had, null → `removed`, no key → same-named item's photo; unused files are
+  deleted. The catalog (imgapi.techsasolutions.com) is a grocery/retail catalog: branded drinks
+  and snacks are found, made-to-order dishes mostly aren't. `MenuView` shows the photo in every
+  layout; no photo = the layout as before. Off (`imagesEnabled` false, 404) without catalog keys.
 - **QR stickers**: `QrDestinationField` has a **Menu** tab (fills `/menu/{menu_slug}`);
   `QrCodeController::shopIdForDestination()` assigns those stickers (and old `/menu/{id}`
   ones) to the shop too.
