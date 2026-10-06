@@ -5,18 +5,32 @@ namespace App\Http\Controllers;
 use App\Models\Shop;
 use App\Services\ShopMenu;
 use App\Support\StampIcons;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class MenuController extends Controller
 {
     /**
-     * The public menu page, opened from a QR sticker mapped to it. By shop id,
-     * not slug, so the URL doesn't give owners their card link (see
-     * "Owners don't get their card link").
+     * The public menu page, opened from a QR sticker mapped to it. By the
+     * shop's menu_slug, never the card slug, so the URL doesn't give owners
+     * their card link (see "Owners don't get their card link"). Old /menu/{id}
+     * links (stickers mapped before menu links existed) redirect.
      */
-    public function show(Shop $shop, ShopMenu $menu): Response
+    public function show(string $menuSlug, ShopMenu $menu): Response|RedirectResponse
     {
+        $shop = Shop::where('menu_slug', $menuSlug)->first();
+
+        if (! $shop && ctype_digit($menuSlug)) {
+            $old = Shop::find((int) $menuSlug);
+            abort_unless($old, 404);
+
+            // 302, not 301: browsers would cache a 301 forever.
+            return redirect()->to($old->menuUrl());
+        }
+
+        abort_unless($shop, 404);
+
         return Inertia::render('Menu', [
             'shop' => self::header($shop),
             'sections' => $menu->sections($shop),

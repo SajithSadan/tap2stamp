@@ -66,7 +66,7 @@ test('an admin can open the menu editor', function () {
             ->where('shop.id', $shop->id)
             ->where('sections', [])
             ->where('aiEnabled', true)
-            ->where('menuUrl', route('menu.show', $shop)));
+            ->where('menuUrl', $shop->menuUrl()));
 });
 
 test('saving replaces the whole menu, in order', function () {
@@ -234,17 +234,17 @@ test('the shop settings page shows how many menu items the shop has', function (
     $this->actingAs($admin)->get("/admin/shops/{$shop->id}/settings")
         ->assertInertia(fn ($page) => $page->component('Admin/ShopSettings')
             ->where('menuItemsCount', 3)
-            ->where('menuUrl', route('menu.show', $shop)));
+            ->where('menuUrl', $shop->menuUrl()));
 });
 
 // --- Public page & QR stickers --------------------------------------------
 
-test('anyone can open a shop menu by its id', function () {
+test('anyone can open a shop menu by its menu link', function () {
     $shop = Shop::factory()->create();
     $this->actingAs(menuAdmin())->put("/admin/shops/{$shop->id}/menu", ['sections' => sampleMenu()]);
     auth()->logout();
 
-    $this->get("/menu/{$shop->id}")
+    $this->get("/menu/{$shop->menu_slug}")
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('Menu')
             ->where('shop.name', $shop->name)
@@ -254,6 +254,7 @@ test('anyone can open a shop menu by its id', function () {
             ->has('theme'));
 
     $this->get('/menu/999999')->assertNotFound();
+    $this->get("/menu/{$shop->slug}")->assertNotFound(); // the card slug isn't the menu link
 });
 
 test('the admin picks a menu theme from the catalog, and the menu page wears it', function () {
@@ -270,11 +271,11 @@ test('the admin picks a menu theme from the catalog, and the menu page wears it'
 
     expect($shop->fresh()->menu_theme)->toBe('bistro');
 
-    $this->get("/menu/{$shop->id}")
+    $this->get("/menu/{$shop->menu_slug}")
         ->assertInertia(fn ($page) => $page->where('theme.key', 'bistro')->where('theme.layout', 'classic'));
 });
 
-test('only catalog menu themes can be chosen, and only by an admin', function () {
+test('only catalog menu themes can be chosen, and an owner only for their own shop', function () {
     $owner = User::factory()->create(['role' => UserRole::Owner]);
     $shop = Shop::factory()->create(['user_id' => $owner->id]);
 
@@ -302,4 +303,92 @@ test('a QR sticker mapped to a shop menu is assigned to that shop', function () 
         ->assertSessionHasNoErrors();
 
     expect($qr->fresh()->shop_id)->toBe($shop->id);
+});
+
+test('a QR sticker mapped to a shop menu link is assigned to that shop', function () {
+    $shop = Shop::factory()->create();
+    $qr = QrCode::factory()->create();
+
+    $this->actingAs(menuAdmin())
+        ->put("/admin/qr-codes/{$qr->id}", ['destination_url' => "http://localhost/menu/{$shop->menu_slug}"])
+        ->assertSessionHasNoErrors();
+
+    expect($qr->fresh()->shop_id)->toBe($shop->id);
+});
+
+// --- Menu links -----------------------------------------------------------
+
+test('every shop gets a menu link from its name plus a short code, never its card link', function () {
+    $a = Shop::factory()->create(['name' => 'Bean There', 'slug' => 'bean-there']);
+    $b = Shop::factory()->create(['name' => 'Bean There', 'slug' => 'bean-there-2']);
+
+    expect($a->menu_slug)->toMatch('/^bean-there-[a-z2-9]{4}$/')
+        ->and($a->menu_slug)->not->toBe($a->slug)
+        ->and($b->menu_slug)->not->toBe($a->menu_slug);
+});
+
+test('old menu links by shop id redirect to the menu link', function () {
+    $shop = Shop::factory()->create();
+
+    $this->get("/menu/{$shop->id}")->assertRedirect($shop->menuUrl());
+});
+
+// --- The owner's own menu -------------------------------------------------
+
+function menuOwner(): array
+{
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    return [$owner, Shop::factory()->create(['user_id' => $owner->id])];
+}
+
+test('an owner opens the menu editor for their own shop', function () {
+    [$owner, $shop] = menuOwner();
+
+    $this->actingAs($owner)->get('/dashboard/menu')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('Dashboard/Menu')
+            ->where('shop.id', $shop->id)
+            ->where('urls.base', '/dashboard/menu')
+            ->where('menuUrl', $shop->menuUrl())
+            // OwnerLayout's summary - and still no card link unless the admin allows it.
+            ->where('shop.slug', null));
+});
+
+test('an owner saves, re-themes and clears only their own menu', function () {
+    [$owner, $shop] = menuOwner();
+    [, $other] = menuOwner();
+    $this->actingAs(menuAdmin())->put("/admin/shops/{$other->id}/menu", ['sections' => sampleMenu()]);
+
+    $this->actingAs($owner)->put('/dashboard/menu', ['sections' => sampleMenu()])
+        ->assertRedirect()->assertSessionHas('status');
+    $this->actingAs($owner)->put('/dashboard/menu/theme', ['theme' => 'diner'])->assertSessionHasNoErrors();
+
+    expect($shop->menuItems()->count())->toBe(3)
+        ->and($shop->fresh()->menu_theme)->toBe('diner')
+        ->and($other->fresh()->menu_theme)->toBeNull();
+
+    $this->actingAs($owner)->delete('/dashboard/menu')->assertRedirect();
+
+    expect($shop->menuItems()->count())->toBe(0)
+        ->and($other->menuItems()->count())->toBe(3);
+});
+
+test('an owner can read a menu photo with AI', function () {
+    [$owner] = menuOwner();
+    geminiReplies(sampleMenu());
+
+    $this->actingAs($owner)
+        ->post('/dashboard/menu/read', ['files' => [UploadedFile::fake()->image('menu.jpg')]])
+        ->assertOk()
+        ->assertJsonPath('sections.0.items.0.name', 'Flat white');
+
+    expect(MenuItem::count())->toBe(0);
+});
+
+test('the owner menu is in the owner navigation', function () {
+    [$owner] = menuOwner();
+
+    $this->actingAs($owner)->get('/dashboard/menu')
+        ->assertInertia(fn ($page) => $page->where('navigation.main', fn ($items) => collect($items)->contains(fn ($item) => $item['label'] === 'Menu' && $item['active'])));
 });

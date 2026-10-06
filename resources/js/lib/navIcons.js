@@ -4,6 +4,7 @@ import {
     LuExternalLink,
     LuLayoutDashboard,
     LuLightbulb,
+    LuLogs,
     LuPackage,
     LuPalette,
     LuPlus,
@@ -13,6 +14,7 @@ import {
     LuStore,
     LuUserCog,
     LuUsers,
+    LuUtensils,
 } from 'react-icons/lu';
 import { FaWhatsapp } from 'react-icons/fa6';
 
@@ -26,6 +28,8 @@ const NAV_ICONS = {
     customers: LuUsers,
     external: LuExternalLink,
     insights: LuLightbulb,
+    logs: LuLogs,
+    menu: LuUtensils,
     orders: LuPackage,
     overview: LuLayoutDashboard,
     qr: LuQrCode,

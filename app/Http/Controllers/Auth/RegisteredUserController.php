@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterOwnerRequest;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -31,6 +32,8 @@ class RegisteredUserController extends Controller
             'password' => $request->string('password')->value(),
             'role' => UserRole::Owner,
         ]);
+
+        ActivityLogger::record('auth.signed_up', 'Signed up with email', null, $user, null, ActivityLogger::user($user));
 
         Auth::login($user);
         $request->session()->regenerate();

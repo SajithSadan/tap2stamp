@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\AddressLookupController;
+use App\Http\Controllers\Admin\ActivityController as AdminActivityController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\QrCodeController;
@@ -24,6 +26,7 @@ use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\MyCardsController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OwnerMenuController;
 use App\Http\Controllers\OwnerScanController;
 use App\Http\Controllers\QrRedirectController;
 use App\Http\Controllers\ReviewController;
@@ -84,9 +87,12 @@ Route::post('/u/{token}', [UnsubscribeController::class, 'store'])
     ->where('token', '[A-Za-z0-9]{32}')
     ->middleware('throttle:10,1');
 
-// A shop's public menu, for QR stickers mapped to it. By id, not slug: the
-// URL mustn't reveal the shop's card link.
-Route::get('/menu/{shop}', [MenuController::class, 'show'])->name('menu.show');
+// A shop's public menu, for QR stickers mapped to it. By shops.menu_slug (name
+// + a short code), not the card slug: the URL mustn't reveal the card link.
+// Old /menu/{id} links redirect.
+Route::get('/menu/{menuSlug}', [MenuController::class, 'show'])
+    ->where('menuSlug', '[a-z0-9-]{1,80}')
+    ->name('menu.show');
 
 // Cross-shop view: the mobile bottom nav's "My Cards" tab. Same uuid-in-
 // localStorage identity as the card routes above - no shop in the URL
@@ -182,6 +188,13 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
 
     Route::put('/qr-codes/{qrCode}', [QrCodeController::class, 'update'])->name('qr-codes.update');
 
+    // What happened across every shop (read from existing tables), and the Laravel log.
+    Route::get('/activity', [AdminActivityController::class, 'index'])->name('activity');
+    Route::get('/logs', [LogController::class, 'index'])->name('logs');
+    Route::get('/logs/lines', [LogController::class, 'lines'])->name('logs.lines');
+    Route::get('/logs/download', [LogController::class, 'download'])->name('logs.download');
+    Route::post('/logs/clear', [LogController::class, 'clear'])->name('logs.clear');
+
     // App-wide switches (API keys themselves stay in .env).
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
     Route::put('/settings/google', [SettingsController::class, 'updateGoogle'])->name('settings.google');
@@ -234,6 +247,13 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::delete('/theme/banner', [ShopBannerController::class, 'destroy'])->name('theme.banner.destroy');
     Route::post('/theme/logo', [ShopLogoController::class, 'update'])->name('theme.logo');
     Route::delete('/theme/logo', [ShopLogoController::class, 'destroy'])->name('theme.logo.destroy');
+
+    // The shop's menu: same editor as the admin's (Gemini reads a photo, the owner checks and saves).
+    Route::get('/menu', [OwnerMenuController::class, 'edit'])->name('menu');
+    Route::post('/menu/read', [OwnerMenuController::class, 'read'])->middleware('throttle:10,1')->name('menu.read');
+    Route::put('/menu', [OwnerMenuController::class, 'update'])->name('menu.update');
+    Route::delete('/menu', [OwnerMenuController::class, 'destroy'])->name('menu.destroy');
+    Route::put('/menu/theme', [OwnerMenuController::class, 'updateTheme'])->name('menu.theme');
 
     // WhatsApp offers to this shop's opted-in customers, sent in batches by the open page.
     Route::get('/marketing', [MarketingController::class, 'index'])->name('marketing');

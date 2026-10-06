@@ -28,7 +28,7 @@ class ShopSettingsController extends Controller
             ],
             'ownerEmail' => $shop->owner?->email,
             'menuItemsCount' => $shop->menuItems()->count(),
-            'menuUrl' => route('menu.show', $shop),
+            'menuUrl' => $shop->menuUrl(),
             'previewUrl' => route('card.show', ['shop' => $shop, 'preview' => 1]),
             // Product orders: what's been ordered, and the "record an order"
             // form for payments taken outside the app.

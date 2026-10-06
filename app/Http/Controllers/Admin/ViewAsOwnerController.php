@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\ViewAsOwner;
 use App\Models\Shop;
+use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -21,6 +22,7 @@ class ViewAsOwnerController extends Controller
         // Always starts read-only; changes are switched on from the banner.
         $request->session()->put(ViewAsOwner::SESSION_KEY, $shop->id);
         $request->session()->forget(ViewAsOwner::EDIT_KEY);
+        ActivityLogger::record('view_as.started', "Started viewing {$shop->name} as its owner", $shop->id, $shop);
 
         return redirect()->route('dashboard.index');
     }
@@ -31,6 +33,7 @@ class ViewAsOwnerController extends Controller
         abort_unless($request->session()->has(ViewAsOwner::SESSION_KEY), 404);
 
         $request->session()->put(ViewAsOwner::EDIT_KEY, $request->boolean('editing'));
+        ActivityLogger::record('view_as.editing', $request->boolean('editing') ? 'Allowed changes while viewing as owner' : 'Back to read-only while viewing as owner', $request->session()->get(ViewAsOwner::SESSION_KEY));
 
         return back();
     }
@@ -39,6 +42,9 @@ class ViewAsOwnerController extends Controller
     {
         $request->session()->forget(ViewAsOwner::EDIT_KEY);
         $shopId = $request->session()->pull(ViewAsOwner::SESSION_KEY);
+        if ($shopId) {
+            ActivityLogger::record('view_as.stopped', 'Stopped viewing as owner', Shop::whereKey($shopId)->value('id'));
+        }
 
         return $shopId && Shop::whereKey($shopId)->exists()
             ? redirect()->route('admin.shops.settings.edit', $shopId)

@@ -147,19 +147,20 @@ export function shopForDestination(url, shops) {
     }
 }
 
-/** A shop's public menu page (same origin, /menu/{id}). */
+/** A shop's public menu page (same origin, /menu/{menu_slug}). */
 export function menuUrl(shop) {
-    return `${window.location.origin}/menu/${shop.id}`;
+    return `${window.location.origin}/menu/${encodeURIComponent(shop.menu_slug)}`;
 }
 
-/** Which shop a destination URL is the menu page of, if any. */
+/** Which shop a destination URL is the menu page of, if any (also old /menu/{id} links). */
 export function menuShopForDestination(url, shops) {
     try {
         const destination = new URL(url);
         if (destination.origin !== window.location.origin) return null;
 
-        const match = destination.pathname.match(/^\/menu\/(\d+)\/?$/);
-        return match ? (shops.find((shop) => shop.id === Number(match[1])) ?? null) : null;
+        const match = destination.pathname.match(/^\/menu\/([a-z0-9-]+)\/?$/);
+        if (!match) return null;
+        return shops.find((shop) => shop.menu_slug === match[1]) ?? shops.find((shop) => String(shop.id) === match[1]) ?? null;
     } catch {
         return null;
     }

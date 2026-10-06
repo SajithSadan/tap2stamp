@@ -7,7 +7,6 @@ use App\Models\Shop;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -16,7 +15,7 @@ use Symfony\Component\HttpFoundation\Response;
  * exactly the owner's screens. Read-only unless the admin switches on
  * "Allow changes" (EDIT_KEY) - e.g. to add staff or a device for an owner
  * who isn't technical. Paying and stamping stay with the owner even then.
- * Every change made this way is logged with the admin who made it.
+ * Every change made this way is in the activity log, as the admin who made it.
  *
  * The admin stays signed in as the admin: the owner is only swapped in for
  * the current request (never written to the session), only on dashboard
@@ -73,14 +72,9 @@ class ViewAsOwner
                     ? response()->json(['message' => $refusal], 403)
                     : back()->withErrors(['view_as' => $refusal]); // an error, so forms don't say "Saved"
             }
-
-            Log::info('Admin changed a shop as its owner', [
-                'admin_id' => $admin->id,
-                'shop_id' => $shopId,
-                'action' => $request->method().' '.$request->path(),
-            ]);
         }
 
+        // Read by ActivityLogger: every change made this way is recorded as this admin ("as owner").
         $request->attributes->set('viewAsAdmin', $admin);
         Auth::setUser($owner);
 

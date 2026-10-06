@@ -68,7 +68,7 @@ function ListSection({ section }) {
                 {section.items.map((item, i) => (
                     <li key={i} className="px-4 py-3">
                         <div className="flex items-baseline justify-between gap-4">
-                            <p className="font-medium text-brand-text">{item.name}</p>
+                            <p className="min-w-0 font-medium text-brand-text">{item.name}</p>
                             {item.price && <p className="shrink-0 font-semibold tabular-nums text-brand-text">{item.price}</p>}
                         </div>
                         {item.description && <p className="mt-0.5 text-sm text-brand-muted">{item.description}</p>}
@@ -93,7 +93,7 @@ function ClassicSection({ section }) {
                 {section.items.map((item, i) => (
                     <li key={i}>
                         <div className="flex items-baseline gap-2">
-                            <p className="font-semibold text-brand-text">{item.name}</p>
+                            <p className="min-w-0 font-semibold text-brand-text">{item.name}</p>
                             <span className="min-w-4 flex-1 -translate-y-1 border-b border-dotted border-brand-muted/60" />
                             {item.price && <p className="shrink-0 font-semibold tabular-nums text-brand-accent">{item.price}</p>}
                         </div>
@@ -113,17 +113,18 @@ function CardsSection({ section }) {
             <h2 className="mb-2 px-1 font-heading text-xl font-semibold text-brand-text">{section.name}</h2>
             <ul className="space-y-2">
                 {section.items.map((item, i) => (
-                    <li key={i} className="flex items-start justify-between gap-3 rounded-brand border border-brand-border bg-brand-card p-4">
-                        <div className="min-w-0">
-                            <p className="font-semibold text-brand-text">{item.name}</p>
-                            {item.description && <p className="mt-0.5 text-sm text-brand-muted">{item.description}</p>}
-                            <Tags tags={item.tags} />
+                    <li key={i} className="rounded-brand border border-brand-border bg-brand-card p-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <p className="min-w-0 font-semibold text-brand-text">{item.name}</p>
+                            {item.price && (
+                                <span className="shrink-0 rounded-full bg-brand-accent px-2.5 py-1 text-xs font-bold tabular-nums text-brand-accent-text">
+                                    {item.price}
+                                </span>
+                            )}
                         </div>
-                        {item.price && (
-                            <span className="shrink-0 rounded-full bg-brand-accent px-2.5 py-1 text-xs font-bold tabular-nums text-brand-accent-text">
-                                {item.price}
-                            </span>
-                        )}
+                        {/* Full width under the name, not squeezed beside the price. */}
+                        {item.description && <p className="mt-1 text-sm text-brand-muted">{item.description}</p>}
+                        <Tags tags={item.tags} />
                     </li>
                 ))}
             </ul>
@@ -196,7 +197,8 @@ export default function MenuView({ shop, sections, theme, embedded = false }) {
     return (
         <div
             style={embedded ? themeVars(theme) : undefined}
-            className="min-h-full bg-brand-bg font-sans text-brand-text"
+            // overflow-wrap: long words / URLs break instead of running out of their card
+            className="min-h-full bg-brand-bg font-sans text-brand-text [overflow-wrap:anywhere]"
         >
             <Header shop={shop} embedded={embedded} />
 

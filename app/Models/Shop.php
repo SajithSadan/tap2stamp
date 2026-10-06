@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RecordsActivity;
 use App\Support\HeaderStyle;
 use App\Support\MenuThemes;
 use App\Support\ShopContact;
@@ -18,7 +19,15 @@ use Illuminate\Support\Str;
 class Shop extends Model
 {
     /** @use HasFactory<ShopFactory> */
-    use HasFactory;
+    use HasFactory, RecordsActivity;
+
+    /** Activity log: product_ordered_at is set by payment, logged as the order. */
+    protected array $activityIgnore = ['product_ordered_at'];
+
+    public function activityShopId(): ?int
+    {
+        return $this->id;
+    }
 
     protected $fillable = [
         'user_id',
@@ -70,6 +79,10 @@ class Shop extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Shop $shop) {
+            $shop->menu_slug ??= static::uniqueMenuSlug($shop->name ?? '');
+        });
+
         // Orders placed before the shop had an address (or arranged by the
         // admin first) pick it up once one is saved - unless already posted.
         static::saved(function (Shop $shop) {
@@ -220,6 +233,35 @@ class Shop extends Model
         }
 
         return $slug;
+    }
+
+    /** No look-alikes (0/o, 1/l/i), like the QR sticker codes. */
+    private const MENU_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+    /**
+     * The public menu link: the name + a short random code ("bean-there-7k2q").
+     * Never just the name - that's the card link, which owners don't get
+     * (see "Owners don't get their card link"), and they do see their menu link.
+     */
+    public static function uniqueMenuSlug(string $name): string
+    {
+        $base = Str::limit(Str::slug($name), 60, '') ?: 'shop';
+
+        do {
+            $code = '';
+            for ($i = 0; $i < 4; $i++) {
+                $code .= self::MENU_CODE_ALPHABET[random_int(0, strlen(self::MENU_CODE_ALPHABET) - 1)];
+            }
+            $slug = "{$base}-{$code}";
+        } while (static::where('menu_slug', $slug)->exists());
+
+        return $slug;
+    }
+
+    /** The shop's public menu page. */
+    public function menuUrl(): string
+    {
+        return route('menu.show', $this->menu_slug);
     }
 
     /**

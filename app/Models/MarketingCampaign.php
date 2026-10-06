@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RecordsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,6 +10,16 @@ use Illuminate\Support\Facades\Storage;
 
 class MarketingCampaign extends Model
 {
+    use RecordsActivity;
+
+    /** Sending progress isn't logged - only that the offer was sent. */
+    protected array $activityEvents = ['created'];
+
+    public function activityLabel(): string
+    {
+        return '';
+    }
+
     protected $fillable = [
         'shop_id', 'user_id', 'audience', 'message', 'image_path', 'recipients_count',
         'sent_count', 'failed_count', 'status', 'completed_at',

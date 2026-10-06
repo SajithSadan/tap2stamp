@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RecordsActivity;
 use Database\Factories\StaffMemberFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,7 +13,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class StaffMember extends Model
 {
     /** @use HasFactory<StaffMemberFactory> */
-    use HasFactory;
+    use HasFactory, RecordsActivity;
+
+    protected array $activitySecret = ['pin_hash'];
 
     protected $fillable = [
         'shop_id',

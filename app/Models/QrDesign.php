@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RecordsActivity;
 use App\Support\QrStyle;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class QrDesign extends Model
 {
+    use RecordsActivity;
+
     /** Printed sticker width limits, in mm (A4 is 210 wide, minus margins). */
     public const MIN_WIDTH_MM = 30;
 

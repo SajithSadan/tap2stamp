@@ -9,6 +9,7 @@ use App\Models\CustomerShopCard;
 use App\Models\Shop;
 use App\Models\StaffMember;
 use App\Models\StampLog;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -20,7 +21,7 @@ class StampService
      */
     public function scan(Shop $shop, string $payload, ?StaffMember $staff = null, ?int $ownerId = null): array
     {
-        if (!preg_match('/^TOKEN:([0-9a-fA-F-]{36})\|SHOP:(\d+)$/', $payload, $matches)) {
+        if (! preg_match('/^TOKEN:([0-9a-fA-F-]{36})\|SHOP:(\d+)$/', $payload, $matches)) {
             return $this->error(422, 'invalid_qr', "That doesn't look like a loyalty card QR code.");
         }
 
@@ -73,6 +74,17 @@ class StampService
         // failure must never break or roll back a stamp that already
         // succeeded, so it's wrapped in try/catch and only logged.
         if (in_array($body['code'], ['stamp_added', 'reward_redeemed'], true)) {
+            // Who stamped whom (the customer by name only, never the phone).
+            $redeemed = $body['code'] === 'reward_redeemed';
+            ActivityLogger::record(
+                $redeemed ? 'stamp.reward_redeemed' : 'stamp.added',
+                $redeemed ? "Redeemed {$customer->name}'s reward" : "Stamped {$customer->name}'s card ({$body['stamps']}/{$body['max_stamps']})",
+                $shop->id,
+                $customer,
+                ['stamps' => [$redeemed ? $body['max_stamps'] : $body['stamps'] - 1, $body['stamps']]],
+                $staff ? ActivityLogger::staff($staff) : ($ownerId && ($owner = User::find($ownerId)) ? ActivityLogger::user($owner) : null),
+            );
+
             try {
                 event(new CardUpdated(
                     customerUuid: $customer->uuid,

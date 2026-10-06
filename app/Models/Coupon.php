@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\OrderStatus;
+use App\Models\Concerns\RecordsActivity;
 use Database\Factories\CouponFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,7 +19,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Coupon extends Model
 {
     /** @use HasFactory<CouponFactory> */
-    use HasFactory;
+    use HasFactory, RecordsActivity;
+
+    public function activityLabel(): string
+    {
+        return $this->code;
+    }
 
     public const PERCENT = 'percent';
 

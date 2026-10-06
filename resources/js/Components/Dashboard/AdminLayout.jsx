@@ -25,6 +25,8 @@ export default function AdminLayout({ title, description, actions, children }) {
     const { props } = usePage();
     const email = props.auth?.user?.email;
     const nav = useNavigation();
+    // Phone tab bar: items marked `mobile: false` in Navigation stay in the desktop sidebar only.
+    const tabs = nav.main.filter((item) => item.mobile);
     const [scanning, setScanning] = useState(false);
     useSidebarColors();
 
@@ -115,12 +117,12 @@ export default function AdminLayout({ title, description, actions, children }) {
                     reaching down under the home indicator (safe-area padding).
                     A raised Scan button sits in the middle (menu split around it)
                     to open the sticker scanner from anywhere in the admin. */}
-                {nav.main.length <= 5 ? (
+                {tabs.length <= 5 ? (
                     <nav className="fixed inset-x-0 bottom-0 z-20 flex bg-nav pb-[env(safe-area-inset-bottom)] text-nav-text lg:hidden">
                         <TabLinks
-                            items={nav.main.slice(
+                            items={tabs.slice(
                                 0,
-                                Math.ceil(nav.main.length / 2),
+                                Math.ceil(tabs.length / 2),
                             )}
                         />
                         <div className="relative flex flex-1 flex-col items-center justify-end pb-2.5">
@@ -140,14 +142,14 @@ export default function AdminLayout({ title, description, actions, children }) {
                             </span>
                         </div>
                         <TabLinks
-                            items={nav.main.slice(
-                                Math.ceil(nav.main.length / 2),
+                            items={tabs.slice(
+                                Math.ceil(tabs.length / 2),
                             )}
                         />
                     </nav>
                 ) : (
                     <nav className="no-scrollbar fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto bg-nav pb-[env(safe-area-inset-bottom)] text-nav-text lg:hidden">
-                        <TabLinks items={nav.main} scroll />
+                        <TabLinks items={tabs} scroll />
                     </nav>
                 )}
             </div>

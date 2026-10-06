@@ -18,27 +18,47 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * A shop's menu, managed by the admin only: Gemini reads a photo/PDF of the
- * printed menu into the editor, the admin checks it and saves.
+ * A shop's menu, managed by the admin for any shop (here) or by the owner for
+ * their own (App\Http\Controllers\OwnerMenuController, same editor and rules):
+ * Gemini reads a photo/PDF of the printed menu into the editor, it's checked
+ * and saved.
  */
 class ShopMenuController extends Controller
 {
     public function edit(Shop $shop, ShopMenu $menu, MenuReader $reader): Response
     {
-        return Inertia::render('Admin/Menu/Edit', [
+        return Inertia::render('Admin/Menu/Edit', self::editorProps($shop, $menu, $reader, [
+            'base' => "/admin/shops/{$shop->id}/menu",
+            'back' => "/admin/shops/{$shop->id}/settings#menu",
+        ]));
+    }
+
+    /**
+     * Everything the shared editor (Components/Menu/MenuEditor.jsx) needs.
+     * $urls: `base` (GET/PUT/DELETE the menu, + /read, /theme) and `back` (or null).
+     */
+    public static function editorProps(Shop $shop, ShopMenu $menu, MenuReader $reader, array $urls): array
+    {
+        return [
             // What the menu page's header shows, for the live preview.
             'shop' => MenuController::header($shop) + ['id' => $shop->id],
             'sections' => $menu->sections($shop),
-            'menuUrl' => route('menu.show', $shop),
+            'menuUrl' => $shop->menuUrl(),
+            'urls' => $urls,
             'aiEnabled' => $reader->configured(),
             'maxFiles' => MenuReader::MAX_FILES,
             'themes' => collect(MenuThemes::all())->map(fn ($theme, $key) => ['key' => $key, ...$theme])->values(),
             'currentTheme' => $shop->menuTheme()['key'],
-        ]);
+        ];
     }
 
     /** "Choose theme": saved straight away, it's only the look. */
     public function updateTheme(Request $request, Shop $shop): RedirectResponse
+    {
+        return self::saveTheme($request, $shop);
+    }
+
+    public static function saveTheme(Request $request, Shop $shop): RedirectResponse
     {
         $validated = $request->validate(['theme' => ['required', Rule::in(array_keys(MenuThemes::all()))]]);
 

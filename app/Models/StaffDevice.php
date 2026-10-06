@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RecordsActivity;
 use Database\Factories\StaffDeviceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,7 +11,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class StaffDevice extends Model
 {
     /** @use HasFactory<StaffDeviceFactory> */
-    use HasFactory;
+    use HasFactory, RecordsActivity;
+
+    /** Sign-ins are logged on their own (StaffController); last_used_at changes every request. */
+    protected array $activityIgnore = ['last_used_at', 'staff_member_id', 'staff_signed_in_at'];
+
+    protected array $activitySecret = ['token_hash'];
 
     protected $fillable = [
         'shop_id',

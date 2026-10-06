@@ -34,6 +34,7 @@ class Navigation
      *  - href:    optional closure(User): ?string for links that aren't a
      *             plain route (null hides the item)
      *  - external: opens in a new tab and isn't access-checked here
+     *  - mobile:  false = desktop sidebar only, not the admin's phone tab bar
      *
      * @return list<array<string, mixed>>
      */
@@ -48,8 +49,12 @@ class Navigation
             // "Add shop" is a button on this page, not its own menu item.
             ['route' => 'admin.index', 'label' => 'Shops', 'icon' => 'shops', 'roles' => $admin, 'active' => ['admin.index', 'admin.shops.*']],
             // "Products" and "Coupons" are buttons on this page, not their own menu items.
-            ['route' => 'admin.orders.index', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $admin, 'active' => ['admin.orders.*', 'admin.products.*', 'admin.coupons.*']],
+            // Not in the phone tab bar (keeps 2 + Scan + 2); on phones a shop's orders are on its page.
+            ['route' => 'admin.orders.index', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $admin, 'active' => ['admin.orders.*', 'admin.products.*', 'admin.coupons.*'], 'mobile' => false],
             ['route' => 'admin.qr-codes.index', 'label' => 'QR codes', 'icon' => 'qr', 'roles' => $admin, 'active' => ['admin.qr-codes.*']],
+            // Desktop sidebar only, like Orders.
+            ['route' => 'admin.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $admin, 'active' => ['admin.activity*'], 'mobile' => false],
+            ['route' => 'admin.logs', 'label' => 'Logs', 'icon' => 'logs', 'roles' => $admin, 'active' => ['admin.logs*'], 'mobile' => false],
             ['route' => 'admin.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $admin, 'active' => ['admin.settings*']],
 
             // --- Owner dashboard -----------------------------------------
@@ -58,6 +63,7 @@ class Navigation
             ['route' => 'dashboard.insights', 'label' => 'Insights', 'icon' => 'insights', 'roles' => $owner],
             ['route' => 'dashboard.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $owner],
             ['route' => 'dashboard.reviews', 'label' => 'Reviews', 'icon' => 'reviews', 'roles' => $owner],
+            ['route' => 'dashboard.menu', 'label' => 'Menu', 'icon' => 'menu', 'roles' => $owner, 'active' => ['dashboard.menu*']],
             ['route' => 'dashboard.marketing', 'label' => 'WhatsApp', 'icon' => 'whatsapp', 'roles' => $owner],
             ['route' => 'dashboard.staff', 'label' => 'Staff', 'icon' => 'staff', 'roles' => $owner, 'mobile_primary' => true],
             ['route' => 'dashboard.orders', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $owner, 'active' => ['dashboard.orders*']],
@@ -105,6 +111,7 @@ class Navigation
                 'external' => $item['external'] ?? false,
                 'active' => $request->routeIs(...($item['active'] ?? [$item['route']])),
                 'mobile_primary' => $item['mobile_primary'] ?? false,
+                'mobile' => $item['mobile'] ?? true,
             ];
         }
 

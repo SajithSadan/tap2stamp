@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RecordsActivity;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -10,6 +11,13 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Setting extends Model
 {
+    use RecordsActivity;
+
+    public function activityLabel(): string
+    {
+        return $this->key;
+    }
+
     /** Whether owners may sign up / log in with Google (also needs the .env keys). */
     public const GOOGLE_AUTH = 'google_auth_enabled';
 

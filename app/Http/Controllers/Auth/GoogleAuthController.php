@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -82,6 +83,10 @@ class GoogleAuthController extends Controller
 
         $user->email_verified_at ??= now();
         $user->save();
+
+        if ($user->wasRecentlyCreated) {
+            ActivityLogger::record('auth.signed_up', 'Signed up with Google', null, $user, null, ActivityLogger::user($user));
+        }
 
         Auth::login($user);
         $request->session()->regenerate();

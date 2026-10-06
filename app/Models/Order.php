@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\OrderStage;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
+use App\Models\Concerns\RecordsActivity;
 use Database\Factories\OrderFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Order extends Model
 {
     /** @use HasFactory<OrderFactory> */
-    use HasFactory;
+    use HasFactory, RecordsActivity;
+
+    public function activityLabel(): string
+    {
+        return "#{$this->id}";
+    }
 
     protected $fillable = [
         'shop_id',

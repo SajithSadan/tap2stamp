@@ -19,6 +19,7 @@ use App\Models\Shop;
 use App\Models\StaffDevice;
 use App\Models\StaffMember;
 use App\Models\StampLog;
+use App\Services\ActivityLogger;
 use App\Services\ShopInsights;
 use App\Services\StripeGateway;
 use App\Support\CuratedFonts;
@@ -111,6 +112,9 @@ class DashboardController extends Controller
         $query = $this->customersQuery($shop, $search)
             ->with('customer:id,name,phone')
             ->orderByDesc('last_stamped_at')->orderByDesc('id');
+
+        // Phone numbers leave the app here, so who downloaded them is on record.
+        ActivityLogger::record('customers.exported', 'Downloaded the customer list'.($search !== '' ? " (search: {$search})" : ''), $shop->id);
 
         return response()->streamDownload(function () use ($query, $shop) {
             $output = fopen('php://output', 'w');

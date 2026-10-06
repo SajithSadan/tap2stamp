@@ -1,7 +1,7 @@
 import { router, useForm, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
-import { LuCircleAlert, LuKeyRound, LuLandmark, LuLayoutDashboard, LuMail, LuRotateCcw, LuSettings, LuStore, LuTriangleAlert } from 'react-icons/lu';
+import { LuCircleAlert, LuKeyRound, LuLandmark, LuLayoutDashboard, LuMail, LuPalette, LuRotateCcw, LuSettings, LuStore, LuTriangleAlert } from 'react-icons/lu';
 import { useConfirm } from '@/Components/ConfirmDialog';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { CopyButton, FieldError, navSurface, Panel, primaryButton, secondaryButton, sideLinkClass, Switch } from '@/Components/Dashboard/Ui';
@@ -52,8 +52,8 @@ function GoogleSetup({ google }) {
                 ) : (
                     <p className="text-brand-muted">
                         No keys yet. Add <code className="font-mono text-brand-text">GOOGLE_CLIENT_ID</code> and{' '}
-                        <code className="font-mono text-brand-text">GOOGLE_CLIENT_SECRET</code> to <code className="font-mono text-brand-text">.env</code>,
-                        then run <code className="font-mono text-brand-text">php artisan config:clear</code>.
+                        <code className="font-mono text-brand-text">GOOGLE_CLIENT_SECRET</code> to <code className="font-mono text-brand-text">.env</code>, then
+                        run <code className="font-mono text-brand-text">php artisan config:clear</code>.
                     </p>
                 )}
             </div>
@@ -133,7 +133,9 @@ function SidebarColors({ saved, errors }) {
                         {saved && (
                             <button
                                 type="button"
-                                onClick={() => router.put('/admin/settings/sidebar', { bg: null, text: null }, { ...busy, onSuccess: () => (setBg(''), setText('')) })}
+                                onClick={() =>
+                                    router.put('/admin/settings/sidebar', { bg: null, text: null }, { ...busy, onSuccess: () => (setBg(''), setText('')) })
+                                }
                                 disabled={saving}
                                 className={secondaryButton}
                             >
@@ -209,9 +211,35 @@ function BankDetails({ saved }) {
     );
 }
 
+/** One tab per kind of setting; the open one is kept in the URL hash (#payments). */
+const TABS = [
+    { key: 'signin', label: 'Sign-in', icon: LuKeyRound, fields: ['enabled'] },
+    { key: 'payments', label: 'Payments', icon: LuLandmark, fields: ['account_name', 'bank_name', 'sort_code', 'account_number'] },
+    { key: 'appearance', label: 'Appearance', icon: LuPalette, fields: ['bg', 'text'] },
+];
+
+function initialTab() {
+    const hash = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
+    return TABS.some((t) => t.key === hash) ? hash : 'signin';
+}
+
 export default function Settings({ google, sidebar, bank }) {
     const { errors } = usePage().props;
+    const [tab, setTab] = useState(initialTab);
     const [saving, setSaving] = useState(false);
+    const tabHasError = (t) => t.fields.some((field) => errors?.[field]);
+
+    function openTab(key) {
+        setTab(key);
+        window.history.replaceState(window.history.state, '', `#${key}`);
+    }
+
+    // After a failed save, show the tab with the problem on it.
+    useEffect(() => {
+        if (TABS.find((t) => t.key === tab && tabHasError(t))) return;
+        const withError = TABS.find(tabHasError);
+        if (withError) openTab(withError.key);
+    }, [errors]);
     const live = google.enabled && google.configured;
     const [confirm, confirmDialog] = useConfirm();
 
@@ -240,48 +268,67 @@ export default function Settings({ google, sidebar, bank }) {
 
     return (
         <AdminLayout title="Settings" description="App-wide options. API keys stay in .env, never here.">
-            <Panel title="Sign-in methods" description="How shop owners sign up and log in. Customers never need an account." bodyClassName="divide-y divide-brand-border">
-                <MethodRow
-                    icon={<LuMail className="h-5 w-5 text-brand-accent" />}
-                    title="Email & password"
-                    description="Always available, and the only way admins log in."
-                    status={<StatusChip tone="live">Always on</StatusChip>}
-                />
+            <nav
+                role="tablist"
+                aria-label="Settings"
+                className="-mx-1 mb-4 flex gap-1 overflow-x-auto border-b border-brand-border px-1 [scrollbar-width:none]"
+            >
+                {TABS.map((t) => (
+                    <button
+                        key={t.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === t.key}
+                        onClick={() => openTab(t.key)}
+                        className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                            tab === t.key ? 'border-brand-accent text-brand-text' : 'border-transparent text-brand-muted hover:text-brand-text'
+                        }`}
+                    >
+                        <t.icon className="h-4 w-4" />
+                        {t.label}
+                        {tabHasError(t) && <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-label="has errors" />}
+                    </button>
+                ))}
+            </nav>
 
-                <MethodRow
-                    icon={<FcGoogle className="h-5 w-5" />}
-                    title="Google"
-                    description={'"Continue with Google" on the sign-up and log-in pages.'}
-                    status={googleStatus}
-                    control={
-                        <Switch
-                            checked={live}
-                            onChange={toggleGoogle}
-                            disabled={saving || !google.configured}
-                        />
-                    }
+            {tab === 'signin' && (
+                <Panel
+                    title="Sign-in methods"
+                    description="How shop owners sign up and log in. Customers never need an account."
+                    bodyClassName="divide-y divide-brand-border"
                 >
-                    <FieldError message={errors?.enabled} />
+                    <MethodRow
+                        icon={<LuMail className="h-5 w-5 text-brand-accent" />}
+                        title="Email & password"
+                        description="Always available, and the only way admins log in."
+                        status={<StatusChip tone="live">Always on</StatusChip>}
+                    />
 
-                    {live && google.google_only_owners > 0 && (
-                        <div className="mb-3 flex items-start gap-2.5 rounded-xl bg-amber-500/10 px-3.5 py-3 text-sm text-amber-800">
-                            <LuTriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                            <p>
-                                {google.google_only_owners} {google.google_only_owners === 1 ? 'owner signs' : 'owners sign'} in only with Google. Turning this off
-                                locks them out until it's back on.
-                            </p>
-                        </div>
-                    )}
+                    <MethodRow
+                        icon={<FcGoogle className="h-5 w-5" />}
+                        title="Google"
+                        description={'"Continue with Google" on the sign-up and log-in pages.'}
+                        status={googleStatus}
+                        control={<Switch checked={live} onChange={toggleGoogle} disabled={saving || !google.configured} />}
+                    >
+                        <FieldError message={errors?.enabled} />
 
-                    <GoogleSetup google={google} />
-                </MethodRow>
-            </Panel>
-            <div className="mt-6">
-                <BankDetails saved={bank} />
-            </div>
-            <div className="mt-6">
-                <SidebarColors saved={sidebar} errors={errors} />
-            </div>
+                        {live && google.google_only_owners > 0 && (
+                            <div className="mb-3 flex items-start gap-2.5 rounded-xl bg-amber-500/10 px-3.5 py-3 text-sm text-amber-800">
+                                <LuTriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                                <p>
+                                    {google.google_only_owners} {google.google_only_owners === 1 ? 'owner signs' : 'owners sign'} in only with Google. Turning
+                                    this off locks them out until it's back on.
+                                </p>
+                            </div>
+                        )}
+
+                        <GoogleSetup google={google} />
+                    </MethodRow>
+                </Panel>
+            )}
+            {tab === 'payments' && <BankDetails saved={bank} />}
+            {tab === 'appearance' && <SidebarColors saved={sidebar} errors={errors} />}
             {confirmDialog}
         </AdminLayout>
     );

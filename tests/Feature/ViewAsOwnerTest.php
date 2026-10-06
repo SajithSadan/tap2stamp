@@ -1,10 +1,9 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\ActivityLog;
 use App\Models\Shop;
 use App\Models\User;
-use Illuminate\Log\Events\MessageLogged;
-use Illuminate\Support\Facades\Log;
 
 function viewAsAdmin(): User
 {
@@ -109,12 +108,6 @@ test('owners cannot view other shops as their owner', function () {
 test('with changes allowed, the admin can set up staff and devices for the owner', function () {
     [, $shop] = viewedShop();
     $admin = viewAsAdmin();
-    $logged = [];
-    Log::listen(function (MessageLogged $event) use (&$logged) {
-        if ($event->message === 'Admin changed a shop as its owner') {
-            $logged[] = $event->context;
-        }
-    });
 
     $this->actingAs($admin)->post("/admin/shops/{$shop->id}/view-as-owner");
     $this->put('/admin/view-as-owner/editing', ['editing' => true])->assertRedirect();
@@ -130,8 +123,10 @@ test('with changes allowed, the admin can set up staff and devices for the owner
         ->and($shop->fresh()->name)->toBe('Bean There Too');
 
     // Each change is logged with the admin who made it.
-    expect($logged)->toHaveCount(3)
-        ->and($logged[0])->toBe(['admin_id' => $admin->id, 'shop_id' => $shop->id, 'action' => 'POST dashboard/staff-members']);
+    $changes = ActivityLog::where('as_owner', true)->whereIn('action', ['staff_member.created', 'staff_device.created', 'shop.updated'])->get();
+    expect($changes)->toHaveCount(3)
+        ->and($changes->pluck('user_id')->unique()->all())->toBe([$admin->id])
+        ->and($changes->pluck('shop_id')->unique()->all())->toBe([$shop->id]);
 });
 
 test('even with changes allowed, the admin cannot pay for orders or give stamps as the owner', function () {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RecordsActivity;
 use Database\Factories\QrCodeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class QrCode extends Model
 {
     /** @use HasFactory<QrCodeFactory> */
-    use HasFactory;
+    use HasFactory, RecordsActivity;
+
+    /** Codes are made in bulk (logged once per batch), so only edits and single deletes. */
+    protected array $activityEvents = ['updated', 'deleted'];
+
+    public function activityLabel(): string
+    {
+        return $this->code;
+    }
 
     protected $fillable = [
         'qr_batch_id',

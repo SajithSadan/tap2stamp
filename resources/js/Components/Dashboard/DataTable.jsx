@@ -192,6 +192,18 @@ export default function DataTable({
     const visibleColumns = table.getVisibleLeafColumns();
     const isFiltered = globalFilter !== "" || filteredExternally;
 
+    // The visible width of the scroll box, so the "no rows" message centres
+    // in what you see, not across a wider-than-screen table.
+    const scrollBox = useRef(null);
+    const [boxWidth, setBoxWidth] = useState(null);
+    useEffect(() => {
+        const box = scrollBox.current;
+        if (!box || typeof ResizeObserver === "undefined") return undefined;
+        const observer = new ResizeObserver(() => setBoxWidth(box.clientWidth));
+        observer.observe(box);
+        return () => observer.disconnect();
+    }, []);
+
     function clearAll() {
         setGlobalFilter("");
         onClearAll?.();
@@ -280,7 +292,7 @@ export default function DataTable({
             </div>
 
             {/* The table (and its headers) always stays, even with no matches. */}
-            <div className="max-h-[70vh] overflow-auto">
+            <div ref={scrollBox} className="max-h-[70vh] overflow-auto">
                 <table className="w-full min-w-max border-separate border-spacing-0 text-sm">
                     <thead className="sticky top-0 z-10">
                         {table.getHeaderGroups().map((group) => (
@@ -343,7 +355,10 @@ export default function DataTable({
                                     className="border-b border-brand-border"
                                 >
                                     {/* Pinned to the visible width so the message sits centred even when the table scrolls sideways. */}
-                                    <div className="sticky left-0 w-[min(100%,calc(100vw-4rem))] max-w-3xl">
+                                    <div
+                                        className="sticky left-0 w-[min(100%,calc(100vw-4rem))]"
+                                        style={boxWidth ? { width: boxWidth } : undefined}
+                                    >
                                         {empty ?? (
                                             <p className="px-5 py-12 text-center text-sm text-brand-muted">
                                                 No rows match.

@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Concerns\RecordsActivity;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -13,7 +14,22 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, RecordsActivity;
+
+    protected array $activityIgnore = ['onboarding_draft', 'email_verified_at'];
+
+    protected array $activitySecret = ['password'];
+
+    public function activityLabel(): string
+    {
+        return $this->email;
+    }
+
+    public function activityShopId(): ?int
+    {
+        // Not $this->shop - that would cache the relation (null right after sign-up).
+        return Shop::where('user_id', $this->id)->value('id');
+    }
 
     /**
      * The attributes that are mass assignable.

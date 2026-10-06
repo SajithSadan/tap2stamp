@@ -2,8 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Services\ActivityLogger;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -23,6 +28,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Activity log: every admin / owner sign-in and sign-out (email or Google).
+        Event::listen(Login::class, function (Login $event) {
+            if ($event->user instanceof User) {
+                ActivityLogger::record('auth.signed_in', 'Signed in', null, null, null, ActivityLogger::user($event->user));
+            }
+        });
+        Event::listen(Logout::class, function (Logout $event) {
+            if ($event->user instanceof User) {
+                ActivityLogger::record('auth.signed_out', 'Signed out', null, null, null, ActivityLogger::user($event->user));
+            }
+        });
+
         // Production sits behind a TLS-terminating proxy (see trustProxies
         // in bootstrap/app.php) - generated URLs must always be https://, or
         // the staff scanner's camera (HTTPS-only) and assets break.

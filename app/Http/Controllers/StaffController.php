@@ -7,6 +7,7 @@ use App\Http\Requests\StaffSignInRequest;
 use App\Models\CustomerShopCard;
 use App\Models\StaffMember;
 use App\Models\StampLog;
+use App\Services\ActivityLogger;
 use App\Services\StampService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,13 +52,18 @@ class StaffController extends Controller
         }
 
         $device->signIn($member);
+        ActivityLogger::record('staff.signed_in', "Signed in on {$device->name}", $device->shop_id, $device, null, ActivityLogger::staff($member));
 
         return response()->json(['staff' => ['id' => $member->id, 'name' => $member->name]]);
     }
 
     public function signOut(Request $request): JsonResponse
     {
-        $request->attributes->get('staffDevice')->signOut();
+        $device = $request->attributes->get('staffDevice');
+        if ($member = $device->activeStaffMember()) {
+            ActivityLogger::record('staff.signed_out', "Signed out on {$device->name}", $device->shop_id, $device, null, ActivityLogger::staff($member));
+        }
+        $device->signOut();
 
         return response()->json(['status' => 'ok']);
     }

@@ -130,8 +130,8 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   (`PUT /admin/view-as-owner/editing`, `view_as_editing`, reset on every new view) lets the admin
   set up staff, devices, settings, theme for a non-technical owner. Even then `OWNER_ONLY`
   routes stay blocked: Stripe checkout / coupon (use Record order) and the owner scanner (stamps
-  would be credited to the owner). Every change made as the owner is logged
-  (`Admin changed a shop as its owner`, admin id + shop + action). Shared `viewAs` prop
+  would be credited to the owner). Every change made as the owner is in the activity log as
+  the admin, `as_owner` (the middleware's `viewAsAdmin` request attribute). Shared `viewAs` prop
   (incl. `editing`) → amber (read-only) / red (editing) banner in `OwnerLayout` with
   "Back to admin" (`POST /admin/view-as-owner/stop`). Owner dashboard routes still take no shop param.
 - **Staff devices** (Stage 4's other task, doc-scoped): `staff_devices` table, only
@@ -479,10 +479,14 @@ link `/qr/{code}`, never the destination itself, so remapping never needs a repr
   server-side PDF library, for the Hostinger CPU/memory limits and to avoid dompdf's attack
   surface.
 
-## Shop menus (additive — admin only, read by Gemini)
+## Shop menus (additive — admin and owner, read by Gemini)
 
-One menu per shop, made and edited by the **admin only** (Admin → shop settings → **Menu**,
-`Admin\ShopMenuController`, `Pages/Admin/Menu/Edit.jsx`). Owners have no menu screen.
+One menu per shop, edited by the **admin** for any shop (Admin → shop settings → **Menu**,
+`Admin\ShopMenuController`, `Pages/Admin/Menu/Edit.jsx`) or by the **owner** for their own
+(`/dashboard/menu`, nav "Menu", `OwnerMenuController`, `Pages/Dashboard/Menu.jsx`, no shop
+param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEditor.jsx`
+(`layout` + `urls.base` where it saves, `/read`, `/theme`); the props come from
+`ShopMenuController::editorProps()`. Unsaved edits survive a reload (sessionStorage draft).
 
 - **Tables**: `menu_sections` (`shop_id`, `name`, `position`) → `menu_items`
   (`menu_section_id`, `name`, `description`, `price` = display text as printed, e.g.
@@ -499,9 +503,11 @@ One menu per shop, made and edited by the **admin only** (Admin → shop setting
   result loads into the editor (replace or append) and the admin checks it, then saves. The
   browser shrinks photos to ≤ 2400 px JPEG first (Gemini's inline limit is 20 MB). Unreadable
   → 422, key/quota/outage → 503 (logged, never echoed). No key = reader hidden, typing still works.
-- **Public page**: `GET /menu/{shop}` (`MenuController`, `Pages/Menu.jsx`, shop header).
-  By **id, not slug**, so a menu sticker doesn't reveal the card link (see below). Sticky
-  section chips (scroll-tracked), search from 12 items.
+- **Public page**: `GET /menu/{menu_slug}` (`MenuController`, `Pages/Menu.jsx`, shop header).
+  `shops.menu_slug` = name + 4-char code (`Shop::uniqueMenuSlug()`, set on create, e.g.
+  `bean-there-7k2q`), **never the card slug**: owners see their menu link, and it mustn't
+  give them the card link (see below). Old `/menu/{id}` links 302 to it. Read via
+  `Shop::menuUrl()`. Sticky section chips (scroll-tracked), search from 12 items.
 - **Menu themes** (separate from the card's `ThemeCatalog`): `App\Support\MenuThemes` — each
   is colours + fonts + a **layout** (`list` / `classic` / `cards`). `shops.menu_theme`
   (null = `MenuThemes::DEFAULT`), read via `Shop::menuTheme()`. Picked with the editor's
@@ -509,8 +515,9 @@ One menu per shop, made and edited by the **admin only** (Admin → shop setting
   renders every theme with the shop's own items). One renderer, `Components/MenuView.jsx`,
   draws the public page, the editor's live phone preview and the picker cards — add a
   layout there and in `MenuThemes::LAYOUTS`.
-- **QR stickers**: `QrDestinationField` has a **Menu** tab (fills `/menu/{id}`);
-  `QrCodeController::shopIdForDestination()` assigns those stickers to the shop too.
+- **QR stickers**: `QrDestinationField` has a **Menu** tab (fills `/menu/{menu_slug}`);
+  `QrCodeController::shopIdForDestination()` assigns those stickers (and old `/menu/{id}`
+  ones) to the shop too.
 
 ## WhatsApp marketing (additive — owner dashboard)
 
@@ -729,6 +736,35 @@ later maybe more (table stickers). Prices and copy live in our DB, not in Stripe
   2+ series, solid hairline grid, hover/keyboard tooltip + screen-reader table on every chart.
   No chart library — plain SVG/HTML.
 
+## Admin activity & logs (additive)
+
+- **Activity** = an audit log of what **admins, owners and staff** do — never customers.
+  Table `activity_logs` (actor_type admin|owner|staff, user_id / staff_member_id, `actor_name`
+  snapshot, `as_owner`, shop_id, `action` like `shop.updated`, subject, description, `changes`
+  JSON `{field: [before, after]}`). One writer: `App\Services\ActivityLogger::record()`; it works
+  out the actor (signed-in staff on a staff device → the view-as admin → the signed-in user)
+  and writes **nothing** when there's none (customer pages, webhooks, console, factories), and a
+  write failure is logged, never thrown.
+  - **Automatic**: the `RecordsActivity` trait (Models/Concerns) logs created/updated/deleted
+    with before/after on Shop, User, StaffMember, StaffDevice, Product, Coupon, Order, QrCode,
+    QrDesign, Setting, MarketingCampaign. Per model: `$activityIgnore` (bookkeeping, e.g.
+    `last_used_at`), `$activitySecret` (password / pin_hash / token_hash → "changed", never the
+    value), `$activityEvents`, `activityLabel()`, `activityShopId()`. Mass query updates aren't
+    seen — log those explicitly. Don't load relations in these hooks (`$user->shop` cached null
+    mid sign-up once) — query ids.
+  - **Explicit**: stamps/rewards (who stamped which customer, by name, `stamps` before/after) in
+    `StampService`, sign-in/out (Login/Logout listeners), sign-up, staff PIN sign-in/out, menu
+    save/clear with an item diff (`ShopMenu::diff()`), QR codes generated/deleted, view-as
+    start/stop/editing, customer CSV export, log cleared.
+  - Page: `/admin/activity` (`Admin\ActivityController`, `Pages/Admin/Activity.jsx`) in the
+    `DataTable` grid; period (today/7/30/90) + role + shop filter server-side, newest 2000 rows;
+    search/sort/columns/CSV client-side; "N changes" opens the before → after dialog.
+- **Logs** (`/admin/logs`, `Admin\LogController`, `Pages/Admin/Logs.jsx`): the last N lines of
+  the `single` channel's file (read backwards in blocks), level counts/filters, search, live
+  refresh every 5 s, copy, download, clear (writes "Log cleared by admin" as the first line).
+  Built for this app - not the MembersApp log viewer. Tests point the path at a temp file.
+- Both are desktop-sidebar only (`'mobile' => false` in `Navigation`), like the admin's Orders.
+
 ## Navigation & page access (one registry)
 
 `App\Support\Navigation::items()` is the **single list of dashboard menu pages and which roles
@@ -763,7 +799,8 @@ Plus `users.google_id` (nullable, unique) with `users.password` now nullable (Go
 owners), `users.onboarding_draft` (nullable JSON, shop setup in progress), and `qr_batches` / `qr_codes` / `qr_designs` (see "Bulk QR stickers").
 Plus `shops.header_style` (nullable JSON, card page header text/tint/shadow).
 Plus `products`, `orders`, `shops.product_ordered_at`, `coupons` and `orders.coupon_id/coupon_code` (see "Products & orders").
-Plus `menu_sections` / `menu_items` and `shops.menu_theme` (see "Shop menus").
+Plus `menu_sections` / `menu_items`, `shops.menu_theme` and `shops.menu_slug` (see "Shop menus").
+Plus `activity_logs` (see "Admin activity & logs").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to **WhatsApp** offers from **that one shop**, unticked by
 default, and customers can register without it. `CustomerRegistrar` only ever turns it on: an

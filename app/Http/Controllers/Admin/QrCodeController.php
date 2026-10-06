@@ -11,6 +11,7 @@ use App\Models\QrBatch;
 use App\Models\QrCode;
 use App\Models\QrDesign;
 use App\Models\Shop;
+use App\Services\ActivityLogger;
 use App\Services\QrCodeGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -63,7 +64,7 @@ class QrCodeController extends Controller
             ->latest('id')
             ->get();
 
-        $shops = Shop::query()->withCount(['qrCodes', 'menuItems'])->orderBy('name')->get(['id', 'name', 'slug']);
+        $shops = Shop::query()->withCount(['qrCodes', 'menuItems'])->orderBy('name')->get(['id', 'name', 'slug', 'menu_slug']);
         $designs = QrDesign::withCount('codes')->latest('id')->get()
             ->map(fn (QrDesign $design) => $design->toClient() + ['codes_count' => $design->codes_count]);
 
@@ -83,6 +84,7 @@ class QrCodeController extends Controller
                 'id' => $shop->id,
                 'name' => $shop->name,
                 'slug' => $shop->slug,
+                'menu_slug' => $shop->menu_slug,
                 'qr_codes_count' => $shop->qr_codes_count,
                 'has_menu' => $shop->menu_items_count > 0,
             ]),
@@ -109,6 +111,7 @@ class QrCodeController extends Controller
     {
         $quantity = $request->integer('quantity');
         $batch = $generator->generate($quantity, $request->string('name')->trim()->value() ?: null);
+        ActivityLogger::record('qr.generated', "Generated {$quantity} QR ".($quantity === 1 ? 'code' : 'codes')." in {$batch->label()}", null, $batch);
 
         return redirect()->route('admin.qr-codes.index', ['batch' => $batch->id])
             ->with('status', "Generated {$quantity} QR ".($quantity === 1 ? 'code' : 'codes')." in {$batch->label()}.");
@@ -136,9 +139,10 @@ class QrCodeController extends Controller
 
         $path = parse_url($url, PHP_URL_PATH) ?: '';
 
-        // A shop's menu (/menu/{id}) belongs to that shop too.
-        if (preg_match('~^/menu/(\d+)/?$~', $path, $matches)) {
-            return Shop::query()->whereKey((int) $matches[1])->value('id');
+        // A shop's menu (/menu/{menu_slug}, or an old /menu/{id}) belongs to that shop too.
+        if (preg_match('~^/menu/([a-z0-9-]+)/?$~', $path, $matches)) {
+            return Shop::query()->where('menu_slug', $matches[1])->value('id')
+                ?? (ctype_digit($matches[1]) ? Shop::query()->whereKey((int) $matches[1])->value('id') : null);
         }
 
         if (! preg_match('~^/s/([^/]+)/?$~', $path, $matches)) {
@@ -158,10 +162,14 @@ class QrCodeController extends Controller
         $count = $qrBatch->codes()->count();
         $label = $qrBatch->label();
 
+        $codes = $qrBatch->codes()->pluck('code')->all();
+
         DB::transaction(function () use ($qrBatch) {
             $qrBatch->codes()->delete();
             $qrBatch->delete();
         });
+
+        ActivityLogger::record('qr.batch_deleted', "Deleted {$label} and its {$count} ".($count === 1 ? 'code' : 'codes'), null, $qrBatch, ['codes' => [$codes, null]]);
 
         return redirect()->route('admin.qr-codes.index')
             ->with('status', "Deleted {$label} and its {$count} ".($count === 1 ? 'code' : 'codes').'.');
@@ -179,6 +187,8 @@ class QrCodeController extends Controller
             'ids.*' => ['integer', 'distinct'],
         ])['ids'];
 
+        $codes = QrCode::whereIn('id', $ids)->pluck('code')->all();
+
         [$deleted, $emptied] = DB::transaction(function () use ($ids) {
             $batchIds = QrCode::whereIn('id', $ids)->distinct()->pluck('qr_batch_id');
             $deleted = QrCode::whereIn('id', $ids)->delete();
@@ -192,6 +202,8 @@ class QrCodeController extends Controller
         if ($emptied->isNotEmpty()) {
             $message .= ' and the now-empty '.$emptied->map->label()->join(', ', ' and ');
         }
+
+        ActivityLogger::record('qr.deleted', $message, null, null, ['codes' => [$codes, null]]);
 
         return back()->with('status', $message.'.');
     }
