@@ -332,7 +332,15 @@ export async function printQrPdf(options, win) {
  * Downloads one QR as a PNG (named after its code) - for a quick one-off print
  * or share. With a design, it's the full sticker: background + QR in place.
  */
-export async function downloadQrPng({ code, scan_url, serial }, design = null) {
+export async function downloadQrPng(qr, design = null) {
+    const link = document.createElement('a');
+    link.href = await qrPngDataUrl(qr, design);
+    link.download = `qr-${qr.code}.png`;
+    link.click();
+}
+
+/** The PNG downloadQrPng() saves, as a data URL - also used to preview it on the page. */
+export async function qrPngDataUrl({ scan_url, serial }, design = null) {
     let href;
 
     if (design) {
@@ -357,8 +365,5 @@ export async function downloadQrPng({ code, scan_url, serial }, design = null) {
         href = await QRCode.toDataURL(scan_url, { errorCorrectionLevel: 'M', margin: 2, width: 800 });
     }
 
-    const link = document.createElement('a');
-    link.href = href;
-    link.download = `qr-${code}.png`;
-    link.click();
+    return href;
 }

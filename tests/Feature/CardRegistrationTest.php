@@ -279,3 +279,38 @@ test('an invalid Indian mobile number is rejected', function (string $phone) {
     'too short' => '+91987654321',
     'too long' => '+9198765432100',
 ]);
+
+test('a mobile number from any country is accepted with its country code', function (string $phone) {
+    $shop = Shop::factory()->create();
+
+    $this->postJson("/s/{$shop->slug}/register", registerPayload(['phone' => $phone]))->assertOk();
+
+    expect(Customer::first()->phone)->toBe($phone);
+})->with([
+    'UAE' => '+971501234567',
+    'US' => '+12125550147',
+    'Ireland' => '+353871234567',
+]);
+
+test('a number with an unknown code, or a UK landline, is rejected', function (string $phone) {
+    $shop = Shop::factory()->create();
+
+    $this->postJson("/s/{$shop->slug}/register", registerPayload(['phone' => $phone]))
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('phone');
+})->with([
+    'unknown code' => '+99912345678',
+    'UK landline' => '+442079460000',
+    'too long' => '+9715012345678901',
+]);
+
+test('the sign-up starts on the shop\'s country and offers every country', function () {
+    $shop = Shop::factory()->create(['country' => 'AE']);
+
+    $this->get("/s/{$shop->slug}")->assertInertia(fn ($page) => $page
+        ->component('Card')
+        ->where('shop.country', 'AE')
+        ->where('phoneCountries.0.code', 'GB')
+        ->where('phoneCountries', fn ($countries) => collect($countries)->firstWhere('code', 'AE')['dial'] === '971')
+    );
+});

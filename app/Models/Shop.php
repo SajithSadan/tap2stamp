@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\RecordsActivity;
+use App\Support\Countries;
 use App\Support\HeaderStyle;
 use App\Support\MenuThemes;
 use App\Support\ShopContact;
@@ -37,11 +38,14 @@ class Shop extends Model
         'reward_title',
         'contact_name',
         'contact_email',
+        'contact_phone_code',
         'contact_phone',
         'address_line1',
         'address_line2',
         'town',
         'postcode',
+        'country',
+        'qr_design_id',
         'delivery_address',
         'theme',
         'theme_custom',
@@ -186,6 +190,21 @@ class Shop extends Model
         return $this->hasMany(QrCode::class);
     }
 
+    /** The design an overseas owner downloads their assigned QR codes in (null = plain QR). */
+    public function qrDesign(): BelongsTo
+    {
+        return $this->belongsTo(QrDesign::class);
+    }
+
+    /**
+     * Only UK shops can order our hardware (the counter display). Elsewhere
+     * the owner downloads the QR codes the admin assigned to the shop.
+     */
+    public function canOrderProducts(): bool
+    {
+        return ($this->country ?? Countries::UK) === Countries::UK;
+    }
+
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
@@ -276,6 +295,25 @@ class Shop extends Model
             'contact_name' => $this->contact_name ?: $this->owner?->name,
             'contact_email' => $this->contact_email ?: $this->owner?->email,
         ];
+    }
+
+    /**
+     * The contact number for display, code and number together: "+44 7700900123"
+     * (saved separately, see App\Support\ShopContact). Null without a number.
+     */
+    public function contactPhone(): ?string
+    {
+        if (blank($this->contact_phone)) {
+            return null;
+        }
+
+        return $this->contact_phone_code ? "+{$this->contact_phone_code} {$this->contact_phone}" : $this->contact_phone;
+    }
+
+    /** The same number for a tel: link ("+447700900123"). */
+    public function contactPhoneTel(): ?string
+    {
+        return $this->contactPhone() ? str_replace(' ', '', $this->contactPhone()) : null;
     }
 
     /** The look customers see: the catalog theme plus any of the owner's own tweaks. */

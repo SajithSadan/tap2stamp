@@ -187,7 +187,8 @@ test('a passed business step is kept as a draft, so a reload resumes on the loya
     $this->actingAs($owner)->get('/onboarding')->assertInertia(fn ($page) => $page
         ->component('Onboarding/Shop')
         ->where('draft.name', 'The Coffee Corner')
-        ->where('draft.contact_phone', '+447700900123')
+        ->where('draft.contact_phone_code', '44')
+        ->where('draft.contact_phone', '7700900123')
         ->where('draft.postcode', 'LS1 4AP')
         ->missing('draft.slug')
     );

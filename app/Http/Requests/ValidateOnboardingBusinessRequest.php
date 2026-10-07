@@ -27,12 +27,13 @@ class ValidateOnboardingBusinessRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:150'],
-            ...ShopContact::rules(),
+            // The country (tidied in prepareForValidation) picks the phone / postcode rules.
+            ...ShopContact::rules($this->input('country'), phoneCode: $this->input('contact_phone_code')),
         ];
     }
 
     public function messages(): array
     {
-        return ShopContact::messages();
+        return ShopContact::messages($this->input('country'), $this->input('contact_phone_code'));
     }
 }

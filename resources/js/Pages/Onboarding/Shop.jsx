@@ -8,6 +8,8 @@ import {
     authInputClass,
 } from "@/Components/AuthShell";
 import AddressLookup from "@/Components/AddressLookup";
+import CountrySelect from "@/Components/CountrySelect";
+import PhoneField from "@/Components/PhoneField";
 import {
     CardPreview,
     MAX_STAMPS,
@@ -15,12 +17,19 @@ import {
 } from "@/Components/Dashboard/ShopFields";
 import useValidatedForm from "@/lib/useValidatedForm";
 import {
+    dialCodeOf,
     email,
+    hasPostcodeRule,
+    INDIA,
     isPhone,
     isPostcode,
-    matches,
+    phoneMessage,
+    phonePlaceholder,
+    postcodeMessage,
     required,
     requiredIf,
+    UK,
+    UK_CODE,
 } from "@/lib/validation";
 
 const STEPS = [
@@ -37,23 +46,35 @@ const STEPS = [
     },
 ];
 
+const filled = (value) => String(value ?? "").trim() !== "";
+
 // Checked in the browser before each step is sent (the server checks again).
-const RULES = {
+// Phone and postcode follow the chosen country, like ShopContact::rules().
+const rulesFor = (countries) => ({
     name: [required("Enter your shop or business name.")],
+    country: [required("Choose your country.")],
     contact_name: [required("Enter a contact name.")],
     contact_phone: [
         required("Enter a contact number."),
-        matches(
-            isPhone,
-            "Enter a valid UK phone number, e.g. 020 7946 0000 or 07700 900123.",
-        ),
+        (value, data) =>
+            !filled(value) || isPhone(value, data.contact_phone_code, countries)
+                ? null
+                : phoneMessage(data.contact_phone_code),
     ],
     contact_email: [required("Enter an email address."), email()],
     address_line1: [required("Enter the first line of the address.")],
     town: [required("Enter the town or city.")],
     postcode: [
-        required("Enter the postcode."),
-        matches(isPostcode, "Enter a valid postcode, e.g. SW1A 1AA."),
+        (value, data) =>
+            hasPostcodeRule(data.country) && !filled(value)
+                ? data.country === INDIA
+                    ? "Enter the PIN code."
+                    : "Enter the postcode."
+                : null,
+        (value, data) =>
+            !filled(value) || isPostcode(value, data.country)
+                ? null
+                : postcodeMessage(data.country),
     ],
     delivery_address: [
         requiredIf(
@@ -62,11 +83,11 @@ const RULES = {
         ),
     ],
     reward_title: [required("Say what the reward is.")],
-};
+});
 
 // Fields on the loyalty card step; any other error belongs to "Your business".
 const CARD_FIELDS = ["max_stamps", "reward_title"];
-const BUSINESS_FIELDS = Object.keys(RULES).filter(
+const BUSINESS_FIELDS = Object.keys(rulesFor([])).filter(
     (key) => !CARD_FIELDS.includes(key),
 );
 
@@ -241,7 +262,7 @@ function fromDraft(draft) {
     };
 }
 
-export default function Shop({ ownerName, ownerEmail, draft }) {
+export default function Shop({ ownerName, ownerEmail, draft, countries }) {
     // Step 1 already passed (draft kept by the server): a reload or a failed
     // final submit picks up on the loyalty card step, nothing to re-type.
     const [step, setStep] = useState(draft ? "card" : "business");
@@ -253,18 +274,21 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
             // Contact person + email start as the account's own.
             contact_name: ownerName ?? "",
             contact_email: ownerEmail ?? "",
+            contact_phone_code: UK_CODE,
             contact_phone: "",
             address_line1: "",
             address_line2: "",
             town: "",
             postcode: "",
+            country: UK,
             delivery_same: true,
             delivery_address: "",
             ...fromDraft(draft),
         },
         // Remembered in browser history too, so card-step answers survive a reload.
-        { rules: RULES, rememberKey: "Onboarding/Shop" },
+        { rules: rulesFor(countries), rememberKey: "Onboarding/Shop" },
     );
+    const inUk = data.country === UK;
 
     const field = (key) => ({
         id: key,
@@ -280,6 +304,19 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
 
     // Unticking "same as the shop" starts the delivery box from the shop
     // address already typed, so the owner only changes what's different.
+    // Overseas: no delivery address (we don't post there), and no finder.
+    // The phone's country code follows the country, unless one was picked by hand.
+    function handleCountry(code) {
+        setData((prev) => ({
+            ...prev,
+            country: code,
+            ...(code !== UK && { delivery_same: true }),
+            ...(prev.contact_phone_code === dialCodeOf(prev.country, countries) && {
+                contact_phone_code: dialCodeOf(code, countries),
+            }),
+        }));
+    }
+
     function handleDeliverySame(same) {
         setData((prev) => {
             const shopAddress = [
@@ -442,34 +479,30 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
                                         />
                                     </AuthField>
 
-                                    <div className="grid gap-5 sm:grid-cols-2">
-                                        <AuthField
-                                            id="contact_name"
-                                            label="Contact person"
-                                            error={errors.contact_name}
-                                        >
-                                            <input
-                                                {...field("contact_name")}
-                                                autoComplete="name"
-                                                placeholder="Jamie Smith"
-                                            />
-                                        </AuthField>
-                                        <AuthField
-                                            id="contact_phone"
-                                            label="Contact number"
-                                            error={errors.contact_phone}
-                                            hint="Mobile or landline."
-                                        >
-                                            <input
-                                                {...field("contact_phone")}
-                                                type="tel"
-                                                inputMode="tel"
-                                                autoComplete="tel"
-                                                placeholder="07700 900123"
-                                            />
-                                        </AuthField>
-                                    </div>
+                                    <AuthField
+                                        id="country"
+                                        label="Country"
+                                        error={errors.country}
+                                    >
+                                        <CountrySelect
+                                            value={data.country}
+                                            onChange={handleCountry}
+                                            countries={countries}
+                                            className={authInputClass}
+                                        />
+                                    </AuthField>
 
+                                    <AuthField
+                                        id="contact_name"
+                                        label="Contact person"
+                                        error={errors.contact_name}
+                                    >
+                                        <input
+                                            {...field("contact_name")}
+                                            autoComplete="name"
+                                            placeholder="Jamie Smith"
+                                        />
+                                    </AuthField>
                                     <AuthField
                                         id="contact_email"
                                         label="Email"
@@ -482,23 +515,44 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
                                             placeholder="you@yourshop.co.uk"
                                         />
                                     </AuthField>
+
+                                    <AuthField
+                                        id="contact_phone"
+                                        label="Contact number"
+                                        error={errors.contact_phone ?? errors.contact_phone_code}
+                                        hint="Mobile or landline."
+                                    >
+                                        <PhoneField
+                                            code={data.contact_phone_code}
+                                            number={data.contact_phone}
+                                            onCodeChange={(code) => setData("contact_phone_code", code)}
+                                            onNumberChange={(value) => setData("contact_phone", value)}
+                                            countries={countries}
+                                            country={data.country}
+                                            placeholder={phonePlaceholder(data.contact_phone_code)}
+                                            inputClassName={authInputClass}
+                                        />
+                                    </AuthField>
                                 </Section>
 
                                 <Section
                                     title="Location"
                                     description="Where customers find your shop."
                                 >
-                                    <AddressLookup
-                                        initialPostcode={data.postcode}
-                                        onFound={(address) =>
-                                            setData((prev) => ({
-                                                ...prev,
-                                                ...address,
-                                            }))
-                                        }
-                                        inputClassName={authInputClass}
-                                        buttonClassName="inline-flex items-center justify-center gap-2 rounded-full bg-brand-deep px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
-                                    />
+                                    {/* The address finder only knows UK addresses. */}
+                                    {inUk && (
+                                        <AddressLookup
+                                            initialPostcode={data.postcode}
+                                            onFound={(address) =>
+                                                setData((prev) => ({
+                                                    ...prev,
+                                                    ...address,
+                                                }))
+                                            }
+                                            inputClassName={authInputClass}
+                                            buttonClassName="inline-flex items-center justify-center gap-2 rounded-full bg-brand-deep px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+                                        />
+                                    )}
                                     <AuthField
                                         id="address_line1"
                                         label="Address line 1"
@@ -535,7 +589,15 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
                                         </AuthField>
                                         <AuthField
                                             id="postcode"
-                                            label="Postcode"
+                                            label={
+                                                inUk ? (
+                                                    "Postcode"
+                                                ) : data.country === INDIA ? (
+                                                    "PIN code"
+                                                ) : (
+                                                    <>Postcode {optional}</>
+                                                )
+                                            }
                                             error={errors.postcode}
                                         >
                                             <input
@@ -548,12 +610,14 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
                                                 }
                                                 autoComplete="postal-code"
                                                 autoCapitalize="characters"
-                                                placeholder="LS1 4AP"
+                                                placeholder={inUk ? "LS1 4AP" : data.country === INDIA ? "560001" : ""}
                                             />
                                         </AuthField>
                                     </div>
                                 </Section>
 
+                                {/* We only post hardware to UK shops. */}
+                                {inUk && (
                                 <Section
                                     title="Delivery address"
                                     description="Where post for your shop should go."
@@ -589,6 +653,7 @@ export default function Shop({ ownerName, ownerEmail, draft }) {
                                         </AuthField>
                                     )}
                                 </Section>
+                                )}
 
                                 <div className="flex flex-col-reverse gap-4 border-t border-brand-border pt-8 sm:flex-row sm:items-center sm:justify-between">
                                     <p className="text-center text-sm text-brand-muted sm:text-left">

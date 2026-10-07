@@ -17,8 +17,14 @@ class UpdateShopSettingsRequest extends FormRequest
     /** Tidy phone/postcode/email the way the owner's form does ("ls1 4ap" → "LS1 4AP"). */
     protected function prepareForValidation(): void
     {
+        // Not sent = the shop's own country (and its phone / postcode rules).
+        if (! $this->filled('country')) {
+            $this->merge(['country' => $this->route('shop')?->country]);
+        }
+
+        // A number sent without its code gets the country's (or the one typed in front of it).
         $this->merge(collect(ShopContact::normalise($this->all()))
-            ->filter(fn ($value, $field) => $this->filled($field))
+            ->filter(fn ($value, $field) => $this->filled($field) || ($field === 'contact_phone_code' && $this->filled('contact_phone')))
             ->all());
     }
 
@@ -34,26 +40,16 @@ class UpdateShopSettingsRequest extends FormRequest
             'instagram_url' => ['nullable', 'url:http,https', 'max:500'],
             'wifi_ssid' => ['nullable', 'string', 'max:150'],
             'wifi_password' => ['nullable', 'string', 'max:150'],
-            'contact_name' => ['nullable', 'string', 'max:150'],
-            'contact_email' => ['nullable', 'email', 'max:255'],
-            'contact_phone' => ['nullable', 'string', 'regex:/^(\+44[1-9]\d{8,9}|\+91[6-9]\d{9})$/'],
-            'address_line1' => ['nullable', 'string', 'max:150'],
-            'address_line2' => ['nullable', 'string', 'max:150'],
-            'town' => ['nullable', 'string', 'max:100'],
-            'postcode' => ['nullable', 'string', 'regex:/^([A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}|\d{6})$/'],
-            // Ticked = post to the shop address (delivery_address saved as null).
-            'delivery_same' => ['nullable', 'boolean'],
-            'delivery_address' => ['nullable', 'required_if:delivery_same,false', 'string', 'max:500'],
+            // The design this shop's owner downloads their assigned QR codes in (overseas shops).
+            'qr_design_id' => ['nullable', 'integer', 'exists:qr_designs,id'],
+            // Contact + location, every field optional here; the country picks the phone / postcode rules.
+            ...ShopContact::rules($this->input('country'), required: false, phoneCode: $this->input('contact_phone_code')),
         ];
     }
 
     public function messages(): array
     {
-        return [
-            'contact_phone.regex' => 'Enter a valid UK phone number, e.g. 020 7946 0000 or 07700 900123.',
-            'postcode.regex' => 'Enter a valid postcode, e.g. SW1A 1AA.',
-            'delivery_address.required_if' => 'Enter the delivery address, or tick "Same as the shop address".',
-        ];
+        return ShopContact::messages($this->input('country'), $this->input('contact_phone_code'));
     }
 
     /** The validated values as shop columns. */

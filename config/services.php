@@ -45,6 +45,13 @@ return [
         'key' => env('FINDADDRESS_API_KEY'),
     ],
 
+    // Visitor's country from their IP (ipinfo.io Lite, free) for the landing
+    // page's currency (App\Services\VisitorCountry). Server-side only; no
+    // token = everyone sees the default currency (unless behind Cloudflare).
+    'ipinfo' => [
+        'token' => env('IPINFO_TOKEN'),
+    ],
+
     // Stripe Checkout for owners ordering products (the counter display).
     // Only the secret key is needed - payment happens on Stripe's own page.
     // The webhook secret comes from the endpoint added in Stripe's dashboard

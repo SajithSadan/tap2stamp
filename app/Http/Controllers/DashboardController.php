@@ -13,6 +13,7 @@ use App\Models\CustomerShopCard;
 use App\Models\CustomTheme;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\QrCode;
 use App\Models\Review;
 use App\Models\Setting;
 use App\Models\Shop;
@@ -22,6 +23,7 @@ use App\Models\StampLog;
 use App\Services\ActivityLogger;
 use App\Services\ShopInsights;
 use App\Services\StripeGateway;
+use App\Support\Countries;
 use App\Support\CuratedFonts;
 use App\Support\HeaderStyle;
 use App\Support\ShopContact;
@@ -278,6 +280,7 @@ class DashboardController extends Controller
                 'wifi_password' => $shop->wifi_password,
             ],
             'contact' => $shop->contactDetails(),
+            'countries' => Countries::options(),
         ]);
     }
 
@@ -401,9 +404,14 @@ class DashboardController extends Controller
     }
 
     /** Order more (any product on sale, any quantity) and follow each order's progress. */
-    public function orders(Request $request, StripeGateway $stripe): Response
+    public function orders(Request $request, StripeGateway $stripe): Response|RedirectResponse
     {
         $shop = $request->user()->shop;
+
+        // UK only; anywhere else the owner downloads the QR codes we assigned.
+        if (! $shop->canOrderProducts()) {
+            return redirect()->route('dashboard.qr-codes');
+        }
 
         return Inertia::render('Dashboard/Orders', [
             'shop' => $this->shopSummary($shop),
@@ -425,6 +433,36 @@ class DashboardController extends Controller
         ]);
     }
 
+    /**
+     * The QR codes the admin mapped to this shop (qr_codes.shop_id), to
+     * download in the design the admin picked for it (null = plain QR). The
+     * PNG / PDF are drawn in the browser by the same renderer as the admin's
+     * prints (lib/qrPrint.js). In the menu for overseas shops; UK shops order
+     * the counter display instead.
+     */
+    public function qrCodes(Request $request): Response
+    {
+        $shop = $request->user()->shop;
+
+        return Inertia::render('Dashboard/QrCodes', [
+            'shop' => $this->shopSummary($shop),
+            'codes' => $shop->qrCodes()->orderBy('qr_batch_id')->orderBy('serial')->get()->map(fn (QrCode $qr) => [
+                'id' => $qr->id,
+                'code' => $qr->code,
+                'scan_url' => $qr->scanUrl(),
+                'serial' => $qr->serial,
+                // What scanning it opens, in the owner's words (never the card link itself).
+                'opens' => match (true) {
+                    $qr->destination_url === null => null,
+                    str_contains($qr->destination_url, '/menu/') => 'Your menu',
+                    str_contains($qr->destination_url, '/s/') => 'Your loyalty card',
+                    default => 'A web page',
+                },
+            ]),
+            'design' => $shop->qrDesign?->toClient(),
+        ]);
+    }
+
     /** The shop's real orders: paid, or arranged by us and awaiting payment. */
     private function openOrders(Shop $shop)
     {
@@ -439,6 +477,11 @@ class DashboardController extends Controller
      */
     private function orderOffer(Shop $shop, StripeGateway $stripe): ?array
     {
+        // We only ship to the UK; overseas shops get their QR codes to download instead.
+        if (! $shop->canOrderProducts()) {
+            return null;
+        }
+
         // Also not while an order we arranged with them waits for their transfer.
         $arranged = $shop->orders()->where('status', OrderStatus::Pending)->where('payment_method', '!=', 'stripe')->exists();
         $product = $shop->product_ordered_at || $arranged ? null : Product::featured();
@@ -466,6 +509,8 @@ class DashboardController extends Controller
             'slug' => $shop->show_card_link ? $shop->slug : null,
             'show_card_link' => $shop->show_card_link,
             'name' => $shop->name,
+            // UK: order the counter display. Elsewhere: download the assigned QR codes.
+            'can_order' => $shop->canOrderProducts(),
             'google_review_url' => $shop->google_review_url,
             // Read by OwnerLayout on every section; null keeps the default look.
             'dashboard_theme' => $shop->theme_in_dashboard ? $shop->appliedTheme() : null,

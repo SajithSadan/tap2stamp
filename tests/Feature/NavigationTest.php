@@ -44,8 +44,10 @@ test('each role\'s menu holds only its own items', function (UserRole $role) {
     $user = navUser($role);
     $home = $role === UserRole::Admin ? '/admin' : '/dashboard';
 
+    // Items with an href closure may hide themselves (e.g. Orders vs QR codes by the shop's country).
     $expected = collect(Navigation::items())
         ->filter(fn ($item) => in_array($role, $item['roles'], true))
+        ->filter(fn ($item) => ! isset($item['href']) || ($item['href'])($user) !== null)
         ->pluck('label')
         ->all();
 

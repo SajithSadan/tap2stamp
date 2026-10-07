@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Shop;
+use App\Support\Countries;
 use App\Support\StampIcons;
 use App\Support\ThemeCatalog;
 use Illuminate\Foundation\Http\FormRequest;
@@ -28,6 +29,8 @@ class StoreShopOwnerRequest extends FormRequest
             'shop_reward_title' => ['required', 'string', 'max:150'],
             'shop_stamp_icon' => ['required', 'string', Rule::in(StampIcons::KEYS)],
             'shop_theme' => ['required', 'string', Rule::in(array_keys(ThemeCatalog::all()))],
+            // UK shops can order our counter display; anywhere else downloads its assigned QR codes.
+            'shop_country' => ['nullable', 'string', Rule::in(Countries::codes())],
         ];
     }
 

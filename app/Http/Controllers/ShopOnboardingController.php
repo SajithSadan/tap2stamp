@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreOnboardingShopRequest;
 use App\Http\Requests\ValidateOnboardingBusinessRequest;
 use App\Models\Shop;
+use App\Support\Countries;
 use App\Support\ShopContact;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,7 @@ class ShopOnboardingController extends Controller
             'ownerName' => $request->user()->name,
             'ownerEmail' => $request->user()->email,
             'draft' => $request->user()->onboarding_draft,
+            'countries' => Countries::options(),
         ]);
     }
 
@@ -54,8 +56,8 @@ class ShopOnboardingController extends Controller
             return redirect()->route('dashboard.index');
         }
 
-        DB::transaction(function () use ($request) {
-            $request->user()->shop()->create([
+        $shop = DB::transaction(function () use ($request) {
+            $shop = $request->user()->shop()->create([
                 ...$request->safe()->only(['name', 'max_stamps', 'reward_title']),
                 // Made for them - owners don't pick (or see) their card link.
                 'slug' => Shop::uniqueSlug($request->string('name')->value()),
@@ -63,8 +65,12 @@ class ShopOnboardingController extends Controller
             ]);
 
             $request->user()->forceFill(['onboarding_draft' => null])->save();
+
+            return $shop;
         });
 
-        return redirect()->route('dashboard.index')->with('status', 'Your shop is live! Order your counter display so customers can tap or scan to join.');
+        return redirect()->route('dashboard.index')->with('status', $shop->canOrderProducts()
+            ? 'Your shop is live! Order your counter display so customers can tap or scan to join.'
+            : "Your shop is live! We'll set up your QR code - you'll find it under QR codes to download and print.");
     }
 }

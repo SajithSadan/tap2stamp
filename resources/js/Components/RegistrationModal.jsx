@@ -6,93 +6,68 @@ import {
     LuChevronDown,
     LuCreditCard,
     LuGift,
+    LuSearch,
     LuUser,
 } from "react-icons/lu";
 import TechsaFooter from "@/Components/TechsaFooter";
 import { SignupIcon } from "@/lib/signupIcons";
 
-// Inline SVG flags: Windows doesn't render flag emoji (it shows "GB" letters instead).
-function UkFlag(props) {
-    return (
-        <svg viewBox="0 0 60 30" {...props}>
-            <clipPath id="uk-flag-t">
-                <path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z" />
-            </clipPath>
-            <path d="M0,0 v30 h60 v-30 z" fill="#012169" />
-            <path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" strokeWidth="6" />
-            <path
-                d="M0,0 L60,30 M60,0 L0,30"
-                clipPath="url(#uk-flag-t)"
-                stroke="#C8102E"
-                strokeWidth="4"
-            />
-            <path d="M30,0 v30 M0,15 h60" stroke="#fff" strokeWidth="10" />
-            <path d="M30,0 v30 M0,15 h60" stroke="#C8102E" strokeWidth="6" />
-        </svg>
-    );
-}
+const fieldShell =
+    "rounded-xl border bg-brand-bg/70 transition-all focus-within:border-brand-accent/60 focus-within:bg-brand-card focus-within:ring-4 focus-within:ring-brand-accent/10";
 
-function IndiaFlag(props) {
-    return (
-        <svg viewBox="0 0 30 20" {...props}>
-            <rect width="30" height="20" fill="#fff" />
-            <rect width="30" height="6.67" fill="#FF9933" />
-            <rect y="13.33" width="30" height="6.67" fill="#138808" />
-            <circle
-                cx="15"
-                cy="10"
-                r="2.6"
-                fill="none"
-                stroke="#000080"
-                strokeWidth="0.6"
-            />
-            <circle cx="15" cy="10" r="0.6" fill="#000080" />
-        </svg>
-    );
-}
+// text-base (16px): iOS Safari zooms the whole page into anything smaller on focus.
+const inputText =
+    "text-base font-medium text-brand-text placeholder:font-normal placeholder:text-brand-muted/60 outline-none";
 
-// Each country's local number: 10 digits after the dial code, leading 0 stripped.
-const COUNTRIES = [
-    {
-        code: "GB",
-        name: "United Kingdom",
-        dial: "+44",
-        Flag: UkFlag,
-        pattern: /^7\d{9}$/,
-        placeholder: "7911 123456",
-        hint: "e.g. 7911 123456",
-    },
-    {
-        code: "IN",
-        name: "India",
-        dial: "+91",
-        Flag: IndiaFlag,
-        pattern: /^[6-9]\d{9}$/,
-        placeholder: "98765 43210",
-        hint: "e.g. 98765 43210",
-    },
-];
+// Every country (App\Support\Countries, from the server), with the number
+// rules RegisterCustomerRequest::validMobile() checks: a UK or Indian mobile
+// exactly, anything else 4-14 digits after its code.
+const RULES = {
+    44: { pattern: /^7\d{9}$/, max: 10, placeholder: "7911 123456", hint: "e.g. 7911 123456" },
+    91: { pattern: /^[6-9]\d{9}$/, max: 10, placeholder: "98765 43210", hint: "e.g. 98765 43210" },
+};
+const ANY_NUMBER = { pattern: /^\d{4,14}$/, max: 14, placeholder: "Mobile number", hint: null };
 
-/** Strips a leading 0 (people often type it out of habit despite the dial code) and caps at 10 digits. */
-function normaliseDigits(raw) {
+const rulesFor = (dial) => RULES[dial] ?? ANY_NUMBER;
+
+/** Strips a leading 0 (typed out of habit despite the code - except Italy, where it's part of the number) and caps the length. */
+function normaliseDigits(raw, dial) {
     let digits = raw.replace(/\D/g, "");
-    if (digits.startsWith("0")) digits = digits.slice(1);
+    if (dial !== "39" && digits.startsWith("0")) digits = digits.slice(1);
 
-    return digits.slice(0, 10);
+    return digits.slice(0, rulesFor(dial).max);
 }
 
-function FlagBadge({ Flag }) {
+// Flag images, not emoji: Windows shows emoji flags as two letters ("GB").
+function FlagBadge({ code }) {
     return (
-        <Flag
-            className="h-4 w-6 shrink-0 overflow-hidden rounded-[3px] shadow-sm ring-1 ring-black/10"
+        <img
+            src={`https://flagcdn.com/w40/${code.toLowerCase()}.png`}
+            alt=""
+            width={24}
+            height={16}
+            loading="lazy"
+            className="h-4 w-6 shrink-0 rounded-[3px] bg-brand-border object-cover ring-1 ring-black/10"
             aria-hidden="true"
         />
     );
 }
 
-function CountryPicker({ country, onChange }) {
+/** Matches a country by name, ISO code or dialling code ("ind", "in", "91", "+91"). */
+function matchesCountry(country, query) {
+    const q = query.trim().toLowerCase().replace(/^\+/, "");
+    if (!q) return true;
+
+    return country.name.toLowerCase().includes(q) || country.code.toLowerCase() === q || country.dial.startsWith(q);
+}
+
+function CountryPicker({ country, countries, onChange }) {
     const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState("");
     const rootRef = useRef(null);
+    // The chosen country first, then everything else that matches the search.
+    const others = countries.filter((c) => c.code !== country.code && matchesCountry(c, query));
+    const list = matchesCountry(country, query) ? [country, ...others] : others;
 
     useEffect(() => {
         if (!open) return;
@@ -112,6 +87,12 @@ function CountryPicker({ country, onChange }) {
         };
     }, [open]);
 
+    function choose(c) {
+        onChange(c);
+        setOpen(false);
+        setQuery("");
+    }
+
     return (
         // `static` so the dropdown positions against the whole phone field
         // (its nearest relative parent), not just this button.
@@ -121,83 +102,75 @@ function CountryPicker({ country, onChange }) {
                 onClick={() => setOpen((o) => !o)}
                 aria-haspopup="listbox"
                 aria-expanded={open}
-                aria-label={`Country code: ${country.name} ${country.dial}`}
+                aria-label={`Country code: ${country.name} +${country.dial}`}
                 className="flex items-center gap-2 rounded-l-xl border-r border-brand-border pl-3 pr-2 outline-none transition-colors hover:bg-brand-border/40 focus-visible:bg-brand-border/40"
             >
-                <FlagBadge Flag={country.Flag} />
-                <span className="text-base font-semibold text-brand-text">
-                    {country.dial}
-                </span>
-                <motion.span
-                    animate={{ rotate: open ? 180 : 0 }}
-                    className="text-brand-muted"
-                >
+                <FlagBadge code={country.code} />
+                <span className="text-base font-semibold tabular-nums text-brand-text">+{country.dial}</span>
+                <motion.span animate={{ rotate: open ? 180 : 0 }} className="text-brand-muted">
                     <LuChevronDown className="h-4 w-4" aria-hidden="true" />
                 </motion.span>
             </button>
 
             <AnimatePresence>
                 {open && (
-                    <motion.ul
-                        role="listbox"
-                        aria-label="Choose country"
+                    <motion.div
                         initial={{ opacity: 0, y: -6, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -6, scale: 0.98 }}
                         transition={{ duration: 0.16 }}
-                        className="absolute inset-x-0 top-full z-10 mt-2 origin-top overflow-hidden rounded-xl border border-brand-border bg-brand-card p-1 shadow-xl"
+                        className="absolute inset-x-0 top-full z-10 mt-2 origin-top overflow-hidden rounded-xl border border-brand-border bg-brand-card"
                     >
-                        {COUNTRIES.map((c) => {
-                            const selected = c.code === country.code;
+                        <div className="flex items-center gap-2 border-b border-brand-border px-3">
+                            <LuSearch className="h-4 w-4 shrink-0 text-brand-muted" aria-hidden="true" />
+                            <input
+                                type="text"
+                                autoFocus
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        if (list[0]) choose(list[0]);
+                                    }
+                                }}
+                                placeholder="Search country or code"
+                                aria-label="Search country or code"
+                                className={`w-full bg-transparent py-3 ${inputText}`}
+                            />
+                        </div>
+                        <ul role="listbox" aria-label="Choose country" className="max-h-64 overflow-y-auto overscroll-contain p-1">
+                            {list.length === 0 && <li className="px-3 py-4 text-center text-sm text-brand-muted">No country found</li>}
+                            {list.map((c) => {
+                                const selected = c.code === country.code;
 
-                            return (
-                                <li
-                                    key={c.code}
-                                    role="option"
-                                    aria-selected={selected}
-                                >
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            onChange(c);
-                                            setOpen(false);
-                                        }}
-                                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors ${
-                                            selected
-                                                ? "bg-brand-accent/10"
-                                                : "hover:bg-brand-bg"
-                                        }`}
-                                    >
-                                        <FlagBadge Flag={c.Flag} />
-                                        <span className="flex-1 text-sm font-medium text-brand-text">
-                                            {c.name}
-                                        </span>
-                                        <span className="text-sm tabular-nums text-brand-muted">
-                                            {c.dial}
-                                        </span>
-                                        <span
-                                            className={`text-sm text-brand-accent ${selected ? "opacity-100" : "opacity-0"}`}
-                                            aria-hidden="true"
+                                return (
+                                    <li key={c.code} role="option" aria-selected={selected}>
+                                        <button
+                                            type="button"
+                                            onClick={() => choose(c)}
+                                            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                                                selected ? "bg-brand-accent/10" : "hover:bg-brand-bg"
+                                            }`}
                                         >
-                                            ✓
-                                        </span>
-                                    </button>
-                                </li>
-                            );
-                        })}
-                    </motion.ul>
+                                            <FlagBadge code={c.code} />
+                                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-brand-text">{c.name}</span>
+                                            <span className="text-sm tabular-nums text-brand-muted">+{c.dial}</span>
+                                            <LuCheck
+                                                className={`h-4 w-4 shrink-0 text-brand-accent ${selected ? "opacity-100" : "opacity-0"}`}
+                                                aria-hidden="true"
+                                            />
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </motion.div>
                 )}
             </AnimatePresence>
         </div>
     );
 }
-
-const fieldShell =
-    "rounded-xl border bg-brand-bg/70 transition-all focus-within:border-brand-accent/60 focus-within:bg-brand-card focus-within:ring-4 focus-within:ring-brand-accent/10";
-
-// text-base (16px): iOS Safari zooms the whole page into anything smaller on focus.
-const inputText =
-    "text-base font-medium text-brand-text placeholder:font-normal placeholder:text-brand-muted/60 outline-none";
 
 // Content settles in just after the sheet lands, for a softer entrance.
 function Reveal({ index, children, className = "" }) {
@@ -254,10 +227,22 @@ export default function RegistrationModal({
     submitting,
     errors,
     onSubmit,
+    countries,
+    shopCountry = "GB",
 }) {
     const [name, setName] = useState("");
-    const [country, setCountry] = useState(COUNTRIES[0]);
+    // Starts on the shop's own country (a Dubai shop opens on +971).
+    const [country, setCountry] = useState(
+        () => countries.find((c) => c.code === shopCountry) ?? countries.find((c) => c.code === "GB") ?? countries[0],
+    );
     const [phoneDigits, setPhoneDigits] = useState("");
+    const rules = rulesFor(country.dial);
+
+    // A different country can have a shorter / different number - re-tidy what's typed.
+    function changeCountry(next) {
+        setCountry(next);
+        setPhoneDigits((digits) => normaliseDigits(digits, next.dial));
+    }
     // Unticked by default - UK marketing consent must be an active opt-in.
     const [marketingConsent, setMarketingConsent] = useState(false);
     const [confirmOptOut, setConfirmOptOut] = useState(false);
@@ -271,8 +256,8 @@ export default function RegistrationModal({
             next.name = "Please enter your name.";
         }
 
-        if (!country.pattern.test(phoneDigits)) {
-            next.phone = `Enter a valid ${country.name} mobile number, ${country.hint}.`;
+        if (!rules.pattern.test(phoneDigits)) {
+            next.phone = rules.hint ? `Enter a valid ${country.name} mobile number, ${rules.hint}.` : "Enter a valid mobile number.";
         }
 
         setLocalErrors(next);
@@ -297,7 +282,7 @@ export default function RegistrationModal({
     }
 
     function submitRegistration(consent) {
-        onSubmit(name.trim(), `${country.dial}${phoneDigits}`, consent);
+        onSubmit(name.trim(), `+${country.dial}${phoneDigits}`, consent);
     }
 
     const nameError = localErrors.name ?? errors.name?.[0];
@@ -488,7 +473,8 @@ export default function RegistrationModal({
                                 >
                                     <CountryPicker
                                         country={country}
-                                        onChange={setCountry}
+                                        countries={countries}
+                                        onChange={changeCountry}
                                     />
                                     <input
                                         id="register-phone"
@@ -497,10 +483,10 @@ export default function RegistrationModal({
                                         value={phoneDigits}
                                         onChange={(e) =>
                                             setPhoneDigits(
-                                                normaliseDigits(e.target.value),
+                                                normaliseDigits(e.target.value, country.dial),
                                             )
                                         }
-                                        placeholder={country.placeholder}
+                                        placeholder={rules.placeholder}
                                         autoComplete="tel-national"
                                         enterKeyHint="done"
                                         aria-invalid={Boolean(phoneError)}

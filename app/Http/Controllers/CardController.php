@@ -8,6 +8,7 @@ use App\Models\CustomerShopCard;
 use App\Models\Review;
 use App\Models\Shop;
 use App\Services\CustomerRegistrar;
+use App\Support\Countries;
 use App\Support\SignupIcons;
 use App\Support\StampIcons;
 use Illuminate\Http\JsonResponse;
@@ -48,9 +49,12 @@ class CardController extends Controller
                 'banner_url' => $shop->bannerUrl(),
                 'logo_url' => $shop->logoUrl(),
                 'header_style' => $shop->headerStyle(),
+                // The sign-up's phone country picker starts on the shop's own country.
+                'country' => $shop->country,
             ],
             // The look the owner picked on /dashboard/theme (or the default).
             'theme' => $shop->appliedTheme(),
+            'phoneCountries' => Countries::options(),
         ]);
     }
 

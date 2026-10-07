@@ -20,11 +20,11 @@ class UpdateShopContactRequest extends FormRequest
 
     public function rules(): array
     {
-        return ShopContact::rules();
+        return ShopContact::rules($this->input('country'), phoneCode: $this->input('contact_phone_code'));
     }
 
     public function messages(): array
     {
-        return ShopContact::messages();
+        return ShopContact::messages($this->input('country'), $this->input('contact_phone_code'));
     }
 }

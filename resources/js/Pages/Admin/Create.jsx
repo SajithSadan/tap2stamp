@@ -1,6 +1,7 @@
 import { Link, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { LuArrowLeft, LuCheck, LuEye, LuEyeOff, LuLoaderCircle, LuRefreshCw } from 'react-icons/lu';
+import CountrySelect from '@/Components/CountrySelect';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { MAX_STAMPS, MIN_STAMPS, SlugInput, StampStepper, slugify } from '@/Components/Dashboard/ShopFields';
 import { FieldError, inputClass, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
@@ -238,10 +239,11 @@ function ThemePicker({ themes, value, onChange, defaultTheme }) {
     );
 }
 
-export default function Create({ themes, defaultTheme }) {
+export default function Create({ themes, defaultTheme, countries }) {
     const { data, setData, post, processing, errors } = useForm({
         shop_name: '',
         shop_slug: '',
+        shop_country: 'GB',
         owner_email: '',
         owner_password: '',
         shop_max_stamps: 8,
@@ -316,6 +318,22 @@ export default function Create({ themes, defaultTheme }) {
                             </Field>
                         </div>
                         <SlugIdeas ideas={slugIdeas} current={data.shop_slug} onPick={handlePickIdea} />
+                        <div className="mt-4 max-w-sm">
+                            <Field
+                                id="shop_country"
+                                label="Country"
+                                hint={data.shop_country === 'GB' ? null : "Can't order a counter display - the owner downloads their QR codes."}
+                                error={errors.shop_country}
+                            >
+                                <CountrySelect
+                                    id="shop_country"
+                                    value={data.shop_country}
+                                    onChange={(code) => setData('shop_country', code)}
+                                    countries={countries}
+                                    className={inputClass}
+                                />
+                            </Field>
+                        </div>
                     </Section>
 
                     <Section title="Owner login" description="Pass these on to the owner.">

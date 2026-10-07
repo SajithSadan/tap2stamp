@@ -27,6 +27,9 @@ class Setting extends Model
     /** Where shops send bank transfers for orders ({account_name, sort_code, account_number}). */
     public const BANK_DETAILS = 'bank_details';
 
+    /** The public landing page at "/": title, description, video and pricing (App\Support\LandingPage). */
+    public const LANDING_PAGE = 'landing_page';
+
     protected $fillable = [
         'key',
         'value',

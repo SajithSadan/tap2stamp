@@ -324,7 +324,7 @@ function buildColumns(origin) {
                             {s.contact_name}
                         </p>
                         <a
-                            href={`tel:${s.contact_phone}`}
+                            href={`tel:${s.contact_phone_tel}`}
                             className="block truncate text-xs tabular-nums text-brand-muted hover:text-brand-accent"
                         >
                             {s.contact_phone}

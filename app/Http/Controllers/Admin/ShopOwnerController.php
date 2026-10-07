@@ -11,6 +11,7 @@ use App\Http\Requests\StoreShopOwnerRequest;
 use App\Models\Product;
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\Countries;
 use App\Support\StampIcons;
 use App\Support\ThemeCatalog;
 use Illuminate\Http\JsonResponse;
@@ -78,9 +79,12 @@ class ShopOwnerController extends Controller
                     // Business contact + location from shop setup (null for older shops).
                     'contact_name' => $shop->contact_name,
                     'contact_email' => $shop->contact_email,
-                    'contact_phone' => $shop->contact_phone,
+                    // Code + number together ("+44 7700900123"), and the same for tel: links.
+                    'contact_phone' => $shop->contactPhone(),
+                    'contact_phone_tel' => $shop->contactPhoneTel(),
                     'town' => $shop->town,
                     'postcode' => $shop->postcode,
+                    'country' => Countries::name($shop->country),
                     'address' => collect([$shop->address_line1, $shop->address_line2, $shop->town, $shop->postcode])->filter()->implode(', ') ?: null,
                     'delivery_address' => $shop->delivery_address,
                     // The primary product: ordered (latest paid), awaiting the shop's
@@ -116,6 +120,7 @@ class ShopOwnerController extends Controller
         return Inertia::render('Admin/Create', [
             'themes' => ThemeCatalog::all(),
             'defaultTheme' => ThemeCatalog::DEFAULT,
+            'countries' => Countries::options(),
         ]);
     }
 
@@ -160,6 +165,7 @@ class ShopOwnerController extends Controller
                 // The owner is the business contact until someone says otherwise.
                 'contact_name' => $owner->name,
                 'contact_email' => $owner->email,
+                'country' => $request->input('shop_country') ?: Countries::UK,
                 // Defaults stay null, so a later change of the default still reaches this shop.
                 'theme' => $theme === ThemeCatalog::DEFAULT ? null : $theme,
                 'stamp_icon' => $stampIcon === StampIcons::DEFAULT ? null : $stampIcon,

@@ -118,7 +118,8 @@ test('the admin form tidies the postcode and phone like the owner\'s form', func
 
     expect($shop->fresh())
         ->postcode->toBe('LS1 4AP')
-        ->contact_phone->toBe('+447700900123')
+        ->contact_phone_code->toBe('44')
+        ->contact_phone->toBe('7700900123')
         ->delivery_address->toBeNull()
         ->and($shop->fresh()->deliveryAddress())->toBe('1 High Street, Leeds, LS1 4AP');
 });

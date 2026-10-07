@@ -33,9 +33,12 @@ ratings/reviews, Instagram, Wi-Fi).
 - Cooldown: one stamp per customer per shop per configurable window (config value, default
   8 hours).
 - UK context: `Europe/London` timezone, UK mobile number validation/normalisation (+44).
-  Indian mobiles (+91, 10 digits starting 6-9) are also accepted. The registration sheet's
-  country picker (`COUNTRIES` in `RegistrationModal.jsx`) and the `RegisterCustomerRequest`
-  regex must stay in sync when adding a country.
+  The customer sign-up's country picker (`RegistrationModal.jsx`) offers **every country**
+  (`Countries::options()`, sent as `phoneCountries` by `CardController`), with a search box,
+  starting on the shop's own country (`shop.country`); flags are flagcdn.com images (Windows
+  can't show flag emoji). Numbers: a UK mobile (+447…) and Indian mobile (+91, 10 digits
+  starting 6-9) exactly, any other known code + 4-14 digits (8-15 in all).
+  `RegisterCustomerRequest::validMobile()` ↔ `RULES` in `RegistrationModal.jsx` — keep in sync.
 
 ## In-house review & rating (deviates from the original doc — built)
 
@@ -586,6 +589,57 @@ display. So, by default, nothing in the owner dashboard reveals it:
 - The card page itself stays public (customers, My Cards and QR stickers rely on it) — this
   removes the easy route, it can't stop someone who already knows the URL.
 
+## Shop country: UK orders, elsewhere downloads its QR codes (additive)
+
+Enquiries come from all over the world, but we only ship hardware in the UK.
+
+- `shops.country` (ISO alpha-2, default `GB`; the migration backfilled `+91` / 6-digit-PIN shops
+  to `IN`). The list is `App\Support\Countries` (name + dialling code), server-only, sent to
+  forms as `countries` (`Countries::options()`, UK first) and drawn by `Components/CountrySelect.jsx`.
+  Collected at onboarding step 1, on owner Settings → Contact, admin shop settings → Business
+  and admin "Add shop" (`shop_country`).
+- **Contact number = two columns**: `shops.contact_phone_code` (dialling code, digits, e.g. `44`)
+  + `contact_phone` (the number without it, e.g. `7700900123`), picked/typed in
+  `Components/PhoneField.jsx` (code picker showing "+44" + number box) and **shown together**
+  via `Shop::contactPhone()` ("+44 7700900123") / `contactPhoneTel()` for `tel:` links. The code
+  defaults to the country's and follows a country change unless picked by hand; a number typed
+  as `+91…` / `0091…` switches to that code. The **code** picks the number rules (+44 UK
+  landline/mobile, +91 Indian mobile, else 4-14 digits); the **country** picks the postcode rules
+  (UK / India exact, elsewhere optional). `ShopContact` ↔ `lib/validation.js` — keep in sync.
+  The address finder and the delivery address are UK-only in the forms.
+- **`Shop::canOrderProducts()`** = country is GB. Not UK: no order banner, `/dashboard/orders`
+  redirects to `/dashboard/qr-codes`, checkout and coupon 404, the menu shows **QR codes**
+  instead of **Orders** (both entries have `href` closures in `Navigation`), Settings shows
+  "Your QR code" instead of "Counter display". `shopSummary()` sends `can_order`.
+- **Owner QR codes** (`/dashboard/qr-codes`, `DashboardController::qrCodes`, `Dashboard/QrCodes.jsx`):
+  the codes mapped to the shop (`qr_codes.shop_id`), in the design the **admin** picked for the
+  shop (`shops.qr_design_id`, Admin → shop settings → Loyalty card → "Owner's QR download";
+  null = plain QR). Preview, PNG and PDF (one sticker-size page each, or "Download all") are
+  drawn in the browser by `lib/qrPrint.js` (`qrPngDataUrl()`, `printQrPdf(…, null)` downloads),
+  the same renderer as the admin's prints. Never shows the card link itself, only what the
+  code opens.
+
+## Landing page at "/" (additive — replaces the old redirect to log in)
+
+- **`/`** (`LandingController`): signed-out visitors get `Pages/Landing.jsx` (title, description,
+  a YouTube video, pricing plans; every "Start Free" → `/register`). Signed-in users are still
+  redirected to `homeUrl()`; an admin can view it with `/?preview=1`.
+- **Edited by the admin** at `/admin/landing-page` (`Admin\LandingPageController`,
+  `Admin/LandingPage.jsx`, nav "Landing page", desktop only), stored as one JSON setting
+  (`Setting::LANDING_PAGE`); `App\Support\LandingPage::defaults()` until first saved (the three
+  plans from the marketing site). Up to 4 plans: name, badge, description, offer line (gift icon),
+  price per currency, text after/under the price ("/ month", "Billed annually" - plain text,
+  no monthly/annual toggle), features (one per line), button text, highlighted (dark card).
+- **Currency by IP**: prices are **typed per currency** by the admin (no conversion; every plan
+  needs a price in every offered currency). `App\Services\VisitorCountry` gives the country:
+  Cloudflare `CF-IPCountry` first, else ipinfo.io Lite (`IPINFO_TOKEN`, server-side, 2 s
+  timeout, cached per IP hash for 7 days; private IPs never looked up). `Currencies::forCountry()`
+  maps it to a currency; if that isn't offered → the admin's default currency. `?currency=USD`
+  shows an offered currency on purpose (the admin's Preview buttons). Prices reach the page
+  already resolved (`plans.*.price` + `symbol`), never the full price table.
+- **Video**: `LandingPage::youtubeId()` accepts watch / youtu.be / shorts / embed / live links;
+  the page shows the thumbnail and loads the `youtube-nocookie.com` player only on click.
+
 ## Self-service sign-up (additive — the landing page's "Start Free")
 
 The marketing site is WordPress (currently at tadatap.co.uk); its "Start Free" links to this app's
@@ -821,6 +875,8 @@ Plus (staff accounts, see above) `staff_members` (`shop_id`, `name` unique per s
 Plus `users.google_id` (nullable, unique) with `users.password` now nullable (Google-only
 owners), `users.onboarding_draft` (nullable JSON, shop setup in progress), and `qr_batches` / `qr_codes` / `qr_designs` (see "Bulk QR stickers").
 Plus `shops.header_style` (nullable JSON, card page header text/tint/shadow).
+Plus `shops.country` (char 2, default GB), `shops.qr_design_id` (nullable FK) and
+`shops.contact_phone_code` (dialling code; `contact_phone` is now the number without it) (see "Shop country").
 Plus `products`, `orders`, `shops.product_ordered_at`, `coupons` and `orders.coupon_id/coupon_code` (see "Products & orders").
 Plus `menu_sections` / `menu_items`, `shops.menu_theme` and `shops.menu_slug` (see "Shop menus").
 Plus `activity_logs` (see "Admin activity & logs").

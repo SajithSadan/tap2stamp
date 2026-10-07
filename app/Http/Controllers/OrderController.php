@@ -27,6 +27,8 @@ class OrderController extends Controller
     public function checkout(Request $request, OrderService $orders, StripeGateway $stripe): Response|RedirectResponse
     {
         abort_unless($stripe->configured(), 404);
+        // We only ship to the UK.
+        abort_unless($request->user()->shop->canOrderProducts(), 404);
 
         $input = $request->validate([
             ...$this->orderRules(),
@@ -77,6 +79,8 @@ class OrderController extends Controller
      */
     public function coupon(Request $request): JsonResponse
     {
+        abort_unless($request->user()->shop->canOrderProducts(), 404);
+
         $input = $request->validate([
             ...$this->orderRules(),
             'code' => ['required', 'string', 'max:32'],

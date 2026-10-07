@@ -55,6 +55,8 @@ class Navigation
             // Desktop sidebar only, like Orders.
             ['route' => 'admin.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $admin, 'active' => ['admin.activity*'], 'mobile' => false],
             ['route' => 'admin.logs', 'label' => 'Logs', 'icon' => 'logs', 'roles' => $admin, 'active' => ['admin.logs*'], 'mobile' => false],
+            // The public page at "/" (title, video, pricing). Desktop sidebar only.
+            ['route' => 'admin.landing-page', 'label' => 'Landing page', 'icon' => 'landing', 'roles' => $admin, 'active' => ['admin.landing-page*'], 'mobile' => false],
             ['route' => 'admin.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $admin, 'active' => ['admin.settings*']],
 
             // --- Owner dashboard -----------------------------------------
@@ -66,7 +68,15 @@ class Navigation
             ['route' => 'dashboard.menu', 'label' => 'Menu', 'icon' => 'menu', 'roles' => $owner, 'active' => ['dashboard.menu*']],
             ['route' => 'dashboard.marketing', 'label' => 'WhatsApp', 'icon' => 'whatsapp', 'roles' => $owner],
             ['route' => 'dashboard.staff', 'label' => 'Staff', 'icon' => 'staff', 'roles' => $owner, 'mobile_primary' => true],
-            ['route' => 'dashboard.orders', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $owner, 'active' => ['dashboard.orders*']],
+            // UK shops order our counter display; anywhere else downloads the QR codes we assigned.
+            [
+                'route' => 'dashboard.orders', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $owner, 'active' => ['dashboard.orders*'],
+                'href' => fn (User $user) => $user->shop?->canOrderProducts() === false ? null : route('dashboard.orders'),
+            ],
+            [
+                'route' => 'dashboard.qr-codes', 'label' => 'QR codes', 'icon' => 'qr', 'roles' => $owner,
+                'href' => fn (User $user) => $user->shop?->canOrderProducts() === false ? route('dashboard.qr-codes') : null,
+            ],
             ['route' => 'dashboard.theme', 'label' => 'Theme', 'icon' => 'theme', 'roles' => $owner, 'active' => ['dashboard.theme*']],
             ['route' => 'dashboard.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $owner, 'active' => ['dashboard.settings*']],
             [

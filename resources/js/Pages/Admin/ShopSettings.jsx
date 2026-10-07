@@ -11,7 +11,10 @@ import {
     LuUtensils,
 } from "react-icons/lu";
 import AddressLookup from "@/Components/AddressLookup";
+import CountrySelect from "@/Components/CountrySelect";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
+import PhoneField from "@/Components/PhoneField";
+import { dialCodeOf, INDIA, phonePlaceholder, UK } from "@/lib/validation";
 import { StampStepper } from "@/Components/Dashboard/ShopFields";
 import {
     CopyButton,
@@ -30,7 +33,7 @@ import { formatPence } from "@/lib/money";
 
 /** The page's tabs, and which form fields live on each (to flag errors). */
 const TABS = [
-    { key: "card", label: "Loyalty card", icon: LuStamp, fields: ["name", "max_stamps", "reward_title", "show_card_link"] },
+    { key: "card", label: "Loyalty card", icon: LuStamp, fields: ["name", "max_stamps", "reward_title", "show_card_link", "qr_design_id"] },
     {
         key: "customer",
         label: "Customer page",
@@ -44,8 +47,8 @@ const TABS = [
         label: "Business",
         icon: LuBuilding2,
         fields: [
-            "contact_name", "contact_email", "contact_phone",
-            "address_line1", "address_line2", "town", "postcode", "delivery_address",
+            "contact_name", "contact_email", "contact_phone_code", "contact_phone",
+            "address_line1", "address_line2", "town", "postcode", "country", "delivery_address",
         ],
     },
 ];
@@ -205,6 +208,9 @@ export default function ShopSettings({
     menuItemsCount,
     menuUrl,
     previewUrl,
+    countries,
+    assignedQrCount,
+    qrDesigns,
 }) {
     const [tab, setTab] = useState(initialTab);
     const form = useForm({
@@ -219,15 +225,19 @@ export default function ShopSettings({
         wifi_password: shop.wifi_password ?? "",
         contact_name: shop.contact_name ?? "",
         contact_email: shop.contact_email ?? "",
+        contact_phone_code: shop.contact_phone_code ?? dialCodeOf(shop.country ?? UK, countries),
         contact_phone: shop.contact_phone ?? "",
         address_line1: shop.address_line1 ?? "",
         address_line2: shop.address_line2 ?? "",
         town: shop.town ?? "",
         postcode: shop.postcode ?? "",
+        country: shop.country ?? UK,
+        qr_design_id: shop.qr_design_id ?? "",
         // Ticked = post orders to the shop address (no separate one saved).
         delivery_same: !shop.delivery_address,
         delivery_address: shop.delivery_address ?? "",
     });
+    const inUk = form.data.country === UK;
 
     const tabHasError = (t) => t.fields.some((field) => form.errors[field]);
 
@@ -355,6 +365,38 @@ export default function ShopSettings({
                         <Row label="Owner sees the card link" hint="Off: they order our counter display instead of printing their own QR.">
                             <Switch checked={form.data.show_card_link} onChange={(on) => form.setData("show_card_link", on)} />
                         </Row>
+                        <Row
+                            id="qr_design_id"
+                            label="Owner's QR download"
+                            hint={
+                                inUk
+                                    ? "For shops outside the UK (they can't order a counter display)."
+                                    : "Outside the UK: the owner downloads this shop's QR codes in this design."
+                            }
+                            error={form.errors.qr_design_id}
+                        >
+                            <select
+                                id="qr_design_id"
+                                value={form.data.qr_design_id}
+                                onChange={(e) => form.setData("qr_design_id", e.target.value)}
+                                className={inputClass}
+                            >
+                                <option value="">Plain QR</option>
+                                {qrDesigns.map((d) => (
+                                    <option key={d.id} value={d.id}>
+                                        {d.name || `Design #${d.id}`}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="mt-1 text-xs text-brand-muted">
+                                {assignedQrCount > 0
+                                    ? `${assignedQrCount} QR ${assignedQrCount === 1 ? "code" : "codes"} assigned to this shop.`
+                                    : "No QR codes assigned yet - map one to this shop on the QR codes page."}{" "}
+                                <Link href="/admin/qr-codes" className="font-semibold text-brand-accent hover:underline">
+                                    QR codes
+                                </Link>
+                            </p>
+                        </Row>
                     </Section>
                 )}
 
@@ -415,21 +457,58 @@ export default function ShopSettings({
                                     </p>
                                 )}
                             </Row>
-                            <Row id="contact_phone" label="Phone" hint="e.g. +442079460000" error={form.errors.contact_phone}>
-                                <input type="tel" {...text("contact_phone")} />
+                            <Row
+                                id="contact_phone"
+                                label="Phone"
+                                error={form.errors.contact_phone ?? form.errors.contact_phone_code}
+                            >
+                                <PhoneField
+                                    code={form.data.contact_phone_code}
+                                    number={form.data.contact_phone}
+                                    onCodeChange={(code) => form.setData("contact_phone_code", code)}
+                                    onNumberChange={(value) => form.setData("contact_phone", value)}
+                                    countries={countries}
+                                    country={form.data.country}
+                                    placeholder={phonePlaceholder(form.data.contact_phone_code)}
+                                    inputClassName={inputClass}
+                                />
                             </Row>
                         </Section>
 
                         <Section title="Address">
-                            {/* findaddress.io via our /address-lookup proxy (key stays server-side). */}
-                            <Row label="Find address">
-                                <AddressLookup
-                                    initialPostcode={form.data.postcode}
-                                    onFound={(address) => form.setData((data) => ({ ...data, ...address }))}
-                                    inputClassName={inputClass}
-                                    buttonClassName={secondaryButton}
+                            <Row
+                                id="country"
+                                label="Country"
+                                hint="Only UK shops can order the counter display; elsewhere the owner downloads their QR codes."
+                                error={form.errors.country}
+                            >
+                                <CountrySelect
+                                    value={form.data.country}
+                                    onChange={(code) =>
+                                        // The phone's country code follows, unless one was picked by hand.
+                                        form.setData((data) => ({
+                                            ...data,
+                                            country: code,
+                                            ...(data.contact_phone_code === dialCodeOf(data.country, countries) && {
+                                                contact_phone_code: dialCodeOf(code, countries),
+                                            }),
+                                        }))
+                                    }
+                                    countries={countries}
+                                    className={inputClass}
                                 />
                             </Row>
+                            {/* findaddress.io via our /address-lookup proxy (key stays server-side) - UK addresses only. */}
+                            {inUk && (
+                                <Row label="Find address">
+                                    <AddressLookup
+                                        initialPostcode={form.data.postcode}
+                                        onFound={(address) => form.setData((data) => ({ ...data, ...address }))}
+                                        inputClassName={inputClass}
+                                        buttonClassName={secondaryButton}
+                                    />
+                                </Row>
+                            )}
                             <Row id="address_line1" label="Address line 1" error={form.errors.address_line1}>
                                 <input type="text" {...text("address_line1")} />
                             </Row>
@@ -439,9 +518,10 @@ export default function ShopSettings({
                             <Row id="town" label="Town / city" error={form.errors.town}>
                                 <input type="text" {...text("town")} />
                             </Row>
-                            <Row id="postcode" label="Postcode" error={form.errors.postcode}>
+                            <Row id="postcode" label={form.data.country === INDIA ? "PIN code" : "Postcode"} error={form.errors.postcode}>
                                 <input type="text" autoCapitalize="characters" {...text("postcode")} />
                             </Row>
+                            {inUk && (
                             <Row label="Deliver orders to" error={form.errors.delivery_address}>
                                 <label className="flex cursor-pointer items-center gap-3 text-sm text-brand-text">
                                     <input
@@ -463,6 +543,7 @@ export default function ShopSettings({
                                     />
                                 )}
                             </Row>
+                            )}
                         </Section>
                     </>
                 )}

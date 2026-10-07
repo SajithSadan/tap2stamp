@@ -198,7 +198,7 @@ function StampShower() {
  * In preview the page never reads or writes the saved customer, never asks to
  * sign up or join, and never posts anything.
  */
-export default function Card({ shop, theme, preview = null }) {
+export default function Card({ shop, theme, preview = null, phoneCountries = [] }) {
     // The owner's chosen look (Dashboard → Theme), applied to this page only.
     useDocumentTheme(theme);
     const surface = SURFACE;
@@ -1114,6 +1114,8 @@ export default function Card({ shop, theme, preview = null }) {
                         submitting={submitting}
                         errors={errors}
                         onSubmit={handleRegister}
+                        countries={phoneCountries}
+                        shopCountry={shop.country}
                     />
                 )}
             </AnimatePresence>

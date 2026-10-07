@@ -4,6 +4,7 @@ use App\Http\Controllers\AddressLookupController;
 use App\Http\Controllers\Admin\ActivityController as AdminActivityController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\LandingPageController;
 use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\Dev\CustomThemeController;
 use App\Http\Controllers\Dev\ThemePreviewController;
+use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\MyCardsController;
@@ -42,12 +44,10 @@ use App\Http\Controllers\UnsubscribeController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-// No public landing page: the marketing site (tadatap.co.uk) is the front door.
-// Guests go to log in; signed-in users to their own home. Named `home` so the
-// guest middleware also sends signed-in visitors of /login here.
-Route::get('/', fn () => auth()->check()
-    ? redirect(auth()->user()->homeUrl())
-    : redirect()->route('login'))->name('home');
+// Visitors: the landing page (pricing in their own currency, edited in Admin →
+// Landing page). Signed-in users: their own home. Named `home` so the guest
+// middleware also sends signed-in visitors of /login here.
+Route::get('/', LandingController::class)->name('home');
 
 // Customer loyalty card: the page shell renders via Inertia, but which
 // uuid (if any) is known only lives in the browser's localStorage, so the
@@ -198,6 +198,8 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::post('/logs/clear', [LogController::class, 'clear'])->name('logs.clear');
 
     // App-wide switches (API keys themselves stay in .env).
+    Route::get('/landing-page', [LandingPageController::class, 'edit'])->name('landing-page');
+    Route::put('/landing-page', [LandingPageController::class, 'update'])->name('landing-page.update');
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
     Route::put('/settings/google', [SettingsController::class, 'updateGoogle'])->name('settings.google');
     Route::put('/settings/sidebar', [SettingsController::class, 'updateSidebar'])->name('settings.sidebar');
@@ -232,6 +234,7 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::get('/reviews', [DashboardController::class, 'reviews'])->name('reviews');
     Route::get('/staff', [DashboardController::class, 'staff'])->name('staff');
     Route::post('/scan', OwnerScanController::class)->middleware('throttle:30,1')->name('scan');
+    Route::get('/qr-codes', [DashboardController::class, 'qrCodes'])->name('qr-codes');
     Route::get('/settings', [DashboardController::class, 'settings'])->name('settings');
     Route::put('/settings', [DashboardController::class, 'updateSettings'])->name('settings.update');
     Route::put('/settings/contact', [DashboardController::class, 'updateContact'])->name('settings.contact');
