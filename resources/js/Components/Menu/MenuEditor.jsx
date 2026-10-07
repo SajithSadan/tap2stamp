@@ -11,7 +11,9 @@ import {
     LuImage,
     LuImagePlus,
     LuImageUp,
+    LuListChecks,
     LuLoaderCircle,
+    LuMinus,
     LuPalette,
     LuPlus,
     LuSparkles,
@@ -21,6 +23,7 @@ import {
 } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
 import { FieldError, primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
+import PhotoFinder from "@/Components/Menu/PhotoFinder";
 import MenuView, { LAYOUT_LABELS } from "@/Components/MenuView";
 import { hasTag, MAX_TAGS, TAG_LENGTH, tagSuggestions, tidyTag } from "@/lib/menuTags";
 import { useThemeFonts } from "@/lib/theme";
@@ -652,12 +655,42 @@ function PhotoActions({ item, asking, setAsking, canFind, onFind, onRemovePhoto 
     );
 }
 
+/** Checkbox for picking items to look up photos for. `partial` = some of a section. */
+function Tick({ checked, partial = false, onChange, label, className = "" }) {
+    return (
+        <button
+            type="button"
+            role="checkbox"
+            aria-checked={partial ? "mixed" : checked}
+            aria-label={label}
+            onClick={() => onChange(!checked)}
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                checked || partial ? "border-brand-accent bg-brand-accent text-brand-accent-text" : "border-brand-border bg-brand-card hover:border-brand-accent"
+            } ${className}`}
+        >
+            {checked ? <LuCheck className="h-3 w-3" strokeWidth={3} /> : partial ? <LuMinus className="h-3 w-3" strokeWidth={3} /> : null}
+        </button>
+    );
+}
+
 function ItemRow({ item, path, errors, first, last, suggestions, photos, onChange, onMove, onRemove }) {
     const [asking, setAsking] = useState(false);
     const canFind = Boolean(item.id) && !photos.busy;
+    const selecting = photos.selected !== null;
 
     return (
-        <li className="group flex items-start gap-1 px-2 py-2">
+        <li className={`group flex items-start gap-1 px-2 py-2 ${selecting && photos.selected.has(item.id) ? "bg-brand-accent/5" : ""}`}>
+            {selecting &&
+                (item.id ? (
+                    <Tick
+                        checked={photos.selected.has(item.id)}
+                        onChange={(on) => photos.toggleSelected([item.id], on)}
+                        label={`Select ${item.name}`}
+                        className="mx-1 mt-[18px]"
+                    />
+                ) : (
+                    <span className="mx-1 w-5 shrink-0" />
+                ))}
             {photos.enabled && <PhotoThumb item={item} searching={photos.searching(item)} canFind={canFind} onClick={() => setAsking(true)} />}
             <div className="min-w-0 flex-1">
                 <div className="flex gap-1">
@@ -725,10 +758,21 @@ function ItemRow({ item, path, errors, first, last, suggestions, photos, onChang
 function SectionBlock({ section, si, count, errors, suggestions, photos, onChange, onMove, onRemove }) {
     const [open, setOpen] = useState(true);
     const updateItem = (ii, patch) => onChange({ items: section.items.map((item, i) => (i === ii ? { ...item, ...patch } : item)) });
+    const ids = section.items.filter((i) => i.id).map((i) => i.id);
+    const picked = photos.selected ? ids.filter((id) => photos.selected.has(id)).length : 0;
 
     return (
         <section className="rounded-2xl border border-brand-border bg-brand-card">
             <div className="flex items-center gap-1 px-2 py-2">
+                {photos.selected !== null && ids.length > 0 && (
+                    <Tick
+                        checked={picked === ids.length}
+                        partial={picked > 0 && picked < ids.length}
+                        onChange={(on) => photos.toggleSelected(ids, on)}
+                        label={`Select all in ${section.name || "this section"}`}
+                        className="mx-1"
+                    />
+                )}
                 <button
                     type="button"
                     onClick={() => setOpen(!open)}
@@ -846,55 +890,121 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
     const empty = sections.length === 0;
 
     // ---- Photos: only when asked (Find photos / an item's search), a few items per request (no queue on the host) ----
-    const [photoRun, setPhotoRun] = useState(null); // {done, remaining} while running
-    const [photoNote, setPhotoNote] = useState(null);
-    const [findingId, setFindingId] = useState(null);
+    // The PhotoFinder panel's state: {total, index, current, outcome, results, finished, note}.
+    const [finder, setFinder] = useState(null);
     const running = useRef(false);
+    const stopRequested = useRef(false);
+    const finderRunning = finder !== null && !finder.finished;
 
-    async function findPhotos({ retry = false } = {}) {
-        if (!imagesEnabled || running.current) return;
+    /**
+     * Stop after the item in flight: its request is already running on the
+     * server and may save a photo, so it's let finish rather than cut off.
+     */
+    function stopFinder() {
+        stopRequested.current = true;
+        setFinder((f) => (f && !f.finished ? { ...f, stopping: true } : f));
+    }
+
+    /**
+     * One request per item (so the panel knows which one is being checked),
+     * holding each outcome on screen for a moment before the next.
+     */
+    async function runFinder(queue, bodyFor, { untried = false } = {}) {
         running.current = true;
-        setPhotoNote(null);
-        let done = 0;
+        stopRequested.current = false;
+        let total = queue.length;
+        let note = null;
+        const results = [];
+        setFinder({ total, index: 0, current: null, outcome: null, results, finished: false, stopping: false, note });
         try {
-            for (let first = true; ; first = false) {
-                // `retry` (first call only): look again for items that got no photo last time.
-                const { data } = await axios.post(`${urls.base}/images`, retry && first ? { retry: true } : {});
-                done += data.done;
-                setSections((current) => withPhotos(current, data.items));
-                setPhotoRun({ done, remaining: data.remaining });
-                if (data.unavailable) {
-                    setPhotoNote("Photo checks are busy right now - press Find photos again in a minute for the rest.");
+            for (let i = 0; i < total && queue[i]; i++) {
+                if (stopRequested.current) {
+                    note = `Stopped - ${total - i} ${total - i === 1 ? "item" : "items"} not checked.`;
                     break;
                 }
-                if (data.remaining === 0 || data.done === 0) break;
+                setFinder((f) => ({ ...f, total, index: i, outcome: null, current: { ...queue[i], startedAt: Date.now() } }));
+                const { data } = await axios.post(`${urls.base}/images`, bodyFor(i));
+                setSections((current) => withPhotos(current, data.items));
+                if (data.unavailable) {
+                    note = "Photo checks are busy right now - try again in a minute for the rest.";
+                    break;
+                }
+                const r = data.items[0];
+                if (!r) break;
+                const outcome = { name: r.name, section: r.section, status: r.outcome, image_url: r.image_url, reason: r.outcome_reason };
+                results.push(outcome);
+                // Untried runs: the server knows best how many are left.
+                if (untried) total = Math.min(queue.length, i + 1 + data.remaining);
+                setFinder((f) => ({ ...f, total, outcome, results: [...results] }));
+                if (!stopRequested.current) await new Promise((resolve) => setTimeout(resolve, 1100));
             }
         } catch {
-            setPhotoNote("Couldn't look for photos right now - try again in a minute.");
+            note = "Couldn't look for photos right now - try again in a minute.";
         } finally {
             running.current = false;
-            setPhotoRun(null);
+            setFinder((f) => ({ ...f, finished: true, note }));
         }
     }
 
-    async function findAgain(item, query) {
-        setFindingId(item.id);
-        try {
-            const { data } = await axios.post(`${urls.base}/images`, { item: item.id, query });
-            if (data.unavailable) setPhotoNote("Photo checks are busy right now - try again in a minute.");
-            setSections((current) => withPhotos(current, data.items));
-        } catch {
-            setPhotoNote("Couldn't look for that photo - save the menu and try again.");
-        } finally {
-            setFindingId(null);
+    function findPhotos({ retry = false } = {}) {
+        if (!imagesEnabled || running.current) return;
+        // Same order the server works in: saved menu order, untried first (or, with
+        // `retry`, also the ones that got no photo last time).
+        const queue = sections.flatMap((s) =>
+            s.items
+                .filter((i) => i.id && (i.image_status === null || (retry && ["not_found", "rejected"].includes(i.image_status))))
+                .map((i) => ({ name: i.name, section: s.name })),
+        );
+        if (queue.length) {
+            runFinder(queue, (i) => ({ limit: 1, ...(retry && i === 0 && { retry: true }) }), { untried: true });
+            return;
         }
+        // Nothing to look for: say so, rather than leaving the last run's panel up.
+        setFinder({
+            total: 0,
+            index: 0,
+            current: null,
+            outcome: null,
+            results: [],
+            finished: true,
+            stopping: false,
+            note: "Every item already has a photo or was taken off by hand. Use Select to look again for particular items (a better photo replaces the current one).",
+        });
+    }
+
+    function findAgain(item, query) {
+        if (running.current) return;
+        const section = sections.find((s) => s.items.includes(item))?.name;
+        runFinder([{ name: item.name, section }], () => ({ item: item.id, query }));
+    }
+
+    // Pick items for a bulk search (ids of saved items).
+    const [selected, setSelected] = useState(null); // null = not selecting, else a Set
+    const savedItems = sections.flatMap((s) => s.items.filter((i) => i.id).map((i) => ({ ...i, section: s.name })));
+    const untriedCount = savedItems.filter((i) => i.image_status === null).length;
+
+    function toggleSelected(ids, on) {
+        setSelected((current) => {
+            const next = new Set(current);
+            ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+            return next;
+        });
+    }
+
+    function findSelected() {
+        if (running.current || !selected?.size) return;
+        const queue = savedItems.filter((i) => selected.has(i.id));
+        setSelected(null);
+        runFinder(queue, (i) => ({ item: queue[i].id }));
     }
 
     const photos = {
         enabled: imagesEnabled,
-        busy: photoRun !== null || findingId !== null,
-        searching: (item) => findingId === item.id || (photoRun !== null && item.id && item.image_status === null),
+        busy: finderRunning,
+        searching: (item) => finderRunning && !finder.outcome && finder.current?.name === item.name,
         findAgain,
+        selected,
+        toggleSelected,
     };
 
     function change(next) {
@@ -1053,7 +1163,23 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                                     title={dirty ? "Save your changes first" : "Look up photos for items that don't have one"}
                                     className={secondaryButton}
                                 >
-                                    {photoRun ? <LuLoaderCircle className="h-4 w-4 animate-spin" /> : <LuImagePlus className="h-4 w-4" />} Find photos
+                                    {finderRunning ? <LuLoaderCircle className="h-4 w-4 animate-spin" /> : <LuImagePlus className="h-4 w-4" />} Find photos
+                                    {/* After a stopped run: it carries on with the ones not checked yet. */}
+                                    {untriedCount > 0 && untriedCount < savedItems.length && (
+                                        <span className="text-xs font-normal text-brand-muted">· {untriedCount} left</span>
+                                    )}
+                                </button>
+                            )}
+                            {imagesEnabled && savedHasItems && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSelected(selected ? null : new Set())}
+                                    disabled={finderRunning || dirty}
+                                    title={dirty ? "Save your changes first" : "Pick items to look up photos for"}
+                                    aria-pressed={selected !== null}
+                                    className={`${secondaryButton} ${selected ? "!border-brand-accent !text-brand-accent" : ""}`}
+                                >
+                                    <LuListChecks className="h-4 w-4" /> Select
                                 </button>
                             )}
                             <button type="button" onClick={addSection} className={secondaryButton}>
@@ -1076,13 +1202,33 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                                 <LuSparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" /> {notice}
                             </p>
                         )}
-                        {photoRun && (
-                            <p className="flex items-center gap-2 px-1 text-sm text-brand-muted" role="status">
-                                <LuLoaderCircle className="h-4 w-4 animate-spin" /> Finding photos… {photoRun.done} of{" "}
-                                {photoRun.done + photoRun.remaining} checked
-                            </p>
+                        {selected && (
+                            <div className="sticky top-2 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-brand-accent/40 bg-brand-card px-3 py-2">
+                                <Tick
+                                    checked={selected.size > 0 && selected.size === savedItems.length}
+                                    partial={selected.size > 0 && selected.size < savedItems.length}
+                                    onChange={(on) => toggleSelected(savedItems.map((i) => i.id), on)}
+                                    label="Select every item"
+                                />
+                                <span className="text-sm font-medium tabular-nums text-brand-text">{selected.size} selected</span>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleSelected(savedItems.filter((i) => !i.image_url).map((i) => i.id), true)}
+                                    className="text-sm font-medium text-brand-accent hover:underline"
+                                >
+                                    + Without a photo
+                                </button>
+                                <span className="ml-auto flex items-center gap-2">
+                                    <button type="button" onClick={() => setSelected(null)} className={secondaryButton}>
+                                        Cancel
+                                    </button>
+                                    <button type="button" onClick={findSelected} disabled={!selected.size || dirty} className={primaryButton}>
+                                        <LuImagePlus className="h-4 w-4" /> Find photos{selected.size > 0 && ` (${selected.size})`}
+                                    </button>
+                                </span>
+                            </div>
                         )}
-                        {photoNote && !photoRun && <p className="px-1 text-sm text-brand-muted">{photoNote}</p>}
+                        {finder && <PhotoFinder run={finder} onStop={stopFinder} onClose={() => setFinder(null)} />}
 
                         {sections.map((section, si) => (
                             <SectionBlock

@@ -95,6 +95,17 @@ test('requests to the catalog are signed', function () {
     });
 });
 
+test('gemini is told what the catalog calls the image', function () {
+    [$owner] = photoOwner();
+    saveOneItemMenu($owner);
+    fakeCatalog();
+
+    $this->actingAs($owner)->postJson('/dashboard/menu/images')->assertOk();
+
+    Http::assertSent(fn (Request $request) => str_contains($request->url(), 'generativelanguage')
+        && str_contains($request['contents'][0]['parts'][1]['text'], 'labels this image: "Flat White"'));
+});
+
 test('a photo Gemini rejects is never stored', function () {
     [$owner] = photoOwner();
     saveOneItemMenu($owner);
@@ -218,6 +229,44 @@ test('a catalog miss is retried hyphenated, then with the main word', function (
     ]);
 
     $this->actingAs($owner)->postJson('/dashboard/menu/images')->assertJsonPath('items.0.image_status', 'found');
+});
+
+test('the progress panel can ask for one item at a time', function () {
+    [$owner] = photoOwner();
+    test()->actingAs($owner)->put('/dashboard/menu', ['sections' => [['name' => 'Drinks', 'items' => [
+        ['name' => 'Flat white', 'description' => null, 'price' => null, 'tags' => []],
+        ['name' => 'Latte', 'description' => null, 'price' => null, 'tags' => []],
+    ]]]]);
+    fakeCatalog();
+
+    $this->actingAs($owner)->postJson('/dashboard/menu/images', ['limit' => 1])
+        ->assertJson(['done' => 1, 'remaining' => 1])
+        ->assertJsonPath('items.0.name', 'Flat white');
+    $this->actingAs($owner)->postJson('/dashboard/menu/images', ['limit' => 9])->assertUnprocessable();
+});
+
+test('an item that already has a photo keeps it when a new search finds nothing better', function () {
+    [$owner] = photoOwner();
+    saveOneItemMenu($owner);
+    $verdict = fn (array $v) => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode($v)]]]]]]);
+    Http::fake([
+        'catalog.test/api/products/7/image' => Http::response(pngBytes(), 200, ['Content-Type' => 'image/png']),
+        'catalog.test/api/products*' => Http::response(['data' => [['id' => 7, 'name' => 'Flat White']]]),
+        'generativelanguage.googleapis.com/*' => Http::sequence()
+            ->pushResponse($verdict(['match' => true, 'confidence' => 0.92, 'detected' => 'a flat white', 'reason' => 'Latte art']))
+            ->pushResponse($verdict(['match' => false, 'confidence' => 0.8, 'detected' => 'a bag of beans', 'reason' => 'Not a drink'])),
+    ]);
+    $this->actingAs($owner)->postJson('/dashboard/menu/images');
+    $item = MenuItem::sole();
+    $path = $item->image_path;
+
+    $this->actingAs($owner)->postJson('/dashboard/menu/images', ['item' => $item->id])
+        ->assertJsonPath('items.0.outcome', 'rejected')
+        ->assertJsonPath('items.0.outcome_reason', fn ($reason) => str_contains($reason, 'bag of beans'))
+        ->assertJsonPath('items.0.image_status', 'found');
+
+    expect($item->fresh()->image_path)->toBe($path);
+    Storage::disk('uploads')->assertExists($path);
 });
 
 test('find photos with retry looks again for items that got none, not ones taken off by hand', function () {

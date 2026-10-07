@@ -74,6 +74,8 @@ class ShopMenuController extends Controller
             // "Find photos" with nothing left to try: look again for items that got none
             // (not those whose photo was taken off by hand).
             'retry' => ['nullable', 'boolean'],
+            // The editor's progress panel asks for one item at a time, so it knows which one is being checked.
+            'limit' => ['nullable', 'integer', 'min:1', 'max:'.MenuItemImages::BATCH],
         ]);
 
         if ($request->boolean('retry')) {
@@ -87,17 +89,17 @@ class ShopMenuController extends Controller
 
         if (isset($validated['item'])) {
             $item = $shop->menuItems()->where('menu_items.id', $validated['item'])->select('menu_items.*')->firstOrFail();
-            $status = $images->fetchFor($item, $validated['query'] ?? null);
+            $outcome = $images->fetchFor($item, $validated['query'] ?? null);
 
             return response()->json([
-                'done' => $status === null ? 0 : 1,
+                'done' => $outcome === null ? 0 : 1,
                 'remaining' => 0,
-                'unavailable' => $status === null,
-                'items' => $status === null ? [] : [MenuItemImages::summary($item->fresh('section'))],
+                'unavailable' => $outcome === null,
+                'items' => $outcome === null ? [] : [MenuItemImages::summary($item->fresh('section'), $outcome)],
             ]);
         }
 
-        return response()->json($images->fetchNext($shop));
+        return response()->json($images->fetchNext($shop, $validated['limit'] ?? MenuItemImages::BATCH));
     }
 
     /** "Choose theme": saved straight away, it's only the look. */

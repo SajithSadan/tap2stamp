@@ -17,15 +17,21 @@ class MenuImageVerifier
     private const URL = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
 
     /** @return array{match: bool, confidence: float, detected: string, reason: string}|null */
-    public function verify(string $name, ?string $section, ?string $description, string $bytes, string $mime): ?array
+    public function verify(string $name, ?string $section, ?string $description, string $bytes, string $mime, ?string $catalogName = null): ?array
     {
         $prompt = "You choose photos for a cafe / restaurant menu.\n"
-            ."Menu item: \"{$name}\"".($section ? "\nMenu section: \"{$section}\"" : '').($description ? "\nDescription: \"{$description}\"" : '')."\n"
+            ."Menu item: \"{$name}\"".($section ? "\nMenu section: \"{$section}\"" : '').($description ? "\nDescription: \"{$description}\"" : '')
+            .($catalogName ? "\nThe photo library labels this image: \"{$catalogName}\" (a hint only - judge the image itself)." : '')."\n"
             .<<<'TXT'
             Does this image clearly show this menu item?
             - A freshly made dish or drink (no brand in its name, e.g. "Flat white", "Cheeseburger"): any clear,
-              appetising photo of that same dish matches. A different dish, a raw ingredient, or a packaged
-              product does NOT match.
+              appetising photo of that kind of dish matches. Be generous about variations: extra fillings or
+              toppings, garnish, bread, sauce, regional or fusion style and plating are all fine (a cheese
+              sandwich that also has ham or tomato is still a cheese sandwich; a loaded or Indian-style hot dog
+              is still a hot dog). Ask: would a customer who ordered this item accept a dish that looks like
+              this? Only a clearly different dish, a raw ingredient, an appliance, or a packaged product does
+              NOT match - unless the description rules out what is shown (e.g. "vegetarian" and the photo
+              clearly shows meat).
             - A branded product (a brand in its name, e.g. "Coca-Cola 330ml", "KitKat"): brand, variant/flavour
               and size must match.
             - Never a match: collages, text or menus, logos, a person as the main subject, unclear or tiny food.

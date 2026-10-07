@@ -524,6 +524,12 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
   branded = brand + size; `MENU_IMAGE_MIN_CONFIDENCE`), and only then it's stored on the
   `uploads` disk (`menu-items/{shop}/…`). Gemini down → nothing saved, status stays null (retried).
   Statuses: null / found / not_found / rejected / removed. 3 items per request (no queue).
+  Progress is shown by `Components/Menu/PhotoFinder.jsx`: the editor asks one item per request
+  (`limit: 1`) so it knows which item is in flight; the Search → Download → AI check steps
+  advance on a clock, the outcome and the step it stopped at are the server's real answer.
+  Responses carry `outcome` / `outcome_reason` (this search's result, shown with the reason).
+  **Select** (toolbar) picks items for a bulk run, one `{item}` request each; an item that
+  already has a photo keeps it (and its status) when nothing better is found.
   Triggers: toolbar **Find photos** (untried items; with none left it sends `retry` = look
   again for not_found/rejected, never `removed`), and per saved item the thumbnail /
   "Find photo" / "Change photo" (`{item, query}`) and "Remove photo".

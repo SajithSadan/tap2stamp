@@ -44,11 +44,11 @@ class MenuItemImages
         $unavailable = false;
 
         foreach ($items as $item) {
-            if ($this->fetchFor($item) === null) {
+            if (! $outcome = $this->fetchFor($item)) {
                 $unavailable = true; // Gemini can't check right now - stop, try again later.
                 break;
             }
-            $done[] = self::summary($item->fresh('section'));
+            $done[] = self::summary($item->fresh('section'), $outcome);
         }
 
         return [
@@ -60,11 +60,13 @@ class MenuItemImages
     }
 
     /**
-     * Looks for one item's photo. Saves it only if Gemini accepts it.
+     * Looks for one item's photo. Saves it only if Gemini accepts it. An item
+     * that already has a photo keeps it (and its status) when nothing better
+     * turns up.
      *
-     * @return string|null the new status, or null when Gemini couldn't be used (nothing changed)
+     * @return array{status: string, reason: ?string}|null what happened, or null when Gemini couldn't be used (nothing changed)
      */
-    public function fetchFor(MenuItem $item, ?string $query = null): ?string
+    public function fetchFor(MenuItem $item, ?string $query = null): ?array
     {
         $candidates = [];
         foreach (self::searchTerms($query ?: $item->name) as $term) {
@@ -74,9 +76,7 @@ class MenuItemImages
         }
 
         if ($candidates === []) {
-            $item->update(['image_status' => 'not_found', 'image_confidence' => null, 'image_reason' => 'Not in the product catalog']);
-
-            return 'not_found';
+            return $this->missed($item, 'not_found', null, 'Not in the product catalog');
         }
 
         $closest = null;
@@ -86,7 +86,7 @@ class MenuItemImages
                 continue;
             }
 
-            $verdict = $this->verifier->verify($item->name, $item->section?->name, $item->description, $bytes, $mime);
+            $verdict = $this->verifier->verify($item->name, $item->section?->name, $item->description, $bytes, $mime, $candidate['name'] ?? null);
             if ($verdict === null) {
                 return null;
             }
@@ -96,7 +96,7 @@ class MenuItemImages
             if ($this->verifier->accepted($verdict)) {
                 $this->store($item, $bytes, $mime, $verdict);
 
-                return 'found';
+                return ['status' => 'found', 'reason' => $verdict['reason']];
             }
 
             if (! $closest || $verdict['confidence'] > $closest['confidence']) {
@@ -104,13 +104,19 @@ class MenuItemImages
             }
         }
 
-        $item->update([
-            'image_status' => $closest ? 'rejected' : 'not_found',
-            'image_confidence' => $closest['confidence'] ?? null,
-            'image_reason' => $closest ? mb_substr("Closest: {$closest['detected']} - {$closest['reason']}", 0, 500) : 'No usable image in the catalog',
-        ]);
+        return $closest
+            ? $this->missed($item, 'rejected', $closest['confidence'], mb_substr("Closest: {$closest['detected']} - {$closest['reason']}", 0, 500))
+            : $this->missed($item, 'not_found', null, 'No usable image in the catalog');
+    }
 
-        return $closest ? 'rejected' : 'not_found';
+    /** @return array{status: string, reason: string} */
+    private function missed(MenuItem $item, string $status, ?float $confidence, string $reason): array
+    {
+        if (! $item->image_path) {
+            $item->update(['image_status' => $status, 'image_confidence' => $confidence, 'image_reason' => $reason]);
+        }
+
+        return ['status' => $status, 'reason' => $reason];
     }
 
     /**
@@ -132,10 +138,17 @@ class MenuItemImages
         return array_values(array_unique(array_filter([$name, str_replace(' ', '-', $name), $main])));
     }
 
-    /** What the editor merges back into its rows (matched by section + name). */
-    public static function summary(MenuItem $item): array
+    /**
+     * What the editor merges back into its rows (matched by section + name),
+     * plus this search's outcome for the progress panel.
+     *
+     * @param  array{status: string, reason: ?string}  $outcome
+     */
+    public static function summary(MenuItem $item, array $outcome): array
     {
         return [
+            'outcome' => $outcome['status'],
+            'outcome_reason' => $outcome['reason'],
             'section' => $item->section?->name,
             'name' => $item->name,
             'image_path' => $item->image_path,
