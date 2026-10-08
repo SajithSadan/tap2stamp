@@ -196,6 +196,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/qr-codes/designs/{qrDesign}/edit', [QrDesignController::class, 'edit'])->name('qr-codes.designs.edit');
     Route::post('/qr-codes/designs', [QrDesignController::class, 'store'])->name('qr-codes.designs.store');
     Route::put('/qr-codes/designs/{qrDesign}', [QrDesignController::class, 'update'])->name('qr-codes.designs.update');
+    Route::put('/qr-codes/designs/{qrDesign}/default', [QrDesignController::class, 'setDefault'])->name('qr-codes.designs.default');
     Route::delete('/qr-codes/designs/{qrDesign}', [QrDesignController::class, 'destroy'])->name('qr-codes.designs.destroy');
 
     Route::put('/qr-codes/{qrCode}', [QrCodeController::class, 'update'])->name('qr-codes.update');

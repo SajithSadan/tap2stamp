@@ -286,6 +286,20 @@ owner-approved device.
   Still never a shop param in the URL.
 - Dev seeder: Artisan Cafe has staff `Sam` (PIN 1234) and `Alex` (PIN 5678).
 
+## Overseas shops: QR download in a design (additive)
+
+Physical products (counter display, stickers) are UK only (`Shop::canOrderProducts()` =
+country is UK). Owners elsewhere get **QR codes** in their menu (`dashboard.qr-codes`) to
+download (PNG / sticker-size PDF, drawn by the same renderer as admin prints).
+
+- **Issued automatically**: the first time an overseas owner opens that page with no codes,
+  `QrCodeGenerator::issueFor()` creates one permanent `/qr/{code}` (batch "Overseas shops",
+  mapped to their card link, `shop_id` set) - under a row lock so two tabs can't issue two.
+  The admin sees / remaps / reprints it like any sticker; the card link is never shown.
+- **Design**: `Shop::downloadDesign()` = the shop's own `qr_design_id`, else the **default
+  design** (`qr_designs.is_default`, at most one; ★ on Admin → QR codes → Designs,
+  `PUT /admin/qr-codes/designs/{qrDesign}/default`), else a plain QR.
+
 ## Feature switches (additive - Menu, WhatsApp)
 
 `App\Support\Features` is the registry (`ALL`: key → label, description). Each feature has a

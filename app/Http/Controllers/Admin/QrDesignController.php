@@ -7,6 +7,8 @@ use App\Http\Requests\SaveQrDesignRequest;
 use App\Models\QrDesign;
 use App\Support\QrStyle;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -80,6 +82,27 @@ class QrDesignController extends Controller
         Storage::disk('uploads')->delete(array_filter($replaced));
 
         return redirect()->route('admin.qr-codes.designs.edit', $qrDesign)->with('status', "Saved “{$qrDesign->name}”.");
+    }
+
+    /**
+     * Make this the default design ({default: true}) - the one overseas owners
+     * download their QR in unless their shop has its own - or stop it being
+     * the default. At most one at a time.
+     */
+    public function setDefault(Request $request, QrDesign $qrDesign): RedirectResponse
+    {
+        $default = $request->validate(['default' => ['required', 'boolean']])['default'];
+
+        DB::transaction(function () use ($qrDesign, $default) {
+            if ($default) {
+                QrDesign::whereKeyNot($qrDesign->id)->where('is_default', true)->update(['is_default' => false]);
+            }
+            $qrDesign->forceFill(['is_default' => (bool) $default])->save();
+        });
+
+        return back()->with('status', $default
+            ? "“{$qrDesign->name}” is now the default design."
+            : "“{$qrDesign->name}” is no longer the default - owners without a design of their own get a plain QR.");
     }
 
     public function destroy(QrDesign $qrDesign): RedirectResponse

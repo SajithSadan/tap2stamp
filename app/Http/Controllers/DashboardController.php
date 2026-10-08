@@ -21,6 +21,7 @@ use App\Models\StaffDevice;
 use App\Models\StaffMember;
 use App\Models\StampLog;
 use App\Services\ActivityLogger;
+use App\Services\QrCodeGenerator;
 use App\Services\ShopInsights;
 use App\Services\StripeGateway;
 use App\Support\Countries;
@@ -33,6 +34,7 @@ use App\Support\ThemeCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -440,9 +442,20 @@ class DashboardController extends Controller
      * prints (lib/qrPrint.js). In the menu for overseas shops; UK shops order
      * the counter display instead.
      */
-    public function qrCodes(Request $request): Response
+    public function qrCodes(Request $request, QrCodeGenerator $generator): Response
     {
         $shop = $request->user()->shop;
+
+        // Overseas shops get their QR straight away: one is issued (mapped to
+        // their card) the first time they look, rather than waiting for us.
+        if (! $shop->canOrderProducts()) {
+            DB::transaction(function () use ($shop, $generator) {
+                Shop::whereKey($shop->id)->lockForUpdate()->first(); // two tabs at once can't issue two
+                if ($shop->qrCodes()->doesntExist()) {
+                    $generator->issueFor($shop);
+                }
+            });
+        }
 
         return Inertia::render('Dashboard/QrCodes', [
             'shop' => $this->shopSummary($shop),
@@ -459,7 +472,8 @@ class DashboardController extends Controller
                     default => 'A web page',
                 },
             ]),
-            'design' => $shop->qrDesign?->toClient(),
+            // The shop's own design, else the default one (Admin → Designs), else a plain QR.
+            'design' => $shop->downloadDesign()?->toClient(),
         ]);
     }
 

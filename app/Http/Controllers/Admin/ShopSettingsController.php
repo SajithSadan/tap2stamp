@@ -55,6 +55,8 @@ class ShopSettingsController extends Controller
             // Overseas shops: the QR codes mapped to this shop, and the design the owner downloads them in.
             'assignedQrCount' => $shop->qrCodes()->count(),
             'qrDesigns' => QrDesign::orderBy('name')->get(['id', 'name']),
+            // What "no design" falls back to for this shop's owner download.
+            'defaultQrDesign' => QrDesign::defaultDesign()?->name,
         ]);
     }
 

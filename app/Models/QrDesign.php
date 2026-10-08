@@ -51,6 +51,7 @@ class QrDesign extends Model
     protected function casts(): array
     {
         return [
+            'is_default' => 'boolean',
             'image_width' => 'integer',
             'image_height' => 'integer',
             'qr_x' => 'float',
@@ -94,12 +95,19 @@ class QrDesign extends Model
         return $this->logo_path ? Storage::disk('uploads')->url($this->logo_path) : null;
     }
 
+    /** The design owners download their QR in when their shop has none chosen (Admin → Designs → star). */
+    public static function defaultDesign(): ?self
+    {
+        return static::where('is_default', true)->first();
+    }
+
     /** Everything the pages and the client-side PDF/PNG builder need. */
     public function toClient(): array
     {
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'is_default' => (bool) $this->is_default,
             'image_url' => $this->imageUrl(),
             'image_width' => $this->image_width,
             'image_height' => $this->image_height,

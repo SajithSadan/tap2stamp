@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\QrBatch;
 use App\Models\QrCode;
+use App\Models\Shop;
 use Illuminate\Support\Facades\DB;
 
 class QrCodeGenerator
@@ -62,6 +63,33 @@ class QrCodeGenerator
 
             return $batch;
         });
+    }
+
+    /** Batch name for the QR codes issued automatically to overseas shops. */
+    public const OVERSEAS_BATCH = 'Overseas shops';
+
+    /**
+     * One permanent sticker code for a shop outside the UK (they can't order a
+     * counter display), mapped to its loyalty card - issued the first time the
+     * owner opens their QR codes page. It's a normal /qr/{code} link, so the
+     * admin can see, remap or reprint it on the QR codes page, and the card
+     * link itself is never shown.
+     */
+    public function issueFor(Shop $shop): QrCode
+    {
+        $batch = QrBatch::firstOrCreate(['name' => self::OVERSEAS_BATCH]);
+
+        do {
+            $code = $this->randomCode();
+        } while (QrCode::where('code', $code)->exists());
+
+        return QrCode::create([
+            'qr_batch_id' => $batch->id,
+            'shop_id' => $shop->id,
+            'code' => $code,
+            'destination_url' => route('card.show', $shop),
+            'mapped_at' => now(),
+        ]);
     }
 
     private function randomCode(): string

@@ -142,11 +142,13 @@ test('the QR codes page lists only this shop\'s codes, in the design the admin p
     );
 });
 
-test('with no design picked the QR codes come plain, and with none assigned the list is empty', function () {
+test('with no design picked (and no default) the QR codes come plain, and with none assigned one is issued', function () {
     [$owner] = countryOwner('US');
 
+    // Overseas shops no longer wait for the admin: their first visit issues one (OverseasQrTest).
     $this->actingAs($owner)->get('/dashboard/qr-codes')->assertInertia(fn ($page) => $page
-        ->where('codes', [])
+        ->has('codes', 1)
+        ->where('codes.0.opens', 'Your loyalty card')
         ->where('design', null)
     );
 });

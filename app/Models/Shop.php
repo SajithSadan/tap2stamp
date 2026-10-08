@@ -202,6 +202,12 @@ class Shop extends Model
      * Only UK shops can order our hardware (the counter display). Elsewhere
      * the owner downloads the QR codes the admin assigned to the shop.
      */
+    /** The design the owner downloads QR codes in: this shop's own, else the default design (null = plain QR). */
+    public function downloadDesign(): ?QrDesign
+    {
+        return $this->qrDesign ?? QrDesign::defaultDesign();
+    }
+
     public function canOrderProducts(): bool
     {
         return ($this->country ?? Countries::UK) === Countries::UK;

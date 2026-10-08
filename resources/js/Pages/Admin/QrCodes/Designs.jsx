@@ -1,5 +1,5 @@
 import { Link, router } from '@inertiajs/react';
-import { LuArrowLeft, LuImagePlus, LuPencil, LuPlus, LuTrash2 } from 'react-icons/lu';
+import { LuArrowLeft, LuImagePlus, LuPencil, LuPlus, LuStar, LuTrash2 } from 'react-icons/lu';
 import { useConfirm } from '@/Components/ConfirmDialog';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { EmptyState, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
@@ -22,9 +22,19 @@ function DesignCard({ design, confirm }) {
         if (ok) router.delete(`/admin/qr-codes/designs/${design.id}`, { preserveScroll: true });
     }
 
+    // The default design: what owners outside the UK download their QR in, unless their shop has its own.
+    function toggleDefault() {
+        router.put(`/admin/qr-codes/designs/${design.id}/default`, { default: !design.is_default }, { preserveScroll: true });
+    }
+
     return (
         <li className="group flex flex-col overflow-hidden rounded-2xl border border-brand-border bg-brand-card">
-            <Link href={`/admin/qr-codes/designs/${design.id}/edit`} className="flex flex-1 items-center justify-center bg-brand-bg p-5">
+            <Link href={`/admin/qr-codes/designs/${design.id}/edit`} className="relative flex flex-1 items-center justify-center bg-brand-bg p-5">
+                {design.is_default && (
+                    <span className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-semibold text-amber-950 shadow-sm">
+                        <LuStar className="h-3 w-3 fill-current" /> Default
+                    </span>
+                )}
                 <div className="w-full max-w-60">
                     <QrDesignStage
                         imageUrl={design.image_url}
@@ -45,6 +55,16 @@ function DesignCard({ design, confirm }) {
                         {Math.round(layout.w)} × {Math.round(layout.h)} mm · {layout.perPage} per A4
                     </p>
                 </div>
+                <button
+                    type="button"
+                    onClick={toggleDefault}
+                    aria-pressed={design.is_default}
+                    aria-label={design.is_default ? `Stop using ${design.name} as the default` : `Make ${design.name} the default`}
+                    title={design.is_default ? 'Default design - click to unset' : 'Set as default (owners outside the UK download their QR in it)'}
+                    className={`rounded-lg p-2 hover:bg-brand-bg ${design.is_default ? 'text-amber-500' : 'text-brand-muted hover:text-amber-500'}`}
+                >
+                    <LuStar className={`h-4 w-4 ${design.is_default ? 'fill-current' : ''}`} />
+                </button>
                 <Link href={`/admin/qr-codes/designs/${design.id}/edit`} aria-label={`Edit ${design.name}`} className="rounded-lg p-2 text-brand-muted hover:bg-brand-bg hover:text-brand-text">
                     <LuPencil className="h-4 w-4" />
                 </Link>
@@ -62,7 +82,7 @@ export default function Designs({ designs }) {
     return (
         <AdminLayout
             title="Sticker designs"
-            description="Your artwork with a styled QR placed on it. Pick one under “Print with” on the QR codes page."
+            description="Your artwork with a styled QR placed on it. Pick one under “Print with” on the QR codes page. ★ marks the default: the design owners outside the UK download their QR in."
             actions={
                 <div className="flex flex-wrap gap-2">
                     <Link href="/admin/qr-codes" className={secondaryButton}>

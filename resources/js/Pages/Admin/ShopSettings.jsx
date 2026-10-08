@@ -272,6 +272,7 @@ export default function ShopSettings({
     countries,
     assignedQrCount,
     qrDesigns,
+    defaultQrDesign,
 }) {
     const [tab, setTab] = useState(initialTab);
     const form = useForm({
@@ -443,7 +444,7 @@ export default function ShopSettings({
                                 onChange={(e) => form.setData("qr_design_id", e.target.value)}
                                 className={inputClass}
                             >
-                                <option value="">Plain QR</option>
+                                <option value="">{defaultQrDesign ? `Default design (${defaultQrDesign})` : "Plain QR (no default design set)"}</option>
                                 {qrDesigns.map((d) => (
                                     <option key={d.id} value={d.id}>
                                         {d.name || `Design #${d.id}`}
@@ -453,7 +454,9 @@ export default function ShopSettings({
                             <p className="mt-1 text-xs text-brand-muted">
                                 {assignedQrCount > 0
                                     ? `${assignedQrCount} QR ${assignedQrCount === 1 ? "code" : "codes"} assigned to this shop.`
-                                    : "No QR codes assigned yet - map one to this shop on the QR codes page."}{" "}
+                                    : inUk
+                                      ? "No QR codes assigned yet - map one to this shop on the QR codes page."
+                                      : "None yet - one is issued automatically when the owner opens their QR codes page."}{" "}
                                 <Link href="/admin/qr-codes" className="font-semibold text-brand-accent hover:underline">
                                     QR codes
                                 </Link>
