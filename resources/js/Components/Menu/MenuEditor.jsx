@@ -4,15 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
     LuArrowDown,
     LuArrowUp,
+    LuCamera,
     LuCheck,
     LuChevronDown,
     LuExternalLink,
+    LuEyeOff,
     LuFileText,
     LuImage,
     LuImagePlus,
     LuImageUp,
     LuListChecks,
     LuLoaderCircle,
+    LuLocateFixed,
     LuMinus,
     LuPalette,
     LuPlus,
@@ -23,6 +26,7 @@ import {
 } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
 import { FieldError, primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
+import PhotoCropper from "@/Components/Menu/PhotoCropper";
 import PhotoFinder from "@/Components/Menu/PhotoFinder";
 import MenuView, { LAYOUT_LABELS } from "@/Components/MenuView";
 import { hasTag, MAX_TAGS, TAG_LENGTH, tagSuggestions, tidyTag } from "@/lib/menuTags";
@@ -68,6 +72,63 @@ function withoutKeys(sections) {
             ...(image_url !== undefined && { image_url }),
         })),
     }));
+}
+
+/**
+ * The browser backup of unsaved edits: everything but the React keys. Unlike
+ * withoutKeys it keeps each item's id, so restored items can still look up
+ * photos and aren't all mistaken for new ones.
+ */
+function forDraft(sections) {
+    return sections.map(({ name, items }) => ({ name, items: items.map(({ key: _key, ...item }) => item) }));
+}
+
+const sameText = (a, b) => (a ?? "") === (b ?? "");
+const sameTags = (a, b) => (a ?? []).join("\u0001") === (b ?? []).join("\u0001");
+
+/**
+ * What differs from the last saved menu: the keys of new / renamed sections
+ * and new / edited items, in editor order (so "Show" can scroll to each), how
+ * many saved items are gone, and whether only the order changed.
+ */
+function unsavedChanges(sections, saved) {
+    const before = new Map(saved.flatMap((s) => s.items.map((item) => [item.id, item])));
+    const savedNames = new Set(saved.map((s) => s.name));
+    const keys = [];
+    const kept = new Set();
+
+    for (const section of sections) {
+        if (!savedNames.has(section.name)) keys.push(section.key);
+        for (const item of section.items) {
+            const old = item.id ? before.get(item.id) : undefined;
+            if (old) kept.add(item.id);
+            const edited =
+                !old ||
+                !sameText(old.name, item.name) ||
+                !sameText(old.description, item.description) ||
+                !sameText(old.price, item.price) ||
+                !sameTags(old.tags, item.tags) ||
+                !sameText(old.image_path, item.image_path);
+            if (edited) keys.push(item.key);
+        }
+    }
+
+    const order = (list) => list.map((s) => `${s.name}:${s.items.map((i) => i.id ?? "new").join(",")}`).join("|");
+
+    return { keys, removed: before.size - kept.size, reordered: keys.length === 0 && order(sections) !== order(saved) };
+}
+
+/** The editor key of the first section / item a save error is about (e.g. "sections.2.items.4.price"). */
+function keyForError(sections, errors) {
+    for (const path of Object.keys(errors)) {
+        const match = path.match(/^sections\.(\d+)(?:\.items\.(\d+))?/);
+        const section = match && sections[Number(match[1])];
+        if (!section) continue;
+
+        return match[2] !== undefined ? (section.items[Number(match[2])]?.key ?? section.key) : section.key;
+    }
+
+    return null;
 }
 
 /** Puts fetched photos into the editor rows (matched by section + item name). */
@@ -578,13 +639,13 @@ function TagEditor({ tags, suggestions, onChange }) {
  * words if you like) and "Remove photo". Finding needs a saved item (an id);
  * taking a photo off is an unsaved change.
  */
-function PhotoThumb({ item, searching, canFind, onClick }) {
+function PhotoThumb({ item, searching, canFind, canSearch, onClick }) {
     return (
         <button
             type="button"
             onClick={onClick}
             disabled={!canFind}
-            title={item.id ? (item.image_url ? "Change photo" : "Find a photo") : "Save the menu first"}
+            title={item.id ? (item.image_url ? "Change photo" : canSearch ? "Find a photo" : "Upload a photo") : "Save the menu first"}
             className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-brand-border bg-brand-bg transition hover:border-brand-accent disabled:cursor-default disabled:hover:border-brand-border"
         >
             {item.image_url ? (
@@ -598,7 +659,7 @@ function PhotoThumb({ item, searching, canFind, onClick }) {
     );
 }
 
-function PhotoActions({ item, asking, setAsking, canFind, onFind, onRemovePhoto }) {
+function PhotoActions({ item, asking, setAsking, canFind, canSearch, onFind, onUpload, onRemovePhoto }) {
     const [query, setQuery] = useState(item.name);
     const note = { not_found: "No photo found", rejected: "No matching photo", removed: "Photo taken off" }[item.image_status];
     const link = "font-medium text-brand-accent hover:underline disabled:cursor-not-allowed disabled:text-brand-muted disabled:no-underline";
@@ -643,8 +704,14 @@ function PhotoActions({ item, asking, setAsking, canFind, onFind, onRemovePhoto 
                     {note}
                 </span>
             )}
-            <button type="button" disabled={!canFind} onClick={() => setAsking(true)} title={item.id ? undefined : "Save the menu first"} className={link}>
-                {item.image_url ? "Change photo" : "Find photo"}
+            {canSearch && (
+                <button type="button" disabled={!canFind} onClick={() => setAsking(true)} title={item.id ? undefined : "Save the menu first"} className={link}>
+                    {item.image_url ? "Change photo" : "Find photo"}
+                </button>
+            )}
+            {/* The shop's own photo - e.g. when the catalog has none. */}
+            <button type="button" disabled={!canFind} onClick={onUpload} title={item.id ? "Take or choose a photo" : "Save the menu first"} className={`inline-flex items-center gap-1 ${link}`}>
+                <LuCamera className="h-3.5 w-3.5" /> Upload photo
             </button>
             {item.image_url && (
                 <button type="button" onClick={onRemovePhoto} className="font-medium text-brand-muted hover:text-red-600">
@@ -673,13 +740,19 @@ function Tick({ checked, partial = false, onChange, label, className = "" }) {
     );
 }
 
-function ItemRow({ item, path, errors, first, last, suggestions, photos, onChange, onMove, onRemove }) {
+function ItemRow({ item, path, errors, first, last, suggestions, photos, unsaved, onChange, onMove, onRemove }) {
     const [asking, setAsking] = useState(false);
     const canFind = Boolean(item.id) && !photos.busy;
     const selecting = photos.selected !== null;
 
     return (
-        <li className={`group flex items-start gap-1 px-2 py-2 ${selecting && photos.selected.has(item.id) ? "bg-brand-accent/5" : ""}`}>
+        <li
+            data-edit-key={item.key}
+            title={unsaved ? "Unsaved change" : undefined}
+            className={`group flex scroll-mt-24 items-start gap-1 px-2 py-2 transition-shadow ${selecting && photos.selected.has(item.id) ? "bg-brand-accent/5" : ""} ${
+                unsaved ? "shadow-[inset_3px_0_0_#f59e0b]" : ""
+            }`}
+        >
             {selecting &&
                 (item.id ? (
                     <Tick
@@ -691,7 +764,13 @@ function ItemRow({ item, path, errors, first, last, suggestions, photos, onChang
                 ) : (
                     <span className="mx-1 w-5 shrink-0" />
                 ))}
-            {photos.enabled && <PhotoThumb item={item} searching={photos.searching(item)} canFind={canFind} onClick={() => setAsking(true)} />}
+            <PhotoThumb
+                item={item}
+                searching={photos.searching(item)}
+                canFind={canFind}
+                canSearch={photos.enabled}
+                onClick={() => (photos.enabled ? setAsking(true) : photos.upload(item))}
+            />
             <div className="min-w-0 flex-1">
                 <div className="flex gap-1">
                     <input
@@ -720,16 +799,16 @@ function ItemRow({ item, path, errors, first, last, suggestions, photos, onChang
                     className={`${quietInput} w-full !py-1 text-[13px] text-brand-muted ${errors[`${path}.description`] ? errorRing : ""}`}
                 />
                 <TagEditor tags={item.tags} suggestions={suggestions} onChange={(tags) => onChange({ tags })} />
-                {photos.enabled && (
-                    <PhotoActions
-                        item={item}
-                        asking={asking}
-                        setAsking={setAsking}
-                        canFind={canFind}
-                        onFind={(query) => photos.findAgain(item, query)}
-                        onRemovePhoto={() => onChange({ image_path: null, image_url: null, image_status: "removed", image_reason: null })}
-                    />
-                )}
+                <PhotoActions
+                    item={item}
+                    asking={asking}
+                    setAsking={setAsking}
+                    canFind={canFind}
+                    canSearch={photos.enabled}
+                    onFind={(query) => photos.findAgain(item, query)}
+                    onUpload={() => photos.upload(item)}
+                    onRemovePhoto={() => onChange({ image_path: null, image_url: null, image_status: "removed", image_reason: null })}
+                />
                 <FieldError
                     message={
                         errors[`${path}.name`] ??
@@ -755,14 +834,18 @@ function ItemRow({ item, path, errors, first, last, suggestions, photos, onChang
     );
 }
 
-function SectionBlock({ section, si, count, errors, suggestions, photos, onChange, onMove, onRemove }) {
+function SectionBlock({ section, si, count, errors, suggestions, photos, unsaved, jump, onChange, onMove, onRemove }) {
     const [open, setOpen] = useState(true);
+    // "Show" / a save error points at an item in here: open the section so it can be scrolled to.
+    useEffect(() => {
+        if (jump && !open && section.items.some((i) => i.key === jump.key)) setOpen(true);
+    }, [jump]);
     const updateItem = (ii, patch) => onChange({ items: section.items.map((item, i) => (i === ii ? { ...item, ...patch } : item)) });
     const ids = section.items.filter((i) => i.id).map((i) => i.id);
     const picked = photos.selected ? ids.filter((id) => photos.selected.has(id)).length : 0;
 
     return (
-        <section className="rounded-2xl border border-brand-border bg-brand-card">
+        <section data-edit-key={section.key} className="scroll-mt-24 rounded-2xl border border-brand-border bg-brand-card transition-shadow">
             <div className="flex items-center gap-1 px-2 py-2">
                 {photos.selected !== null && ids.length > 0 && (
                     <Tick
@@ -790,6 +873,7 @@ function SectionBlock({ section, si, count, errors, suggestions, photos, onChang
                     aria-label="Section name"
                     className={`${quietInput} flex-1 font-heading !text-base font-semibold ${errors[`sections.${si}.name`] ? errorRing : ""}`}
                 />
+                {unsaved.has(section.key) && <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Unsaved change" aria-label="Unsaved change" />}
                 <span className="shrink-0 px-1 text-xs tabular-nums text-brand-muted">{section.items.length}</span>
                 <button type="button" disabled={si === 0} onClick={() => onMove(-1)} className={iconButton} aria-label="Move section up">
                     <LuArrowUp className="h-4 w-4" />
@@ -816,6 +900,7 @@ function SectionBlock({ section, si, count, errors, suggestions, photos, onChang
                                 errors={errors}
                                 suggestions={suggestions}
                                 photos={photos}
+                                unsaved={unsaved.has(item.key)}
                                 first={ii === 0}
                                 last={ii === section.items.length - 1}
                                 onChange={(patch) => updateItem(ii, patch)}
@@ -840,6 +925,73 @@ function SectionBlock({ section, si, count, errors, suggestions, photos, onChang
 }
 
 /**
+ * Manual photo checks (Admin → Settings → Menu photos): one catalog photo at
+ * a time, "Is this {item}?" - Yes keeps it, No shows the next. Y / N keys work too.
+ */
+function PhotoReview({ review, onAnswer }) {
+    useEffect(() => {
+        const onKey = (e) => {
+            if (review.loading || e.target.closest?.("input, textarea")) return;
+            if (e.key === "y" || e.key === "Y") onAnswer("yes");
+            else if (e.key === "n" || e.key === "N") onAnswer("no");
+            else if (e.key === "Escape") onAnswer("stop");
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [review, onAnswer]);
+
+    const progress = review.total > 1 ? `Item ${review.position + 1} of ${review.total}` : null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+            <div role="dialog" aria-modal="true" aria-label="Check a photo" className="w-full overflow-hidden rounded-t-2xl bg-brand-card shadow-xl sm:max-w-md sm:rounded-2xl">
+                {review.loading ? (
+                    <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+                        <LuLoaderCircle className="h-6 w-6 animate-spin text-brand-accent" />
+                        <p className="text-sm text-brand-text">
+                            Looking for photos of <strong>{review.item.name}</strong>…
+                        </p>
+                        {progress && <p className="text-xs text-brand-muted">{progress}</p>}
+                        <button type="button" onClick={() => onAnswer("stop")} className="text-sm font-medium text-brand-muted hover:text-brand-text">
+                            Stop
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex aspect-square w-full items-center justify-center bg-white">
+                            <img key={review.candidate.token} src={review.candidate.url} alt={`Catalog photo for ${review.item.name}`} className="max-h-full max-w-full object-contain" />
+                        </div>
+                        <div className="px-5 pb-5 pt-4">
+                            <p className="text-xs text-brand-muted">
+                                {[review.item.section, `Photo ${review.index + 1} of ${review.count}`, progress].filter(Boolean).join(" · ")}
+                            </p>
+                            <h2 className="mt-1 font-heading text-lg font-semibold text-brand-text">Is this {review.item.name}?</h2>
+                            {review.candidate.label && <p className="mt-0.5 text-xs text-brand-muted">The catalog calls it “{review.candidate.label}”.</p>}
+                            <div className="mt-4 grid grid-cols-2 gap-2">
+                                <button type="button" onClick={() => onAnswer("no")} className={`${secondaryButton} py-3`}>
+                                    <LuX className="h-4 w-4" /> No
+                                </button>
+                                <button type="button" onClick={() => onAnswer("yes")} className={`${primaryButton} py-3`}>
+                                    <LuCheck className="h-4 w-4" /> Yes, use it
+                                </button>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between text-sm">
+                                <button type="button" onClick={() => onAnswer("skip")} className="font-medium text-brand-muted hover:text-brand-text">
+                                    Skip this item
+                                </button>
+                                <button type="button" onClick={() => onAnswer("stop")} className="font-medium text-brand-muted hover:text-brand-text">
+                                    Stop
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/**
  * Unsaved edits kept in sessionStorage, so a full reload (a new build makes
  * Inertia reload the page on the next request) doesn't lose an imported menu.
  */
@@ -856,7 +1008,7 @@ function readDraft(shopId) {
 
 function writeDraft(shopId, sections) {
     try {
-        if (sections) sessionStorage.setItem(draftKey(shopId), JSON.stringify(withoutKeys(sections)));
+        if (sections) sessionStorage.setItem(draftKey(shopId), JSON.stringify(forDraft(sections)));
         else sessionStorage.removeItem(draftKey(shopId));
     } catch {
         // storage blocked - edits just aren't kept across a reload
@@ -869,7 +1021,7 @@ function writeDraft(shopId, sections) {
  * `urls.base` is where the menu is saved (+ /read, /theme), `urls.back` the
  * optional "Back to shop" link.
  */
-export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sections: saved, menuUrl, urls, aiEnabled, imagesEnabled = false, maxFiles, themes, currentTheme }) {
+export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sections: saved, menuUrl, urls, aiEnabled, imagesEnabled = false, photoCheck = "ai", menuOff = false, maxFiles, themes, currentTheme }) {
     const [draft] = useState(() => readDraft(shop.id));
     const [sections, setSections] = useState(() => withKeys(draft ?? saved));
     const [dirty, setDirty] = useState(draft !== null);
@@ -888,6 +1040,33 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
     const suggestions = useMemo(() => tagSuggestions(sections), [sections]);
     const savedHasItems = saved.some((s) => s.items.length > 0);
     const empty = sections.length === 0;
+
+    // ---- Unsaved changes: marked in the list, and "Show" scrolls to each in turn ----
+    const changes = useMemo(() => (dirty ? unsavedChanges(sections, saved) : { keys: [], removed: 0, reordered: false }), [dirty, sections, saved]);
+    const unsaved = useMemo(() => new Set(changes.keys), [changes]);
+    // { key, at } - `at` makes asking for the same row again scroll again.
+    const [jump, setJump] = useState(null);
+    const jumpIndex = useRef(-1);
+
+    function showNextChange() {
+        if (changes.keys.length === 0) return;
+        jumpIndex.current = (jumpIndex.current + 1) % changes.keys.length;
+        setJump({ key: changes.keys[jumpIndex.current], at: Date.now() });
+    }
+
+    useEffect(() => {
+        if (!jump) return undefined;
+        // A beat later, so a collapsed section has opened (SectionBlock opens itself for the key).
+        const timer = setTimeout(() => {
+            const el = document.querySelector(`[data-edit-key="${jump.key}"]`);
+            if (!el) return;
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-2", "ring-amber-400");
+            setTimeout(() => el.classList.remove("ring-2", "ring-amber-400"), 1600);
+        }, 60);
+
+        return () => clearTimeout(timer);
+    }, [jump]);
 
     // ---- Photos: only when asked (Find photos / an item's search), a few items per request (no queue on the host) ----
     // The PhotoFinder panel's state: {total, index, current, outcome, results, finished, note}.
@@ -946,6 +1125,79 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
         }
     }
 
+    // ---- Manual photo checks: each catalog photo shown with "Is this …?" (Admin → Settings → Menu photos) ----
+    const manualPhotos = photoCheck === "manual";
+    const [review, setReview] = useState(null); // { item, loading } or { item, candidate, index, count, position, total }
+    const answer = useRef(null);
+    const reviewStop = useRef(false);
+
+    function ask(state) {
+        return new Promise((resolve) => {
+            answer.current = resolve;
+            setReview(state);
+        });
+    }
+
+    function onAnswer(value) {
+        if (value === "stop") reviewStop.current = true;
+        const resolve = answer.current;
+        answer.current = null;
+        resolve?.(value);
+    }
+
+    /** queue: [{ id, name, section, query? }] - one item at a time, as long as the person keeps answering. */
+    async function runReview(queue) {
+        running.current = true;
+        reviewStop.current = false;
+        const tally = { added: 0, none: 0, missing: 0, skipped: 0 };
+        let problem = null;
+        try {
+            items: for (let i = 0; i < queue.length && !reviewStop.current; i++) {
+                const item = queue[i];
+                setReview({ item, loading: true, position: i, total: queue.length });
+                const { data } = await axios.post(`${urls.base}/images/review`, { item: item.id, query: item.query });
+                if (reviewStop.current) break;
+                if (data.candidates.length === 0) {
+                    setSections((current) => withPhotos(current, data.items));
+                    tally.missing++;
+                    continue;
+                }
+
+                let token = null;
+                for (let c = 0; c < data.candidates.length; c++) {
+                    const reply = await ask({ item, candidate: data.candidates[c], index: c, count: data.candidates.length, position: i, total: queue.length });
+                    if (reply === "yes") {
+                        token = data.candidates[c].token;
+                        break;
+                    }
+                    if (reply === "skip") {
+                        tally.skipped++;
+                        continue items;
+                    }
+                    if (reply === "stop") break items;
+                }
+
+                // Yes to one photo, or no to all of them.
+                const { data: done } = await axios.post(`${urls.base}/images/confirm`, { item: item.id, token });
+                setSections((current) => withPhotos(current, done.items));
+                token ? tally.added++ : tally.none++;
+            }
+        } catch {
+            problem = "Couldn't load photos right now - try again in a minute.";
+        } finally {
+            running.current = false;
+            answer.current = null;
+            setReview(null);
+            const summary = [
+                tally.added && `${tally.added} added`,
+                tally.none && `${tally.none} with none right`,
+                tally.missing && `${tally.missing} not in the catalog`,
+                tally.skipped && `${tally.skipped} skipped`,
+            ].filter(Boolean);
+            setNotice(problem ?? (summary.length ? `Photos: ${summary.join(" · ")}.` : null));
+        }
+    }
+
     function findPhotos({ retry = false } = {}) {
         if (!imagesEnabled || running.current) return;
         // Same order the server works in: saved menu order, untried first (or, with
@@ -953,8 +1205,12 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
         const queue = sections.flatMap((s) =>
             s.items
                 .filter((i) => i.id && (i.image_status === null || (retry && ["not_found", "rejected"].includes(i.image_status))))
-                .map((i) => ({ name: i.name, section: s.name })),
+                .map((i) => ({ id: i.id, name: i.name, section: s.name })),
         );
+        if (queue.length && manualPhotos) {
+            runReview(queue);
+            return;
+        }
         if (queue.length) {
             runFinder(queue, (i) => ({ limit: 1, ...(retry && i === 0 && { retry: true }) }), { untried: true });
             return;
@@ -975,6 +1231,10 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
     function findAgain(item, query) {
         if (running.current) return;
         const section = sections.find((s) => s.items.includes(item))?.name;
+        if (manualPhotos) {
+            runReview([{ id: item.id, name: item.name, section, query }]);
+            return;
+        }
         runFinder([{ name: item.name, section }], () => ({ item: item.id, query }));
     }
 
@@ -995,12 +1255,52 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
         if (running.current || !selected?.size) return;
         const queue = savedItems.filter((i) => selected.has(i.id));
         setSelected(null);
+        if (manualPhotos) {
+            runReview(queue);
+            return;
+        }
         runFinder(queue, (i) => ({ item: queue[i].id }));
+    }
+
+    // ---- The shop's own photo: pick (camera / library) → crop + compress → upload ----
+    const [uploading, setUploading] = useState(null); // { item, file }
+
+    function pickPhoto(item) {
+        if (!item.id || running.current) return;
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.onchange = () => input.files?.[0] && setUploading({ item, file: input.files[0] });
+        input.click();
+    }
+
+    /** Called by the cropper with the compressed square; errors are shown in the cropper. */
+    async function uploadPhoto(blob) {
+        const form = new FormData();
+        form.append("item", uploading.item.id);
+        form.append("photo", blob, blob.type === "image/webp" ? "photo.webp" : "photo.jpg");
+        try {
+            const { data } = await axios.post(`${urls.base}/images/upload`, form);
+            const r = data.items[0];
+            setSections((current) =>
+                current.map((s) => ({
+                    ...s,
+                    items: s.items.map((i) =>
+                        i.id === r.id ? { ...i, image_path: r.image_path, image_url: r.image_url, image_status: r.image_status, image_reason: r.image_reason } : i,
+                    ),
+                })),
+            );
+            setUploading(null);
+        } catch (e) {
+            const response = e.response?.data;
+            throw new Error(response?.errors?.photo?.[0] ?? response?.message ?? "Couldn't upload the photo - try again.");
+        }
     }
 
     const photos = {
         enabled: imagesEnabled,
-        busy: finderRunning,
+        upload: pickPhoto,
+        busy: finderRunning || review !== null,
         searching: (item) => finderRunning && !finder.outcome && finder.current?.name === item.name,
         findAgain,
         selected,
@@ -1042,7 +1342,12 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                     setErrors({});
                     setNotice(null);
                 },
-                onError: setErrors,
+                onError: (errs) => {
+                    setErrors(errs);
+                    // Take them to the first thing that needs fixing.
+                    const target = keyForError(sections, errs);
+                    if (target) setJump({ key: target, at: Date.now() });
+                },
                 onFinish: () => setSaving(false),
             },
         );
@@ -1112,7 +1417,18 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                 </div>
             }
         >
+            {menuOff && (
+                <p className="mb-4 flex items-start gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+                    <LuEyeOff className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                        Menu is switched off for {shop.name}: the owner can't see this editor and customers can't open the menu. Switch it on under the shop's
+                        settings → Features.
+                    </span>
+                </p>
+            )}
             {confirmDialog}
+            {review && <PhotoReview review={review} onAnswer={onAnswer} />}
+            {uploading && <PhotoCropper file={uploading.file} itemName={uploading.item.name} onCancel={() => setUploading(null)} onDone={uploadPhoto} />}
             {pickerOpen && (
                 <ThemePicker
                     base={urls.base}
@@ -1239,6 +1555,8 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                                 errors={errors}
                                 suggestions={suggestions}
                                 photos={photos}
+                                unsaved={unsaved}
+                                jump={jump}
                                 onChange={(patch) => updateSection(si, patch)}
                                 onMove={(by) => change(move(sections, si, by))}
                                 onRemove={() => removeSection(si)}
@@ -1260,6 +1578,8 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                                 </button>
                             </div>
                         )}
+                        {/* Phones: room under the last rows, so "Show next" can scroll any of them clear of the floating save card. */}
+                        {(dirty || saving) && <div aria-hidden="true" className="h-40 lg:hidden" />}
                     </div>
 
                     {/* Live: what customers see, in the chosen theme, including unsaved edits. */}
@@ -1278,14 +1598,33 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
             )}
 
             {(dirty || saving) && (
-                <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap items-center gap-3 border-t border-brand-border bg-brand-bg py-3">
-                    <button type="button" disabled={saving} onClick={save} className={primaryButton}>
-                        {saving ? "Saving…" : "Save menu"}
-                    </button>
-                    <button type="button" disabled={saving} onClick={discard} className={secondaryButton}>
-                        Discard
-                    </button>
-                    <span className="text-sm text-brand-muted">Unsaved changes</span>
+                // Phones: a card floating above the bottom tab bar (and its raised Scan
+                // button), so Save is always in reach. Desktop: a bar along the bottom.
+                <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-10 mt-4 lg:bottom-0">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-brand-border bg-brand-card px-3 py-2.5 shadow-lg lg:rounded-none lg:border-x-0 lg:border-b-0 lg:bg-brand-bg lg:px-0 lg:py-3 lg:shadow-none">
+                        <button type="button" disabled={saving} onClick={save} className={primaryButton}>
+                            {saving ? "Saving…" : "Save menu"}
+                        </button>
+                        <button type="button" disabled={saving} onClick={discard} className={secondaryButton}>
+                            Discard
+                        </button>
+                        <span className="flex min-w-0 items-center gap-2 text-sm text-brand-muted">
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+                            {[
+                                changes.keys.length > 0 && `${changes.keys.length} changed`,
+                                changes.removed > 0 && `${changes.removed} removed`,
+                                changes.reordered && "Order changed",
+                            ]
+                                .filter(Boolean)
+                                .join(" · ") || "Unsaved changes"}
+                        </span>
+                        {changes.keys.length > 0 && (
+                            <button type="button" onClick={showNextChange} className="inline-flex items-center gap-1 text-sm font-semibold text-brand-accent hover:underline">
+                                <LuLocateFixed className="h-4 w-4" />
+                                {changes.keys.length === 1 ? "Show" : "Show next"}
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
         </Layout>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Shop;
 use App\Services\ShopMenu;
+use App\Support\Features;
 use App\Support\StampIcons;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -29,7 +30,8 @@ class MenuController extends Controller
             return redirect()->to($old->menuUrl());
         }
 
-        abort_unless($shop, 404);
+        // Menu switched off for this shop (Admin → Features): not available.
+        abort_unless($shop && $shop->hasFeature(Features::MENU), 404);
 
         return Inertia::render('Menu', [
             'shop' => self::header($shop),

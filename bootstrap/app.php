@@ -3,6 +3,7 @@
 use App\Http\Middleware\AuthenticateStaffDevice;
 use App\Http\Middleware\EnsureNavigationAccess;
 use App\Http\Middleware\EnsureOwnerHasShop;
+use App\Http\Middleware\EnsureShopFeature;
 use App\Http\Middleware\EnsureStaffSignedIn;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -48,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'nav.access' => EnsureNavigationAccess::class,
             'staff.auth' => AuthenticateStaffDevice::class,
             'staff.signed-in' => EnsureStaffSignedIn::class,
+            'feature' => EnsureShopFeature::class,
         ]);
 
         // Hit by curl/CI after a deploy, not a browser session — no CSRF

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\RecordsActivity;
 use App\Support\Countries;
+use App\Support\Features;
 use App\Support\HeaderStyle;
 use App\Support\MenuThemes;
 use App\Support\ShopContact;
@@ -157,6 +158,7 @@ class Shop extends Model
             'google_review_direct' => 'boolean',
             'product_ordered_at' => 'datetime',
             'show_card_link' => 'boolean',
+            'features' => 'array',
         ];
     }
 
@@ -208,6 +210,25 @@ class Shop extends Model
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function marketingCampaigns(): HasMany
+    {
+        return $this->hasMany(MarketingCampaign::class);
+    }
+
+    /** Whether this shop has an owner feature (App\Support\Features): its own override, else the platform default. */
+    public function hasFeature(string $feature): bool
+    {
+        return $this->featureOverride($feature) ?? Features::default($feature);
+    }
+
+    /** true / false when the admin set it for this shop, null = follows the default. */
+    public function featureOverride(string $feature): ?bool
+    {
+        $override = ($this->features ?? [])[$feature] ?? null;
+
+        return $override === null ? null : (bool) $override;
     }
 
     public function menuSections(): HasMany

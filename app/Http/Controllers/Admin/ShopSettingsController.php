@@ -10,7 +10,10 @@ use App\Models\QrDesign;
 use App\Models\Setting;
 use App\Models\Shop;
 use App\Support\Countries;
+use App\Support\Features;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -30,6 +33,13 @@ class ShopSettingsController extends Controller
                 ...$shop->contactDetails(),
             ],
             'ownerEmail' => $shop->owner?->email,
+            // Owner features: this shop's override (on / off / null = the platform default).
+            'features' => collect(Features::ALL)->map(fn (array $feature, string $key) => [
+                'key' => $key,
+                ...$feature,
+                'default' => Features::default($key),
+                'override' => $shop->featureOverride($key),
+            ])->values(),
             'menuItemsCount' => $shop->menuItems()->count(),
             'menuUrl' => $shop->menuUrl(),
             'previewUrl' => route('card.show', ['shop' => $shop, 'preview' => 1]),
@@ -46,6 +56,28 @@ class ShopSettingsController extends Controller
             'assignedQrCount' => $shop->qrCodes()->count(),
             'qrDesigns' => QrDesign::orderBy('name')->get(['id', 'name']),
         ]);
+    }
+
+    /** Per-shop feature overrides: {features: {menu: 'default' | 'on' | 'off', ...}}. */
+    public function updateFeatures(Request $request, Shop $shop): RedirectResponse
+    {
+        $input = $request->validate([
+            'features' => ['required', 'array'],
+            'features.*' => ['required', Rule::in(['default', 'on', 'off'])],
+        ]);
+
+        $features = $shop->features ?? [];
+        foreach (array_intersect_key($input['features'], Features::ALL) as $key => $choice) {
+            if ($choice === 'default') {
+                unset($features[$key]);
+            } else {
+                $features[$key] = $choice === 'on';
+            }
+        }
+
+        $shop->forceFill(['features' => $features ?: null])->save();
+
+        return back()->with('status', "Features saved for {$shop->name}.");
     }
 
     public function update(UpdateShopSettingsRequest $request, Shop $shop): RedirectResponse

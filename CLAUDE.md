@@ -137,6 +137,13 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   the admin, `as_owner` (the middleware's `viewAsAdmin` request attribute). Shared `viewAs` prop
   (incl. `editing`) → amber (read-only) / red (editing) banner in `OwnerLayout` with
   "Back to admin" (`POST /admin/view-as-owner/stop`). Owner dashboard routes still take no shop param.
+- **Users** (`/admin/users`, `Admin\UserController`, `Pages/Admin/Users.jsx`, menu "Users",
+  desktop menu only): every login, incl. **owners with no shop** - sign-up (`/register`) saves the
+  user first and the shop only on the last `/onboarding` step (in a transaction), so an abandoned
+  or failed setup leaves a user without a shop, invisible on the Shops grid. Owner `setup` =
+  `live` / `business` (step 1 saved in `onboarding_draft`; its business name, phone and town are
+  shown to follow up) / `not_started`. Never sends password, remember token, Google id or the raw
+  draft. Those owners resume setup with their details when they log in again.
 - **Staff devices** (Stage 4's other task, doc-scoped): `staff_devices` table, only
   `token_hash` (sha256) is ever persisted — the plain 64-char token is flashed once via
   `session('staffToken')` when a device is added, same one-time-reveal pattern as the owner
@@ -278,6 +285,25 @@ owner-approved device.
   list), Staff, Settings (form + counter QR download). Shell: `Components/Dashboard/OwnerLayout.jsx`.
   Still never a shop param in the URL.
 - Dev seeder: Artisan Cafe has staff `Sam` (PIN 1234) and `Alex` (PIN 5678).
+
+## Feature switches (additive - Menu, WhatsApp)
+
+`App\Support\Features` is the registry (`ALL`: key → label, description). Each feature has a
+**platform default** (Admin → Settings → Features, `Setting::FEATURES` = `{menu: bool, ...}`,
+**never set = on**, so adding the switches changed nothing) and an optional **per-shop override**
+(`shops.features` JSON, missing key = default; Admin → shop settings → Features tab:
+Default / On / Off). Always ask `Shop::hasFeature($key)` (override ?? default).
+
+- Off = gone from the owner's menu (`'feature' => Features::X` on the Navigation entry), its owner
+  routes 404 (`feature:menu` / `feature:whatsapp` middleware, `EnsureShopFeature`), and for Menu
+  the public `/menu/{slug}` 404s too (nothing is deleted - switching on brings it all back).
+  WhatsApp unsubscribe links (`/u/{token}`) are outside the gate and always work.
+- The **admin** can still open a shop's menu editor while Menu is off (it shows a notice) to
+  prepare a menu before switching it on.
+- Switching a default **off** gives every shop already using it (`Features::inUse()`: has menu
+  sections / has sent a campaign) its own `on` override, so nobody loses what they built.
+- Adding a feature: `Features::ALL` + `inUse()` + the nav entry's `feature` + `feature:` on its
+  routes (+ any public page).
 
 ## Owner Insights (additive)
 
@@ -536,6 +562,26 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
   Triggers: toolbar **Find photos** (untried items; with none left it sends `retry` = look
   again for not_found/rejected, never `removed`), and per saved item the thumbnail /
   "Find photo" / "Change photo" (`{item, query}`) and "Remove photo".
+- **Who checks the photos** (Admin → Settings → Menu photos, `Setting::MENU_PHOTO_CHECK`,
+  `PUT /admin/settings/menu-photos`): `ai` (default, the Gemini flow above) or `manual` = no
+  Gemini - the editor's `PhotoReview` dialog asks "Is this {item}?" for each catalog photo
+  (Yes keeps it, No shows the next, Skip / Stop; Y / N keys). `MenuItemImages::mode()` is `ai`
+  only when chosen **and** there's a Gemini key, else `manual`; photos are offered whenever the
+  catalog is configured (`enabled()`), and each mode's endpoints 404 in the other. Manual flow,
+  per item: `POST {base}/images/review {item, query?}` downloads up to `max_candidates` and holds
+  them in the cache for 30 min under random 40-char tokens (`menu-photo-review:{token}`, shop +
+  item recorded; the catalog keys never reach the browser) → `GET {base}/images/review/{token}`
+  shows one (own shop only) → `POST {base}/images/confirm {item, token}` stores it (confidence
+  null, reason "Confirmed by {name}"); `token: null` = no to all → `rejected`. The editor gets
+  `photoCheck` from `ShopMenuController::editorProps()`.
+- **Upload photo** (per saved item, always offered - no catalog or Gemini needed): the browser
+  picks a photo (camera / library), `Components/Menu/PhotoCropper.jsx` crops it square (drag,
+  pinch / wheel / slider zoom) and compresses it to 800 x 800 WebP (JPEG where the browser can't
+  make WebP) - redrawing also drops EXIF / GPS - then `POST {base}/images/upload {item, photo}`
+  (jpg/png/webp, <= 4 MB, >= 200 x 200). `MenuItemImages::upload()` re-encodes it with GD as
+  WebP (<= 1200 px, refuses > 16 MP so GD can't run out of memory) and stores it like catalog
+  photos with status **`uploaded`** ("Uploaded by {name}"); bulk Find photos never touches it
+  (only `null` items are untried).
   **Whole-menu saves keep photos**: `ShopMenu::replace()` only accepts an `image_path` this
   shop's items already had, null → `removed`, no key → same-named item's photo; unused files are
   deleted. The catalog (imgapi.techsasolutions.com) is a grocery/retail catalog: branded drinks

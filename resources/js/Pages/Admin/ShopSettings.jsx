@@ -1,4 +1,4 @@
-import { Link, useForm } from "@inertiajs/react";
+import { Link, router, useForm } from "@inertiajs/react";
 import { useEffect, useState } from "react";
 import {
     LuBuilding2,
@@ -8,6 +8,7 @@ import {
     LuPlus,
     LuSmartphone,
     LuStamp,
+    LuToggleRight,
     LuUtensils,
 } from "react-icons/lu";
 import AddressLookup from "@/Components/AddressLookup";
@@ -41,6 +42,7 @@ const TABS = [
         fields: ["instagram_url", "google_review_url", "google_review_direct", "wifi_ssid", "wifi_password"],
     },
     { key: "menu", label: "Menu", icon: LuUtensils, fields: [] },
+    { key: "features", label: "Features", icon: LuToggleRight, fields: [] },
     { key: "orders", label: "Orders", icon: LuPackage, fields: [] },
     {
         key: "business",
@@ -169,6 +171,64 @@ function OrdersTab({ shop, orders, products, productOrderedAt, deliveryAddress, 
     );
 }
 
+/**
+ * Owner features for this shop: follow the platform default (Admin →
+ * Settings → Features) or switch on / off just here. Saved on click.
+ */
+function FeaturesTab({ shop, features }) {
+    const [saving, setSaving] = useState(null);
+
+    function choose(key, choice) {
+        router.put(`/admin/shops/${shop.id}/features`, { features: { [key]: choice } }, {
+            preserveScroll: true,
+            onStart: () => setSaving(key),
+            onFinish: () => setSaving(null),
+        });
+    }
+
+    return (
+        <Section title="Features">
+            {features.map((f) => {
+                const current = f.override === null ? "default" : f.override ? "on" : "off";
+                const effective = f.override ?? f.default;
+                const options = [
+                    ["default", `Default (${f.default ? "On" : "Off"})`],
+                    ["on", "On"],
+                    ["off", "Off"],
+                ];
+
+                return (
+                    <Row key={f.key} label={f.label} hint={f.description}>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className={`flex rounded-lg bg-brand-bg p-0.5 ring-1 ring-brand-border ${saving === f.key ? "opacity-60" : ""}`} role="radiogroup" aria-label={f.label}>
+                                {options.map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={current === value}
+                                        disabled={saving !== null}
+                                        onClick={() => current !== value && choose(f.key, value)}
+                                        className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                            current === value ? "bg-brand-card text-brand-text shadow-sm" : "text-brand-muted hover:text-brand-text"
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${effective ? "text-emerald-700" : "text-brand-muted"}`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${effective ? "bg-emerald-500" : "bg-brand-muted/60"}`} />
+                                {effective ? "On for this shop" : "Off for this shop"}
+                            </span>
+                        </div>
+                    </Row>
+                );
+            })}
+        </Section>
+    );
+}
+
 function MenuTab({ shop, menuItemsCount, menuUrl }) {
     return (
         <Section title="Menu">
@@ -207,6 +267,7 @@ export default function ShopSettings({
     ownerEmail,
     menuItemsCount,
     menuUrl,
+    features,
     previewUrl,
     countries,
     assignedQrCount,
@@ -327,6 +388,7 @@ export default function ShopSettings({
             </nav>
 
             {tab === "menu" && <MenuTab shop={shop} menuItemsCount={menuItemsCount} menuUrl={menuUrl} />}
+            {tab === "features" && <FeaturesTab shop={shop} features={features} />}
 
             {tab === "orders" && (
                 <OrdersTab

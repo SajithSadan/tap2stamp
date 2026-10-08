@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Controllers\Admin\ShopOwnerController;
 use App\Http\Controllers\Admin\ShopSettingsController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ViewAsOwnerController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\GoogleAuthController;
@@ -138,11 +139,14 @@ Route::get('/address-lookup', AddressLookupController::class)
 Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
     Route::get('/', [ShopOwnerController::class, 'index'])->name('index');
+    // Every login, incl. owners who never finished shop setup (no shop yet).
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/shops/create', [ShopOwnerController::class, 'create'])->name('shops.create');
     Route::get('/shops/slug', [ShopOwnerController::class, 'slug'])->name('shops.slug');
     Route::post('/shops', [ShopOwnerController::class, 'store'])->name('shops.store');
     Route::get('/shops/{shop}/settings', [ShopSettingsController::class, 'edit'])->name('shops.settings.edit');
     Route::put('/shops/{shop}/settings', [ShopSettingsController::class, 'update'])->name('shops.settings.update');
+    Route::put('/shops/{shop}/features', [ShopSettingsController::class, 'updateFeatures'])->name('shops.features.update');
     // "View as owner": the shop's owner dashboard, as the owner sees it (read-only until changes are allowed).
     Route::post('/shops/{shop}/view-as-owner', [ViewAsOwnerController::class, 'start'])->name('shops.view-as-owner');
     Route::put('/view-as-owner/editing', [ViewAsOwnerController::class, 'editing'])->name('view-as-owner.editing');
@@ -157,6 +161,12 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::put('/shops/{shop}/menu/theme', [ShopMenuController::class, 'updateTheme'])->name('shops.menu.theme');
     // Photos for its items: fetched in small batches the open editor asks for (no queue workers).
     Route::post('/shops/{shop}/menu/images', [ShopMenuController::class, 'images'])->middleware('throttle:60,1')->name('shops.menu.images');
+    // Manual photo checks: candidates to answer "Is this …?" about, each shown, then the answer.
+    Route::post('/shops/{shop}/menu/images/review', [ShopMenuController::class, 'reviewCandidates'])->middleware('throttle:60,1')->name('shops.menu.images.review');
+    Route::get('/shops/{shop}/menu/images/review/{token}', [ShopMenuController::class, 'reviewImage'])->middleware('throttle:180,1')->name('shops.menu.images.review.show');
+    Route::post('/shops/{shop}/menu/images/confirm', [ShopMenuController::class, 'reviewConfirm'])->middleware('throttle:60,1')->name('shops.menu.images.confirm');
+    // The shop's own photo for an item (cropped + compressed in the editor).
+    Route::post('/shops/{shop}/menu/images/upload', [ShopMenuController::class, 'uploadPhoto'])->middleware('throttle:30,1')->name('shops.menu.images.upload');
 
     // Product orders (to post out) and the products shops can order.
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
@@ -204,6 +214,8 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::put('/settings/google', [SettingsController::class, 'updateGoogle'])->name('settings.google');
     Route::put('/settings/sidebar', [SettingsController::class, 'updateSidebar'])->name('settings.sidebar');
     Route::put('/settings/bank', [SettingsController::class, 'updateBank'])->name('settings.bank');
+    Route::put('/settings/menu-photos', [SettingsController::class, 'updateMenuPhotos'])->name('settings.menu-photos');
+    Route::put('/settings/features', [SettingsController::class, 'updateFeature'])->name('settings.features');
 });
 
 // Public landing link inside every printed QR sticker. Redirects to the
@@ -254,17 +266,27 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::delete('/theme/logo', [ShopLogoController::class, 'destroy'])->name('theme.logo.destroy');
 
     // The shop's menu: same editor as the admin's (Gemini reads a photo, the owner checks and saves).
-    Route::get('/menu', [OwnerMenuController::class, 'edit'])->name('menu');
-    Route::post('/menu/read', [OwnerMenuController::class, 'read'])->middleware('throttle:10,1')->name('menu.read');
-    Route::put('/menu', [OwnerMenuController::class, 'update'])->name('menu.update');
-    Route::delete('/menu', [OwnerMenuController::class, 'destroy'])->name('menu.destroy');
-    Route::put('/menu/theme', [OwnerMenuController::class, 'updateTheme'])->name('menu.theme');
-    Route::post('/menu/images', [OwnerMenuController::class, 'images'])->middleware('throttle:60,1')->name('menu.images');
+    // Off for this shop (Admin → Features) = 404, and gone from the owner's menu.
+    Route::middleware('feature:menu')->group(function () {
+        Route::get('/menu', [OwnerMenuController::class, 'edit'])->name('menu');
+        Route::post('/menu/read', [OwnerMenuController::class, 'read'])->middleware('throttle:10,1')->name('menu.read');
+        Route::put('/menu', [OwnerMenuController::class, 'update'])->name('menu.update');
+        Route::delete('/menu', [OwnerMenuController::class, 'destroy'])->name('menu.destroy');
+        Route::put('/menu/theme', [OwnerMenuController::class, 'updateTheme'])->name('menu.theme');
+        Route::post('/menu/images', [OwnerMenuController::class, 'images'])->middleware('throttle:60,1')->name('menu.images');
+        Route::post('/menu/images/review', [OwnerMenuController::class, 'reviewCandidates'])->middleware('throttle:60,1')->name('menu.images.review');
+        Route::get('/menu/images/review/{token}', [OwnerMenuController::class, 'reviewImage'])->middleware('throttle:180,1')->name('menu.images.review.show');
+        Route::post('/menu/images/confirm', [OwnerMenuController::class, 'reviewConfirm'])->middleware('throttle:60,1')->name('menu.images.confirm');
+        Route::post('/menu/images/upload', [OwnerMenuController::class, 'uploadPhoto'])->middleware('throttle:30,1')->name('menu.images.upload');
+    });
 
     // WhatsApp offers to this shop's opted-in customers, sent in batches by the open page.
-    Route::get('/marketing', [MarketingController::class, 'index'])->name('marketing');
-    Route::post('/marketing', [MarketingController::class, 'store'])->middleware('throttle:5,1')->name('marketing.store');
-    Route::post('/marketing/{campaign}/send', [MarketingController::class, 'send'])->middleware('throttle:60,1')->name('marketing.send');
+    // Off for this shop = 404. Unsubscribe links (/u/{token}) are outside and always work.
+    Route::middleware('feature:whatsapp')->group(function () {
+        Route::get('/marketing', [MarketingController::class, 'index'])->name('marketing');
+        Route::post('/marketing', [MarketingController::class, 'store'])->middleware('throttle:5,1')->name('marketing.store');
+        Route::post('/marketing/{campaign}/send', [MarketingController::class, 'send'])->middleware('throttle:60,1')->name('marketing.send');
+    });
 
     // Ordering products (any quantity) through Stripe Checkout, and tracking them.
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');

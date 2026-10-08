@@ -30,6 +30,12 @@ class Setting extends Model
     /** The public landing page at "/": title, description, video and pricing (App\Support\LandingPage). */
     public const LANDING_PAGE = 'landing_page';
 
+    /** How menu item photos from the catalog are checked: 'ai' (Gemini) or 'manual' (a person says yes / no). */
+    public const MENU_PHOTO_CHECK = 'menu_photo_check';
+
+    /** Platform defaults for owner features ({menu: bool, whatsapp: bool}); App\Support\Features. */
+    public const FEATURES = 'features';
+
     protected $fillable = [
         'key',
         'value',

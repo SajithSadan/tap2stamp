@@ -1,9 +1,10 @@
 import { router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
-import { LuCircleAlert, LuKeyRound, LuLandmark, LuLayoutDashboard, LuMail, LuPalette, LuRotateCcw, LuSettings, LuStore, LuTriangleAlert } from 'react-icons/lu';
+import { LuCircleAlert, LuHand, LuImage, LuKeyRound, LuLandmark, LuLayoutDashboard, LuMail, LuPalette, LuRotateCcw, LuSettings, LuSparkles, LuStore, LuToggleRight, LuTriangleAlert } from 'react-icons/lu';
 import { useConfirm } from '@/Components/ConfirmDialog';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
+import { navIcon } from '@/lib/navIcons';
 import { CopyButton, FieldError, navSurface, Panel, primaryButton, secondaryButton, sideLinkClass, Switch } from '@/Components/Dashboard/Ui';
 
 function StatusChip({ tone, children }) {
@@ -216,14 +217,142 @@ const TABS = [
     { key: 'signin', label: 'Sign-in', icon: LuKeyRound, fields: ['enabled'] },
     { key: 'payments', label: 'Payments', icon: LuLandmark, fields: ['account_name', 'bank_name', 'sort_code', 'account_number'] },
     { key: 'appearance', label: 'Appearance', icon: LuPalette, fields: ['bg', 'text'] },
+    { key: 'menu', label: 'Menu photos', icon: LuImage, fields: ['mode'] },
+    { key: 'features', label: 'Features', icon: LuToggleRight, fields: ['feature', 'enabled'] },
 ];
+
+/**
+ * Owner features' platform defaults. Each shop follows these unless the
+ * admin set it on / off on that shop's settings page (Features tab).
+ */
+function FeatureDefaults({ features, errors }) {
+    const [saving, setSaving] = useState(null);
+
+    function toggle(key, enabled) {
+        router.put('/admin/settings/features', { feature: key, enabled }, {
+            preserveScroll: true,
+            onStart: () => setSaving(key),
+            onFinish: () => setSaving(null),
+        });
+    }
+
+    return (
+        <Panel
+            title="Features"
+            description="What shops get by default. Override it for a single shop on its settings page (Features tab)."
+            bodyClassName="divide-y divide-brand-border"
+        >
+            {features.map((f) => (
+                <MethodRow
+                    key={f.key}
+                    icon={(() => {
+                        const Icon = navIcon(f.key);
+                        return <Icon className="h-5 w-5 text-brand-accent" />;
+                    })()}
+                    title={f.label}
+                    description={f.description}
+                    status={<StatusChip tone={f.default ? 'live' : 'off'}>{f.default ? 'On by default' : 'Off by default'}</StatusChip>}
+                    control={<Switch checked={f.default} onChange={(on) => toggle(f.key, on)} disabled={saving !== null} />}
+                >
+                    {(f.forced_on > 0 || f.forced_off > 0) && (
+                        <p className="text-xs text-brand-muted">
+                            {[
+                                f.forced_on > 0 && `Switched on for ${f.forced_on} ${f.forced_on === 1 ? 'shop' : 'shops'}`,
+                                f.forced_off > 0 && `switched off for ${f.forced_off} ${f.forced_off === 1 ? 'shop' : 'shops'}`,
+                            ]
+                                .filter(Boolean)
+                                .join(' · ')}{' '}
+                            on their own settings.
+                        </p>
+                    )}
+                    {f.default && (
+                        <p className="mt-1 text-xs text-brand-muted">Switching it off keeps it on for shops already using it.</p>
+                    )}
+                </MethodRow>
+            ))}
+            <div className="px-5">
+                <FieldError message={errors?.feature ?? errors?.enabled} />
+            </div>
+        </Panel>
+    );
+}
+
+/**
+ * Who checks the catalog photos "Find photos" brings in for menu items:
+ * Gemini, or the person in the menu editor ("Is this …?" yes / no).
+ */
+function MenuPhotos({ settings, error }) {
+    const [saving, setSaving] = useState(false);
+    const options = [
+        {
+            mode: 'ai',
+            icon: LuSparkles,
+            title: 'AI checks each photo',
+            description: 'Gemini looks at each catalog photo and keeps the first that shows the item. Hands-off, uses Gemini credits.',
+            disabled: !settings.ai_available,
+            note: !settings.ai_available && 'Needs GEMINI_API_KEY in .env.',
+        },
+        {
+            mode: 'manual',
+            icon: LuHand,
+            title: 'You confirm each photo',
+            description: 'Whoever finds photos (you or the owner) is shown each one and asked "Is this …?" - yes keeps it, no shows the next. No Gemini cost.',
+        },
+    ];
+
+    function choose(mode) {
+        if (mode === settings.chosen && mode === settings.mode) return;
+        router.put('/admin/settings/menu-photos', { mode }, { preserveScroll: true, onStart: () => setSaving(true), onFinish: () => setSaving(false) });
+    }
+
+    return (
+        <Panel title="Menu item photos" description="How the photos “Find photos” brings in from the product catalog are checked before they go on a menu.">
+            {!settings.catalog_configured && (
+                <p className="mb-4 flex items-start gap-2 rounded-xl bg-amber-500/10 px-3.5 py-3 text-sm text-amber-800">
+                    <LuTriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                    The product catalog isn't set up (PRODUCT_API_* in .env), so photos can't be found either way yet.
+                </p>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="How menu photos are checked">
+                {options.map((o) => {
+                    const active = settings.mode === o.mode;
+
+                    return (
+                        <button
+                            key={o.mode}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            disabled={saving || o.disabled}
+                            onClick={() => choose(o.mode)}
+                            className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                active ? 'border-brand-accent bg-brand-accent/5 ring-1 ring-brand-accent' : 'border-brand-border hover:border-brand-accent/60'
+                            }`}
+                        >
+                            <o.icon className={`mt-0.5 h-5 w-5 shrink-0 ${active ? 'text-brand-accent' : 'text-brand-muted'}`} />
+                            <span className="min-w-0">
+                                <span className="block font-semibold text-brand-text">{o.title}</span>
+                                <span className="mt-1 block text-sm text-brand-muted">{o.description}</span>
+                                {o.note && <span className="mt-1.5 block text-xs font-medium text-amber-800">{o.note}</span>}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+            {settings.chosen === 'ai' && settings.mode === 'manual' && (
+                <p className="mt-3 text-xs text-brand-muted">AI is chosen but there's no Gemini key, so photos are confirmed by hand for now.</p>
+            )}
+            <FieldError message={error} />
+        </Panel>
+    );
+}
 
 function initialTab() {
     const hash = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
     return TABS.some((t) => t.key === hash) ? hash : 'signin';
 }
 
-export default function Settings({ google, sidebar, bank }) {
+export default function Settings({ google, sidebar, bank, menuPhotos, features }) {
     const { errors } = usePage().props;
     const [tab, setTab] = useState(initialTab);
     const [saving, setSaving] = useState(false);
@@ -329,6 +458,8 @@ export default function Settings({ google, sidebar, bank }) {
             )}
             {tab === 'payments' && <BankDetails saved={bank} />}
             {tab === 'appearance' && <SidebarColors saved={sidebar} errors={errors} />}
+            {tab === 'menu' && <MenuPhotos settings={menuPhotos} error={errors?.mode} />}
+            {tab === 'features' && <FeatureDefaults features={features} errors={errors} />}
             {confirmDialog}
         </AdminLayout>
     );

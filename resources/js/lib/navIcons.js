@@ -1,4 +1,5 @@
 import {
+    LuUserRound,
     LuActivity,
     LuCircle,
     LuExternalLink,
@@ -38,6 +39,7 @@ const NAV_ICONS = {
     reviews: LuStar,
     settings: LuSettings,
     shops: LuStore,
+    users: LuUserRound,
     staff: LuUserCog,
     theme: LuPalette,
     whatsapp: FaWhatsapp,

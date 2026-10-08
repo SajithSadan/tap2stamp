@@ -48,6 +48,7 @@ class Navigation
             ['route' => 'admin.dashboard', 'label' => 'Dashboard', 'icon' => 'overview', 'roles' => $admin],
             // "Add shop" is a button on this page, not its own menu item.
             ['route' => 'admin.index', 'label' => 'Shops', 'icon' => 'shops', 'roles' => $admin, 'active' => ['admin.index', 'admin.shops.*']],
+            ['route' => 'admin.users.index', 'label' => 'Users', 'icon' => 'users', 'roles' => $admin, 'active' => ['admin.users.*'], 'mobile' => false],
             // "Products" and "Coupons" are buttons on this page, not their own menu items.
             // Not in the phone tab bar (keeps 2 + Scan + 2); on phones a shop's orders are on its page.
             ['route' => 'admin.orders.index', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $admin, 'active' => ['admin.orders.*', 'admin.products.*', 'admin.coupons.*'], 'mobile' => false],
@@ -65,8 +66,9 @@ class Navigation
             ['route' => 'dashboard.insights', 'label' => 'Insights', 'icon' => 'insights', 'roles' => $owner],
             ['route' => 'dashboard.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $owner],
             ['route' => 'dashboard.reviews', 'label' => 'Reviews', 'icon' => 'reviews', 'roles' => $owner],
-            ['route' => 'dashboard.menu', 'label' => 'Menu', 'icon' => 'menu', 'roles' => $owner, 'active' => ['dashboard.menu*']],
-            ['route' => 'dashboard.marketing', 'label' => 'WhatsApp', 'icon' => 'whatsapp', 'roles' => $owner],
+            // `feature`: only shown when the owner's shop has it (App\Support\Features).
+            ['route' => 'dashboard.menu', 'label' => 'Menu', 'icon' => 'menu', 'roles' => $owner, 'active' => ['dashboard.menu*'], 'feature' => Features::MENU],
+            ['route' => 'dashboard.marketing', 'label' => 'WhatsApp', 'icon' => 'whatsapp', 'roles' => $owner, 'feature' => Features::WHATSAPP],
             ['route' => 'dashboard.staff', 'label' => 'Staff', 'icon' => 'staff', 'roles' => $owner, 'mobile_primary' => true],
             // UK shops order our counter display; anywhere else downloads the QR codes we assigned.
             [
@@ -104,6 +106,11 @@ class Navigation
 
         foreach (self::items() as $item) {
             if (! in_array($user->role, $item['roles'], true)) {
+                continue;
+            }
+
+            // A feature the admin switched off for this shop isn't offered at all.
+            if (isset($item['feature']) && ! $user->shop?->hasFeature($item['feature'])) {
                 continue;
             }
 

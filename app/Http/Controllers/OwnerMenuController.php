@@ -11,6 +11,7 @@ use App\Services\ShopMenu;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -53,6 +54,26 @@ class OwnerMenuController extends Controller
     public function images(Request $request, MenuItemImages $images): JsonResponse
     {
         return ShopMenuController::fetchImages($request, $request->user()->shop, $images);
+    }
+
+    public function reviewCandidates(Request $request, MenuItemImages $images): JsonResponse
+    {
+        return ShopMenuController::photoCandidates($request, $request->user()->shop, $images);
+    }
+
+    public function reviewImage(Request $request, string $token, MenuItemImages $images): HttpResponse
+    {
+        return ShopMenuController::heldPhoto($request->user()->shop, $token, $images);
+    }
+
+    public function reviewConfirm(Request $request, MenuItemImages $images): JsonResponse
+    {
+        return ShopMenuController::confirmPhoto($request, $request->user()->shop, $images);
+    }
+
+    public function uploadPhoto(Request $request, MenuItemImages $images): JsonResponse
+    {
+        return ShopMenuController::storeUpload($request, $request->user()->shop, $images);
     }
 
     public function updateTheme(Request $request): RedirectResponse
