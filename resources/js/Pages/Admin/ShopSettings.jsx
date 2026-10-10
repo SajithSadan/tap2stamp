@@ -31,6 +31,7 @@ import ManualOrderForm from "@/Components/Dashboard/ManualOrderForm";
 import OrderEditDialog from "@/Components/Dashboard/OrderEditDialog";
 import OrderPaymentActions from "@/Components/Dashboard/OrderPaymentActions";
 import OrderStageEditor from "@/Components/Dashboard/OrderStageEditor";
+import WhatsAppButton from "@/Components/Dashboard/WhatsAppButton";
 import { formatPence } from "@/lib/money";
 
 /** The page's tabs, and which form fields live on each (to flag errors). */
@@ -355,6 +356,7 @@ export default function ShopSettings({
             description={ownerEmail ? `Owner: ${ownerEmail}` : "No owner account"}
             actions={
                 <div className="flex flex-wrap gap-2">
+                    <WhatsAppButton number={shop.whatsapp} name={shop.contact_name ? `${shop.contact_name} · ${shop.name}` : shop.name} text="WhatsApp" />
                     <a href={previewUrl} target="_blank" rel="noreferrer" className={secondaryButton}>
                         <LuExternalLink className="h-4 w-4" /> Customer page
                     </a>

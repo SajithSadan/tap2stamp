@@ -155,6 +155,13 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   `live` / `business` (step 1 saved in `onboarding_draft`; its business name, phone and town are
   shown to follow up) / `not_started`. Never sends password, remember token, Google id or the raw
   draft. Those owners resume setup with their details when they log in again.
+- **WhatsApp contact** (admin): a green WhatsApp button (`Components/Dashboard/WhatsAppButton.jsx`)
+  on the Shops grid and the Users grid (the shop's contact number, else the number typed at
+  sign-up step 1), and labelled in the shop settings header. Links are `https://wa.me/{digits}`;
+  `App\Support\WhatsApp::number()` builds the digits from `contact_phone_code` + `contact_phone`
+  (also older shops' one-field numbers; null = no button), read via `Shop::whatsappNumber()`.
+  On a phone it opens WhatsApp. On a desktop (`hover: hover` + `pointer: fine`) it shows a QR
+  of the same link to scan with your phone, plus "Open on this computer".
 - **Staff devices** (Stage 4's other task, doc-scoped): `staff_devices` table, only
   `token_hash` (sha256) is ever persisted — the plain 64-char token is flashed once via
   `session('staffToken')` when a device is added, same one-time-reveal pattern as the owner

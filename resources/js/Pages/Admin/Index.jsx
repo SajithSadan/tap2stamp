@@ -15,6 +15,7 @@ import {
 } from "react-icons/lu";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import DataTable from "@/Components/Dashboard/DataTable";
+import WhatsAppButton from "@/Components/Dashboard/WhatsAppButton";
 import {
     Avatar,
     CopyButton,
@@ -515,6 +516,10 @@ function buildColumns(origin) {
             meta: { csv: false, stickyRight: true },
             cell: ({ row: { original: s } }) => (
                 <div className="flex items-center justify-end gap-0.5">
+                    <WhatsAppButton
+                        number={s.contact_whatsapp}
+                        name={s.contact_name ? `${s.contact_name} · ${s.name}` : s.name}
+                    />
                     <Link
                         href={`/admin/shops/${s.id}/settings`}
                         aria-label={`Configure ${s.name}`}

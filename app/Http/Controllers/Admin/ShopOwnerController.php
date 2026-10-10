@@ -82,6 +82,7 @@ class ShopOwnerController extends Controller
                     // Code + number together ("+44 7700900123"), and the same for tel: links.
                     'contact_phone' => $shop->contactPhone(),
                     'contact_phone_tel' => $shop->contactPhoneTel(),
+                    'contact_whatsapp' => $shop->whatsappNumber(),
                     'town' => $shop->town,
                     'state' => $shop->state,
                     'postcode' => $shop->postcode,

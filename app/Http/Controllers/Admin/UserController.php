@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\WhatsApp;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,7 +19,7 @@ class UserController extends Controller
     public function index(): Response
     {
         return Inertia::render('Admin/Users', [
-            'users' => User::with('shop:id,user_id,name')
+            'users' => User::with('shop:id,user_id,name,contact_name,contact_phone_code,contact_phone')
                 ->latest()
                 ->get()
                 ->map(fn (User $user) => self::row($user)),
@@ -43,7 +44,12 @@ class UserController extends Controller
             'has_password' => $user->password !== null,
             'created_at' => $user->created_at->toIso8601String(),
             'created_label' => $user->created_at->timezone('Europe/London')->format('j M Y, H:i'),
-            'shop' => $user->shop ? ['id' => $user->shop->id, 'name' => $user->shop->name] : null,
+            'shop' => $user->shop ? [
+                'id' => $user->shop->id,
+                'name' => $user->shop->name,
+                'contact_name' => $user->shop->contact_name,
+                'whatsapp' => $user->shop->whatsappNumber(),
+            ] : null,
             // Owners only: live (has a shop) / business (step 1 saved, shop never
             // created - e.g. the final step failed) / not_started. Null for admins.
             'setup' => match (true) {
@@ -58,6 +64,7 @@ class UserController extends Controller
                 'contact_name' => $draft['contact_name'] ?? null,
                 'phone' => $phone,
                 'phone_tel' => $phone ? str_replace(' ', '', $phone) : null,
+                'whatsapp' => WhatsApp::number($draft['contact_phone_code'] ?? null, $draft['contact_phone'] ?? null),
                 'town' => $draft['town'] ?? null,
                 'state' => $draft['state'] ?? null,
                 'postcode' => $draft['postcode'] ?? null,

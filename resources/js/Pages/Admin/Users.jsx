@@ -4,6 +4,7 @@ import { FcGoogle } from "react-icons/fc";
 import { LuEye, LuSettings, LuUserRound } from "react-icons/lu";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import DataTable from "@/Components/Dashboard/DataTable";
+import WhatsAppButton from "@/Components/Dashboard/WhatsAppButton";
 import { Avatar, CopyButton, EmptyState } from "@/Components/Dashboard/Ui";
 
 /** Owner shop setup: has a shop / step 1 saved but no shop / never started. */
@@ -116,24 +117,32 @@ const columns = [
         enableHiding: false,
         enableGlobalFilter: false,
         meta: { csv: false, stickyRight: true },
-        cell: ({ row: { original: u } }) =>
-            u.shop ? (
-                <div className="flex items-center justify-end gap-0.5">
-                    <Link href={`/admin/shops/${u.shop.id}/settings`} aria-label={`Configure ${u.shop.name}`} title="Configure shop" className={iconLink}>
-                        <LuSettings className="h-4 w-4" />
-                    </Link>
-                    <Link
-                        href={`/admin/shops/${u.shop.id}/view-as-owner`}
-                        method="post"
-                        as="button"
-                        aria-label={`View ${u.shop.name} as its owner`}
-                        title="View as owner"
-                        className={iconLink}
-                    >
-                        <LuEye className="h-4 w-4" />
-                    </Link>
-                </div>
-            ) : null,
+        cell: ({ row: { original: u } }) => (
+            <div className="flex items-center justify-end gap-0.5">
+                {/* The shop's contact number, or the one typed at sign-up if setup never finished. */}
+                <WhatsAppButton
+                    number={u.shop?.whatsapp ?? u.draft?.whatsapp}
+                    name={[u.shop?.contact_name ?? u.draft?.contact_name ?? u.name, u.shop?.name ?? u.draft?.business_name].filter(Boolean).join(" · ")}
+                />
+                {u.shop && (
+                    <>
+                        <Link href={`/admin/shops/${u.shop.id}/settings`} aria-label={`Configure ${u.shop.name}`} title="Configure shop" className={iconLink}>
+                            <LuSettings className="h-4 w-4" />
+                        </Link>
+                        <Link
+                            href={`/admin/shops/${u.shop.id}/view-as-owner`}
+                            method="post"
+                            as="button"
+                            aria-label={`View ${u.shop.name} as its owner`}
+                            title="View as owner"
+                            className={iconLink}
+                        >
+                            <LuEye className="h-4 w-4" />
+                        </Link>
+                    </>
+                )}
+            </div>
+        ),
     },
 ];
 

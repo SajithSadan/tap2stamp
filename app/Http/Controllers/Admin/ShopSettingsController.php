@@ -29,6 +29,7 @@ class ShopSettingsController extends Controller
                     'wifi_ssid', 'wifi_password', 'qr_design_id',
                 ]),
                 'can_order' => $shop->canOrderProducts(),
+                'whatsapp' => $shop->whatsappNumber(),
                 // Contact person/email default to the owner's login.
                 ...$shop->contactDetails(),
             ],

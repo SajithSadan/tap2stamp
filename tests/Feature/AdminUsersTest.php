@@ -33,7 +33,7 @@ test('the admin sees every user, including owners who never got a shop', functio
     $this->actingAs($admin)->get('/admin/users')->assertInertia(fn ($page) => $page->component('Admin/Users')->has('users', 4));
     $rows = userRows($admin);
 
-    expect($rows['live@example.test'])->toMatchArray(['setup' => 'live', 'shop' => ['id' => $shop->id, 'name' => 'Bean There'], 'draft' => null])
+    expect($rows['live@example.test'])->toMatchArray(['setup' => 'live', 'shop' => ['id' => $shop->id, 'name' => 'Bean There', 'contact_name' => null, 'whatsapp' => null], 'draft' => null])
         ->and($rows['stuck@example.test'])->toMatchArray([
             'setup' => 'business',
             'shop' => null,
@@ -44,6 +44,7 @@ test('the admin sees every user, including owners who never got a shop', functio
                 'contact_name' => 'Cat',
                 'phone' => '+44 7700 900123',
                 'phone_tel' => '+447700900123',
+                'whatsapp' => '447700900123',
                 'town' => 'Leeds',
                 'state' => null,
                 'postcode' => 'LS1 1AA',

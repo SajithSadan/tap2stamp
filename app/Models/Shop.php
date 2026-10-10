@@ -9,6 +9,7 @@ use App\Support\HeaderStyle;
 use App\Support\MenuThemes;
 use App\Support\ShopContact;
 use App\Support\ThemeCatalog;
+use App\Support\WhatsApp;
 use Database\Factories\ShopFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -342,6 +343,12 @@ class Shop extends Model
     public function contactPhoneTel(): ?string
     {
         return $this->contactPhone() ? str_replace(' ', '', $this->contactPhone()) : null;
+    }
+
+    /** The contact number for a wa.me link ("447700900123"), or null. */
+    public function whatsappNumber(): ?string
+    {
+        return WhatsApp::number($this->contact_phone_code, $this->contact_phone);
     }
 
     /** The look customers see: the catalog theme plus any of the owner's own tweaks. */
