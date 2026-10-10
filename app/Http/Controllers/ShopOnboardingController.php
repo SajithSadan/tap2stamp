@@ -69,6 +69,11 @@ class ShopOnboardingController extends Controller
             return $shop;
         });
 
+        // The optional logo (cropped in the browser), stored like Theme → logo once the shop exists.
+        if ($request->hasFile('logo')) {
+            $shop->update(['logo_path' => $request->file('logo')->store("logos/{$shop->id}", 'uploads')]);
+        }
+
         return redirect()->route('dashboard.index')->with('status', $shop->canOrderProducts()
             ? 'Your shop is live! Order your counter display so customers can tap or scan to join.'
             : "Your shop is live! We'll set up your QR code - you'll find it under QR codes to download and print.");

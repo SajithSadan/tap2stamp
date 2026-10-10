@@ -81,15 +81,19 @@ export function SlugInput({ id, value, onChange, placeholder = 'your-shop' }) {
 }
 
 /** Rough sketch of the customer's card in the default look - just enough to sanity-check the setup. */
-export function CardPreview({ name, slug, maxStamps, reward }) {
+export function CardPreview({ name, slug, maxStamps, reward, logoUrl = null }) {
     const stamps = clamp(maxStamps || MIN_STAMPS);
     const filled = Math.min(2, stamps);
 
     return (
         <div className="overflow-hidden rounded-2xl border border-brand-border bg-brand-card">
-            <div className="bg-gradient-to-br from-brand-deep to-brand-deep/85 px-5 py-6 text-white">
-                <p className="text-xs uppercase tracking-widest text-white/60">Loyalty card</p>
-                <p className="mt-1 truncate font-heading text-xl font-semibold">{name || 'Your shop name'}</p>
+            <div className="flex items-center gap-3 bg-gradient-to-br from-brand-deep to-brand-deep/85 px-5 py-6 text-white">
+                {/* The logo, as square as on the real card page. */}
+                {logoUrl && <img src={logoUrl} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-white object-cover" />}
+                <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-widest text-white/60">Loyalty card</p>
+                    <p className="mt-1 truncate font-heading text-xl font-semibold">{name || 'Your shop name'}</p>
+                </div>
             </div>
             <div className="p-5">
                 {/* 4 per row; a part-filled last row is centred rather than hanging left. */}

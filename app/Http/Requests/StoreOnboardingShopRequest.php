@@ -16,6 +16,8 @@ class StoreOnboardingShopRequest extends ValidateOnboardingBusinessRequest
             ...parent::rules(),
             'max_stamps' => Shop::maxStampsRules(),
             'reward_title' => ['required', 'string', 'max:150'],
+            // Optional, cropped square in the browser first. Same rules as Theme → logo.
+            'logo' => ['nullable', ...UpdateShopLogoRequest::LOGO_RULES],
         ];
     }
 
@@ -23,6 +25,7 @@ class StoreOnboardingShopRequest extends ValidateOnboardingBusinessRequest
     {
         return [
             ...parent::messages(),
+            ...(new UpdateShopLogoRequest)->messages(),
         ];
     }
 }

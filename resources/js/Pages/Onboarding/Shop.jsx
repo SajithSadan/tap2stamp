@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Head, Link } from "@inertiajs/react";
-import { LuArrowLeft, LuArrowRight, LuCheck, LuLogOut } from "react-icons/lu";
+import { LuArrowLeft, LuArrowRight, LuCheck, LuImagePlus, LuLogOut, LuStore, LuTrash2 } from "react-icons/lu";
 import {
     AuthField,
     Wordmark,
@@ -11,6 +11,7 @@ import AddressLookup from "@/Components/AddressLookup";
 import CountrySelect from "@/Components/CountrySelect";
 import PhoneField from "@/Components/PhoneField";
 import StateSelect from "@/Components/StateSelect";
+import PhotoCropper, { croppedFile } from "@/Components/Menu/PhotoCropper";
 import {
     CardPreview,
     MAX_STAMPS,
@@ -89,7 +90,7 @@ const rulesFor = (countries) => ({
 });
 
 // Fields on the loyalty card step; any other error belongs to "Your business".
-const CARD_FIELDS = ["max_stamps", "reward_title"];
+const CARD_FIELDS = ["max_stamps", "reward_title", "logo"];
 const BUSINESS_FIELDS = Object.keys(rulesFor([])).filter(
     (key) => !CARD_FIELDS.includes(key),
 );
@@ -207,6 +208,70 @@ function Question({ number, title, description, children }) {
     );
 }
 
+/**
+ * The optional logo: picked → cropped square in the browser (PhotoCropper,
+ * logo mode) → kept here and sent with "Create my shop". Not part of the
+ * remembered form (a file can't be), so a reload just asks again.
+ */
+function LogoQuestion({ logoUrl, error, onCropped, onRemove }) {
+    const input = useRef(null);
+    const [cropping, setCropping] = useState(null);
+
+    return (
+        <Question number={3} title="Add your logo (optional)" description="Shown on your customers' card. You can add or change it later under Theme.">
+            <div className="flex items-center gap-4">
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white ring-1 ring-brand-border">
+                    {logoUrl ? <img src={logoUrl} alt="Your logo" className="h-full w-full object-cover" /> : <LuStore className="h-7 w-7 text-brand-muted" />}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                    <input
+                        ref={input}
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(e) => {
+                            if (e.target.files?.[0]) setCropping(e.target.files[0]);
+                            e.target.value = "";
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => input.current?.click()}
+                        className="inline-flex items-center gap-2 rounded-full border-2 border-brand-border px-4 py-2 text-sm font-semibold text-brand-text transition hover:border-brand-accent"
+                    >
+                        <LuImagePlus className="h-4 w-4" /> {logoUrl ? "Change logo" : "Add logo"}
+                    </button>
+                    {logoUrl && (
+                        <button type="button" onClick={onRemove} className="inline-flex items-center gap-1.5 px-2 py-2 text-sm font-medium text-brand-muted hover:text-red-600">
+                            <LuTrash2 className="h-4 w-4" /> Remove
+                        </button>
+                    )}
+                </div>
+            </div>
+            {error ? (
+                <p className="mt-2 text-sm text-red-600" role="alert">
+                    {error}
+                </p>
+            ) : (
+                <p className="mt-2 text-xs text-brand-muted">You'll crop it to a square. Skip it if you don't have one handy.</p>
+            )}
+            {cropping && (
+                <PhotoCropper
+                    file={cropping}
+                    mode="logo"
+                    title="Your logo"
+                    doneLabel="Use logo"
+                    onCancel={() => setCropping(null)}
+                    onDone={async (blob) => {
+                        onCropped(blob);
+                        setCropping(null);
+                    }}
+                />
+            )}
+        </Question>
+    );
+}
+
 const REWARD_IDEAS = [
     "Free coffee",
     "Free hot drink",
@@ -269,7 +334,17 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
     // Step 1 already passed (draft kept by the server): a reload or a failed
     // final submit picks up on the loyalty card step, nothing to re-type.
     const [step, setStep] = useState(draft ? "card" : "business");
-    const { data, setData, post, processing, errors } = useValidatedForm(
+    // The optional cropped logo (a Blob) and its preview URL - outside the remembered form.
+    const [logo, setLogo] = useState(null);
+    const [logoUrl, setLogoUrl] = useState(null);
+    useEffect(() => {
+        if (!logo) return setLogoUrl(null);
+        const url = URL.createObjectURL(logo);
+        setLogoUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [logo]);
+
+    const { data, setData, post, processing, errors, transform } = useValidatedForm(
         {
             name: "",
             max_stamps: 8,
@@ -363,8 +438,11 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
 
     function submitCard(e) {
         e.preventDefault();
+        // The logo rides along with the final submit (as a file upload) when there is one.
+        transform((values) => (logo ? { ...values, logo: croppedFile(logo, "logo") } : values));
         post("/onboarding", {
             fields: CARD_FIELDS,
+            forceFormData: Boolean(logo),
             // Everything is re-validated here; send the owner back if step 1 is the problem.
             onError: (errs) => {
                 if (Object.keys(errs).some((key) => !CARD_FIELDS.includes(key)))
@@ -381,6 +459,7 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
             name={data.name}
             maxStamps={data.max_stamps}
             reward={data.reward_title}
+            logoUrl={logoUrl}
         />
     );
 
@@ -766,6 +845,8 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
                                                 visit.
                                             </p>
                                         </Question>
+
+                                        <LogoQuestion logoUrl={logoUrl} error={errors.logo} onCropped={setLogo} onRemove={() => setLogo(null)} />
 
                                     </div>
 

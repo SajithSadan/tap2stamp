@@ -451,7 +451,11 @@ figures are grouped in SQL - one row per customer, never per scan.
   `text-nav-text` (`app.css`). Sidebar / tab-bar code must use those, never `text-white` or
   `bg-brand-deep-soft`. Owners who put their shop theme on the dashboard keep their theme's colours.
 - **Logo** (Theme → Banner & logo, `ShopLogoController`, `shops.logo_path`, same `uploads` disk
-  under `logos/{shop}`, JPG/PNG/WebP ≤ 2 MB, ≥ 120×120, uploads on pick): shown in the round
+  under `logos/{shop}`, JPG/PNG/WebP ≤ 2 MB, ≥ 120×120 - `UpdateShopLogoRequest::LOGO_RULES`). Picked
+  → cropped square in the browser by `PhotoCropper` in **logo mode** (can zoom out so a wide logo
+  fits whole, white backdrop, 512 px WebP / PNG, transparency kept) → uploaded. Also an optional
+  **"Add your logo"** question on the sign-up card step (same cropper; sent with "Create my shop",
+  stored once the shop exists; not in the remembered form/draft): shown in the round
   badge in the card page header and on the sign-up screen (`Shop::logoUrl()`, `logo_url`)
   instead of the store icon; no logo = the store icon on the card page, nothing on sign-up. Card page sections are solid panels
   (`SURFACE` in `Card.jsx`, hairline border, no shadows). Don't bring back blurred backdrops,

@@ -2,28 +2,45 @@ import { useEffect, useRef, useState } from "react";
 import { LuLoaderCircle, LuMinus, LuPlus, LuX } from "react-icons/lu";
 import { primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
 
-/** The square photo the menu gets: big enough for any layout, small enough to load fast. */
-const OUTPUT = 800;
 const MAX_ZOOM = 4;
 
 /**
- * The square crop as a compressed blob: WebP, or JPEG where the browser
- * can't make WebP (older Safari quietly returns PNG). Drawing it again also
- * drops the photo's metadata (EXIF, incl. GPS location).
+ * Two kinds of square:
+ * - photo (menu items): fills the square (no zooming out past it), 800 px, WebP or JPEG.
+ * - logo (shop logo): can zoom out until the whole logo fits, 512 px, WebP or PNG -
+ *   transparency kept (JPEG would turn it black); shown on white like the card's logo badge.
  */
-async function cropToBlob(img, crop) {
-    const size = Math.round(Math.min(OUTPUT, crop.size));
+const MODES = {
+    photo: { size: 800, fallback: ["image/jpeg", 0.82], fit: false, backdrop: "bg-neutral-900" },
+    logo: { size: 512, fallback: ["image/png", undefined], fit: true, backdrop: "bg-white" },
+};
+
+/** A cropped blob as a File to upload: "logo.webp", "photo.png"… (named from its real type). */
+export const croppedFile = (blob, name) => new File([blob], `${name}.${blob.type.split("/")[1] ?? "png"}`, { type: blob.type });
+
+/**
+ * The visible square as a compressed blob. The image is drawn where it
+ * sits in the frame (so a zoomed-out logo keeps the space around it).
+ * Drawing it again also drops the photo's metadata (EXIF, incl. GPS).
+ * Older Safari can't make WebP (it quietly returns PNG) - then the
+ * mode's fallback format is used.
+ */
+async function cropToBlob(img, view, box, natural, mode) {
+    const { size: max, fallback } = MODES[mode];
+    // Photos are never enlarged past the pixels actually in the frame; logos are always `max`.
+    const out = Math.max(1, mode === "photo" ? Math.min(max, Math.round(box / view.scale)) : max);
+    const f = out / box;
     const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = out;
+    canvas.height = out;
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, crop.x, crop.y, crop.size, crop.size, 0, 0, size, size);
+    ctx.drawImage(img, view.x * f, view.y * f, natural.w * view.scale * f, natural.h * view.scale * f);
 
     const make = (type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
-    const webp = await make("image/webp", 0.8);
+    const webp = await make("image/webp", 0.85);
 
-    return webp && webp.type === "image/webp" ? webp : make("image/jpeg", 0.82);
+    return webp && webp.type === "image/webp" ? webp : make(...fallback);
 }
 
 /**
@@ -32,7 +49,8 @@ async function cropToBlob(img, crop) {
  * hundred KB at most, from photos of many MB) and may return a promise -
  * the dialog shows it's busy until it settles.
  */
-export default function PhotoCropper({ file, itemName, onCancel, onDone }) {
+export default function PhotoCropper({ file, itemName, title, mode = "photo", doneLabel = "Use photo", onCancel, onDone }) {
+    const { fit, backdrop } = MODES[mode];
     const viewport = useRef(null);
     const imgRef = useRef(null);
     const pointers = useRef(new Map());
@@ -60,25 +78,26 @@ export default function PhotoCropper({ file, itemName, onCancel, onDone }) {
     // Scale that makes the photo just cover the square, at zoom 1.
     const base = natural && box ? box / Math.min(natural.w, natural.h) : 1;
     const scale = base * view.zoom;
+    // Logos may zoom out until the whole image fits (a wide logo then has space above and below).
+    const minZoom = fit && natural ? Math.min(natural.w, natural.h) / Math.max(natural.w, natural.h) : 1;
 
-    /** Keep the photo covering the whole square. */
-    const clamp = (x, y, s) => ({
-        x: Math.min(0, Math.max(box - natural.w * s, x)),
-        y: Math.min(0, Math.max(box - natural.h * s, y)),
-    });
+    /** Keep the square covered - or, where the image is smaller than the square (zoomed-out logo), centred. */
+    const clampAxis = (pos, length) => (length <= box ? (box - length) / 2 : Math.min(0, Math.max(box - length, pos)));
+    const clamp = (x, y, s) => ({ x: clampAxis(x, natural.w * s), y: clampAxis(y, natural.h * s) });
 
-    // Centre the photo once its size and the square's are known.
+    // Start centred: a logo shown whole, a photo filling the square.
     useEffect(() => {
         if (!natural || !box) return;
-        const s = box / Math.min(natural.w, natural.h);
-        setView({ zoom: 1, x: (box - natural.w * s) / 2, y: (box - natural.h * s) / 2 });
+        const zoom = fit ? Math.min(natural.w, natural.h) / Math.max(natural.w, natural.h) : 1;
+        const s = (box / Math.min(natural.w, natural.h)) * zoom;
+        setView({ zoom, x: (box - natural.w * s) / 2, y: (box - natural.h * s) / 2 });
     }, [natural, box]);
 
     /** Zoom around a point of the square (its centre by default). */
     function zoomTo(next, cx = box / 2, cy = box / 2) {
         if (!natural) return;
         setView((v) => {
-            const zoom = Math.min(MAX_ZOOM, Math.max(1, next));
+            const zoom = Math.min(MAX_ZOOM, Math.max(minZoom, next));
             const before = base * v.zoom;
             const after = base * zoom;
             const px = (cx - v.x) / before;
@@ -126,8 +145,7 @@ export default function PhotoCropper({ file, itemName, onCancel, onDone }) {
         setBusy(true);
         setError(null);
         try {
-            // The visible square, in the photo's own pixels.
-            const blob = await cropToBlob(imgRef.current, { x: -view.x / scale, y: -view.y / scale, size: box / scale });
+            const blob = await cropToBlob(imgRef.current, { ...view, scale }, box, natural, mode);
             if (!blob) throw new Error("crop");
             await onDone(blob);
         } catch (e) {
@@ -141,7 +159,7 @@ export default function PhotoCropper({ file, itemName, onCancel, onDone }) {
             <div role="dialog" aria-modal="true" aria-label="Crop photo" className="w-full overflow-hidden rounded-t-2xl bg-brand-card shadow-xl sm:max-w-md sm:rounded-2xl">
                 <div className="flex items-center justify-between px-5 pt-4">
                     <div className="min-w-0">
-                        <h2 className="truncate font-heading text-lg font-semibold text-brand-text">Photo for {itemName}</h2>
+                        <h2 className="truncate font-heading text-lg font-semibold text-brand-text">{title ?? `Photo for ${itemName}`}</h2>
                         <p className="text-xs text-brand-muted">Drag to position · pinch or use the slider to zoom</p>
                     </div>
                     <button type="button" onClick={onCancel} disabled={busy} aria-label="Cancel" className="rounded-lg p-2 text-brand-muted hover:bg-brand-bg">
@@ -157,7 +175,7 @@ export default function PhotoCropper({ file, itemName, onCancel, onDone }) {
                         onPointerUp={onPointerUp}
                         onPointerCancel={onPointerUp}
                         onWheel={onWheel}
-                        className="relative aspect-square w-full cursor-grab touch-none select-none overflow-hidden rounded-xl bg-neutral-900 active:cursor-grabbing"
+                        className={`relative aspect-square w-full cursor-grab touch-none select-none overflow-hidden rounded-xl ${backdrop} ring-1 ring-brand-border active:cursor-grabbing`}
                     >
                         {src && (
                             <img
@@ -173,7 +191,7 @@ export default function PhotoCropper({ file, itemName, onCancel, onDone }) {
                         )}
                         {!natural && !error && (
                             <span className="absolute inset-0 flex items-center justify-center">
-                                <LuLoaderCircle className="h-6 w-6 animate-spin text-white/70" />
+                                <LuLoaderCircle className="h-6 w-6 animate-spin text-brand-muted" />
                             </span>
                         )}
                     </div>
@@ -184,7 +202,7 @@ export default function PhotoCropper({ file, itemName, onCancel, onDone }) {
                         </button>
                         <input
                             type="range"
-                            min={1}
+                            min={minZoom}
                             max={MAX_ZOOM}
                             step={0.01}
                             value={view.zoom}
@@ -214,7 +232,7 @@ export default function PhotoCropper({ file, itemName, onCancel, onDone }) {
                                 <LuLoaderCircle className="h-4 w-4 animate-spin" /> Uploading…
                             </>
                         ) : (
-                            "Use photo"
+                            doneLabel
                         )}
                     </button>
                 </div>

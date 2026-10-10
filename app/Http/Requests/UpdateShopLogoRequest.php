@@ -11,16 +11,19 @@ class UpdateShopLogoRequest extends FormRequest
         return true;
     }
 
+    /**
+     * A shop logo file - here and in shop setup (StoreOnboardingShopRequest).
+     * No SVG (it can carry scripts). Shown in a small badge, so 2 MB and
+     * 120 px square is plenty (the browser crops it to a 512 px square).
+     */
+    public const LOGO_RULES = [
+        'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048',
+        'dimensions:min_width=120,min_height=120',
+    ];
+
     public function rules(): array
     {
-        return [
-            // No SVG (it can carry scripts). Shown in a small round badge, so
-            // 2 MB and 120 px square is plenty.
-            'logo' => [
-                'required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048',
-                'dimensions:min_width=120,min_height=120',
-            ],
-        ];
+        return ['logo' => ['required', ...self::LOGO_RULES]];
     }
 
     public function messages(): array

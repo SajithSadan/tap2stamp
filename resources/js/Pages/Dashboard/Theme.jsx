@@ -17,6 +17,7 @@ import {
 } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
 import OwnerLayout from "@/Components/Dashboard/OwnerLayout";
+import PhotoCropper, { croppedFile } from "@/Components/Menu/PhotoCropper";
 import {
     FieldError,
     inputClass,
@@ -604,25 +605,34 @@ function SignupIconTab({ icon, onSelect, currentIcon }) {
 /* ---------- Logo (in the Banner & logo tab) ---------- */
 
 /**
- * The shop's logo for the round badge on the customer card page and sign-up
- * screen. Uploads as soon as a file is picked (no separate save step).
+ * The shop's logo for the badge on the customer card page and sign-up
+ * screen. Picked → cropped square (PhotoCropper, logo mode: the whole logo
+ * can fit, transparency kept) → uploaded straight away.
  */
 function LogoPanel({ logoUrl, error, confirm }) {
     const input = useRef(null);
     const [busy, setBusy] = useState(false);
+    const [cropping, setCropping] = useState(null); // the picked File
 
-    function upload(file) {
-        if (!file) return;
-        router.post(
-            "/dashboard/theme/logo",
-            { logo: file },
-            {
-                forceFormData: true,
-                preserveScroll: true,
-                onStart: () => setBusy(true),
-                onFinish: () => setBusy(false),
-            },
-        );
+    /** Called by the cropper; a rejected promise shows the error in the cropper. */
+    function upload(blob) {
+        return new Promise((resolve, reject) => {
+            router.post(
+                "/dashboard/theme/logo",
+                { logo: croppedFile(blob, "logo") },
+                {
+                    forceFormData: true,
+                    preserveScroll: true,
+                    onStart: () => setBusy(true),
+                    onFinish: () => setBusy(false),
+                    onSuccess: () => {
+                        setCropping(null);
+                        resolve();
+                    },
+                    onError: (errors) => reject(new Error(errors.logo ?? "Couldn't upload the logo - try again.")),
+                },
+            );
+        });
     }
 
     async function remove() {
@@ -658,10 +668,10 @@ function LogoPanel({ logoUrl, error, confirm }) {
                     <input
                         ref={input}
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/*"
                         className="sr-only"
                         onChange={(e) => {
-                            upload(e.target.files?.[0]);
+                            if (e.target.files?.[0]) setCropping(e.target.files[0]);
                             e.target.value = "";
                         }}
                     />
@@ -693,8 +703,18 @@ function LogoPanel({ logoUrl, error, confirm }) {
             <FieldError message={error} />
             {!error && (
                 <p className="mt-3 text-xs text-brand-muted">
-                    JPG, PNG or WebP · up to 2 MB · at least 120 × 120 px.
+                    You'll crop it to a square before it's saved. Logos with a transparent background stay transparent.
                 </p>
+            )}
+            {cropping && (
+                <PhotoCropper
+                    file={cropping}
+                    mode="logo"
+                    title="Your logo"
+                    doneLabel="Use logo"
+                    onCancel={() => setCropping(null)}
+                    onDone={upload}
+                />
             )}
         </Panel>
     );
