@@ -1,10 +1,10 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { useEffect, useMemo, useState } from 'react';
 import BottomNav from '@/Components/BottomNav';
-import { LuStore } from 'react-icons/lu';
+import { LuChevronRight, LuStore } from 'react-icons/lu';
 import IconBadge from '@/Components/IconBadge';
 import OfflineBanner from '@/Components/OfflineBanner';
 import StampGrid from '@/Components/StampGrid';
@@ -89,6 +89,9 @@ function ShopCardTile({ uuid, card }) {
     }, [uuid, card.shop_id, card.active]);
 
     const rewardReady = card.stamps >= card.max_stamps;
+    // The card body opens the shop's card page (rewards, Wi-Fi, Instagram, rating…); the QR stub keeps its lightbox.
+    // A blocked shop's page only says it isn't active, so its tile isn't a link.
+    const Body = card.active ? Link : 'div';
     useThemeFonts(card.theme);
 
     return (
@@ -101,13 +104,21 @@ function ShopCardTile({ uuid, card }) {
                     a "card" the way a physical loyalty card does. */}
                 <div className="absolute inset-y-0 left-0 w-1.5 bg-brand-accent" />
 
-                <div className="min-w-0 flex-1 pl-2">
+                <Body
+                    {...(card.active ? { href: `/s/${card.shop_slug}`, 'aria-label': `Open your ${card.shop_name} card` } : {})}
+                    className="group min-w-0 flex-1 rounded-lg pl-2"
+                >
                     <div className="flex items-center gap-2.5">
                         <IconBadge>
                             <LuStore className="h-4 w-4" />
                         </IconBadge>
-                        <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-brand-text">{card.shop_name}</p>
+                        <div className="min-w-0 flex-1">
+                            <p className="flex items-center gap-0.5 text-sm font-bold text-brand-text">
+                                <span className="truncate">{card.shop_name}</span>
+                                {card.active && (
+                                    <LuChevronRight className="h-4 w-4 shrink-0 text-brand-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                                )}
+                            </p>
                             <p className="truncate text-xs text-brand-muted">{card.reward_title}</p>
                         </div>
                     </div>
@@ -120,7 +131,8 @@ function ShopCardTile({ uuid, card }) {
                         {card.active && rewardReady && <span className="ml-1 font-semibold text-brand-accent">· Reward ready!</span>}
                     </p>
                     {!card.active && <p className="mt-1 text-xs font-semibold text-brand-text">This card isn't active at the moment.</p>}
-                </div>
+                    {card.active && <p className="mt-1 text-xs font-semibold text-brand-accent">View card & shop details</p>}
+                </Body>
 
                 {/* Perforated stub, like a ticket - separates the QR from the
                     card body instead of hiding it behind an accordion toggle. */}
