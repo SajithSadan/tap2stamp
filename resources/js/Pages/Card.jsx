@@ -223,6 +223,9 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
     const [redeemedToast, setRedeemedToast] = useState(false);
     const [loadError, setLoadError] = useState(false);
     const [qrOpen, setQrOpen] = useState(false);
+    // "Your reward is ready!" - when the card is full (on opening it, or as a live stamp fills it).
+    const [rewardPopup, setRewardPopup] = useState(false);
+    const rewardPopupTimeoutRef = useRef(null);
 
     const prevStampsRef = useRef(0);
     const wasReadyRef = useRef(false);
@@ -351,7 +354,7 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
         );
     }
 
-    function celebrateStamp() {
+    function celebrateStamp(filledCard = false) {
         setStampShower(true);
         if (stampShowerTimeoutRef.current)
             clearTimeout(stampShowerTimeoutRef.current);
@@ -360,7 +363,7 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
             4550,
         );
 
-        if (!shop.google_review_direct && !reviewedRef.current) {
+        if (!filledCard && !shop.google_review_direct && !reviewedRef.current) {
             if (reviewPromptTimeoutRef.current)
                 clearTimeout(reviewPromptTimeoutRef.current);
             reviewPromptTimeoutRef.current = setTimeout(() => {
@@ -389,8 +392,19 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
         if (ready && !wasReadyRef.current) {
             triggerCelebration();
             wasReadyRef.current = true;
+            // The reward popup: after a live stamp's animation has played, else almost at once.
+            if (!preview) {
+                if (rewardPopupTimeoutRef.current) clearTimeout(rewardPopupTimeoutRef.current);
+                rewardPopupTimeoutRef.current = setTimeout(() => setRewardPopup(true), stampShower ? 4650 : 700);
+            }
         } else {
             wasReadyRef.current = ready;
+        }
+
+        // Reward given (the card restarted): the popup has nothing left to say.
+        if (!ready) {
+            if (rewardPopupTimeoutRef.current) clearTimeout(rewardPopupTimeoutRef.current);
+            setRewardPopup(false);
         }
     }, [card?.stamps, card?.max_stamps]);
 
@@ -450,12 +464,7 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
     useEffect(() => {
         if (!card?.uuid || preview) return;
 
-        // Console diagnostics for live updates, all prefixed "[TaDa live]" (filter on it).
-        // Only the start of the public key is shown, never anything secret.
-        const log = (...args) => console.info("[TaDa live]", ...args);
         const key = import.meta.env.VITE_PUSHER_APP_KEY;
-        const cluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-        log("config", { key: key ? `${key.slice(0, 6)}…` : "MISSING - built without VITE_PUSHER_APP_KEY", cluster: cluster || "MISSING" });
         if (!key) return;
 
         let pusher;
@@ -463,15 +472,12 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
         const channelName = `card.${card.uuid}.${card.shop_id}`;
 
         try {
-            pusher = new Pusher(key, { cluster });
-            pusher.connection.bind("state_change", ({ previous, current }) => log(`connection: ${previous} → ${current}`));
-            pusher.connection.bind("error", (error) => log("connection error", error));
+            pusher = new Pusher(key, {
+                cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
+            });
             channel = pusher.subscribe(channelName);
-            channel.bind("pusher:subscription_succeeded", () => log("subscribed to", channelName));
-            channel.bind("pusher:subscription_error", (error) => log("subscription failed", channelName, error));
 
             channel.bind("card.updated", (data) => {
-                log("card.updated received", data);
                 setCard((prev) =>
                     prev
                         ? {
@@ -484,7 +490,7 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                 triggerCelebration();
                 playChime();
                 if (data.action === "stamp_added") {
-                    celebrateStamp();
+                    celebrateStamp(data.stamps >= data.max_stamps);
                     if (navigator.vibrate)
                         navigator.vibrate([70, 45, 110, 35, 70]);
                 } else if (navigator.vibrate) {
@@ -496,9 +502,8 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                     setTimeout(() => setRedeemedToast(false), 3000);
                 }
             });
-        } catch (error) {
+        } catch {
             // Connection failed - customer can still refresh to see updates.
-            log("could not start live updates", error);
         }
 
         return () => {
@@ -1086,6 +1091,62 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                     )}
                 </main>
             </div>
+
+            {/* "Your reward is ready!" - how to collect it, and the QR for staff in one tap. */}
+            <AnimatePresence>
+                {rewardPopup && card && card.stamps >= card.max_stamps && (
+                    <motion.div
+                        key="reward-popup"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-30 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+                        onClick={() => setRewardPopup(false)}
+                    >
+                        <motion.div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="reward-popup-title"
+                            initial={{ y: 40, scale: 0.96 }}
+                            animate={{ y: 0, scale: 1 }}
+                            exit={{ y: 40, scale: 0.96 }}
+                            transition={{ type: "spring", stiffness: 320, damping: 26 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="relative w-full max-w-sm overflow-hidden rounded-3xl bg-brand-card p-6 text-center shadow-2xl"
+                        >
+                            <Celebration />
+                            <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand-accent text-4xl shadow-lg">🎁</span>
+                            <h2 id="reward-popup-title" className="mt-4 font-heading text-2xl font-bold text-brand-text">
+                                Your reward is ready!
+                            </h2>
+                            {shop.reward_title && <p className="mt-1 text-lg font-semibold text-brand-accent">{shop.reward_title}</p>}
+                            <p className="mt-3 text-sm text-brand-muted">
+                                Show your QR code to the staff{shop.name ? ` at ${shop.name}` : ""} to collect it.
+                            </p>
+                            <div className="mt-6 space-y-2.5">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setRewardPopup(false);
+                                        setQrOpen(true);
+                                    }}
+                                    disabled={!qrSrc}
+                                    className="w-full rounded-brand bg-brand-accent px-5 py-3.5 font-semibold text-brand-accent-text shadow-sm disabled:opacity-60"
+                                >
+                                    Show my QR code
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setRewardPopup(false)}
+                                    className="w-full rounded-brand px-5 py-3 text-sm font-semibold text-brand-muted hover:text-brand-text"
+                                >
+                                    Later
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Full-screen QR for the staff scanner: plain white, big and easy to read. */}
             <AnimatePresence>

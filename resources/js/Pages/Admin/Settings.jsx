@@ -1,7 +1,7 @@
 import { router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
-import { LuCircleAlert, LuHand, LuImage, LuKeyRound, LuLandmark, LuLayoutDashboard, LuMail, LuPalette, LuRotateCcw, LuSettings, LuSparkles, LuStore, LuToggleRight, LuTriangleAlert } from 'react-icons/lu';
+import { LuCircleAlert, LuHand, LuImage, LuKeyRound, LuLandmark, LuLayoutDashboard, LuMail, LuPalette, LuRotateCcw, LuSettings, LuSparkles, LuStamp, LuStore, LuToggleRight, LuTriangleAlert } from 'react-icons/lu';
 import { useConfirm } from '@/Components/ConfirmDialog';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { navIcon } from '@/lib/navIcons';
@@ -246,7 +246,7 @@ function FeatureDefaults({ features, errors }) {
                 <MethodRow
                     key={f.key}
                     icon={(() => {
-                        const Icon = navIcon(f.key);
+                        const Icon = f.key === "multiple_stamps" ? LuStamp : navIcon(f.key);
                         return <Icon className="h-5 w-5 text-brand-accent" />;
                     })()}
                     title={f.label}
@@ -265,7 +265,7 @@ function FeatureDefaults({ features, errors }) {
                             on their own settings.
                         </p>
                     )}
-                    {f.default && (
+                    {f.default && f.keep_in_use && (
                         <p className="mt-1 text-xs text-brand-muted">Switching it off keeps it on for shops already using it.</p>
                     )}
                 </MethodRow>

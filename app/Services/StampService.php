@@ -10,6 +10,7 @@ use App\Models\Shop;
 use App\Models\StaffMember;
 use App\Models\StampLog;
 use App\Models\User;
+use App\Support\Features;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -74,10 +75,15 @@ class StampService
                 return $this->noReward($card, $customer, $maxStamps);
             }
 
-            $cooldownHours = (int) config('loyalty.stamp_cooldown_hours');
+            // One stamp per visit (an 8-hour wait), or - with "Multiple stamps a day" on for
+            // this shop - only a short gap so a double scan still can't count twice.
+            $multiple = $shop->hasFeature(Features::MULTIPLE_STAMPS);
+            $waitMinutes = $multiple
+                ? (int) config('loyalty.multi_stamp_gap_minutes')
+                : (int) config('loyalty.stamp_cooldown_hours') * 60;
 
-            if ($card->last_stamped_at && $card->last_stamped_at->copy()->addHours($cooldownHours)->isFuture()) {
-                return $this->cooldown($card, $customer, $maxStamps, $cooldownHours);
+            if ($card->last_stamped_at && $card->last_stamped_at->copy()->addMinutes($waitMinutes)->isFuture()) {
+                return $this->cooldown($card, $customer, $maxStamps, $waitMinutes, $multiple);
             }
 
             return $this->stamp($card, $customer, $maxStamps, $staff, $ownerId);
@@ -167,14 +173,17 @@ class StampService
         ]];
     }
 
-    private function cooldown(CustomerShopCard $card, Customer $customer, int $maxStamps, int $cooldownHours): array
+    private function cooldown(CustomerShopCard $card, Customer $customer, int $maxStamps, int $waitMinutes, bool $multiple): array
     {
-        $nextAllowedAt = $card->last_stamped_at->copy()->addHours($cooldownHours);
+        $nextAllowedAt = $card->last_stamped_at->copy()->addMinutes($waitMinutes);
+        $at = $card->last_stamped_at->format('g:i A');
 
         return [409, [
             'status' => 'error',
             'code' => 'cooldown',
-            'message' => 'Already stamped today at '.$card->last_stamped_at->format('g:i A').'.',
+            'message' => $multiple
+                ? "Just stamped at {$at} - wait a couple of minutes before the next stamp."
+                : "Already stamped today at {$at}.",
             'stamps' => $card->current_stamps,
             'max_stamps' => $maxStamps,
             'customer_name' => $customer->name,

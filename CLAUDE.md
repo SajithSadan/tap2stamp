@@ -31,7 +31,9 @@ ratings/reviews, Instagram, Wi-Fi).
 - Customer QR payload is exactly: `TOKEN:{customer_uuid}|SHOP:{shop_id}`
 - Multi-tenant: every query touching cards/stamps is scoped by `shop_id`.
 - Cooldown: one stamp per customer per shop per configurable window (config value, default
-  8 hours).
+  8 hours) - unless the shop has the **"Multiple stamps a day"** feature switch on (platform
+  default off, per-shop override): then only `loyalty.multi_stamp_gap_minutes` (2) apart, so a
+  double scan still never counts twice.
 - UK context: `Europe/London` timezone, UK mobile number validation/normalisation (+44).
   The customer sign-up's country picker (`RegistrationModal.jsx`) offers **every country**
   (`Countries::options()`, sent as `phoneCountries` by `CardController`), with a search box,
@@ -190,8 +192,10 @@ body]` tuples, not exceptions — the controller just does
   `OwnerScanner`): one scan at a time - the camera closes after a decode and a result screen
   (✓ / ⚠ / ✕, customer, stamp dots) offers **Scan next**; a full card shows a **Reward ready**
   screen (reward title, "Mark reward as given" / "Not now"); a stamp that fills the card also
-  offers "Give the reward now". The card page logs Pusher diagnostics to the console as
-  `[TaDa live]` (key presence, connection state, subscription, events).
+  offers "Give the reward now". The customer's card page shows a **"Your reward is ready!"**
+  popup when the card is full (on opening, or after a live stamp's animation; that stamp skips the
+  review prompt) with "Show my QR code" (the full-screen QR) / "Later"; it closes itself once the
+  reward is given.
 - **`POST /api/staff/scan`**, **`GET /api/staff/me`**, **`GET /api/staff/summary`** — all thin,
   all delegate to the device on the request / to `StampService`.
 - **Test coverage gap, disclosed rather than silently skipped**: "concurrent double-scan only
@@ -309,7 +313,7 @@ download (PNG / sticker-size PDF, drawn by the same renderer as admin prints).
   design** (`qr_designs.is_default`, at most one; ★ on Admin → QR codes → Designs,
   `PUT /admin/qr-codes/designs/{qrDesign}/default`), else a plain QR.
 
-## Feature switches (additive - Menu, WhatsApp)
+## Feature switches (additive - Menu, WhatsApp, Multiple stamps a day)
 
 `App\Support\Features` is the registry (`ALL`: key → label, description). Each feature has a
 **platform default** (Admin → Settings → Features, `Setting::FEATURES` = `{menu: bool, ...}`,
@@ -325,6 +329,11 @@ Default / On / Off). Always ask `Shop::hasFeature($key)` (override ?? default).
   prepare a menu before switching it on.
 - Switching a default **off** gives every shop already using it (`Features::inUse()`: has menu
   sections / has sent a campaign) its own `on` override, so nobody loses what they built.
+- Each entry in `Features::ALL` has its own `default` (used until the admin sets the platform
+  default: Menu / WhatsApp `true`, Multiple stamps `false`) and `keep_in_use` (only Menu /
+  WhatsApp keep shops already using them on when the default is switched off; `inUse()` is null
+  for the rest). **Multiple stamps a day** isn't a page - `StampService::scan` reads
+  `Shop::hasFeature(Features::MULTIPLE_STAMPS)` to swap the 8-hour wait for a 2-minute gap.
 - Adding a feature: `Features::ALL` + `inUse()` + the nav entry's `feature` + `feature:` on its
   routes (+ any public page).
 

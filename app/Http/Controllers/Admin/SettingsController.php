@@ -131,8 +131,8 @@ class SettingsController extends Controller
         $kept = 0;
 
         DB::transaction(function () use ($feature, $input, &$kept) {
-            if (! $input['enabled'] && Features::default($feature)) {
-                Features::inUse($feature)->get()->each(function (Shop $shop) use ($feature, &$kept) {
+            if (! $input['enabled'] && Features::default($feature) && ($inUse = Features::inUse($feature))) {
+                $inUse->get()->each(function (Shop $shop) use ($feature, &$kept) {
                     if ($shop->featureOverride($feature) === null) {
                         $shop->forceFill(['features' => [...($shop->features ?? []), $feature => true]])->save();
                         $kept++;
