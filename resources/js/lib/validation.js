@@ -32,6 +32,9 @@ export const INDIA_CODE = '91';
 /** The country's dialling code ("GB" -> "44"). */
 export const dialCodeOf = (country, countries = []) => countries.find((c) => c.code === country)?.dial ?? UK_CODE;
 
+/** The country's states (India), or null when its addresses don't ask for one. Server: Countries::states(). */
+export const statesOf = (country, countries = []) => countries.find((c) => c.code === country)?.states ?? null;
+
 const isInternational = (raw) => {
     const s = String(raw).trim();
     return s.startsWith('+') || s.replace(/\D/g, '').startsWith('00');

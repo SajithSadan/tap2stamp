@@ -10,6 +10,7 @@ import {
 import AddressLookup from "@/Components/AddressLookup";
 import CountrySelect from "@/Components/CountrySelect";
 import PhoneField from "@/Components/PhoneField";
+import StateSelect from "@/Components/StateSelect";
 import {
     CardPreview,
     MAX_STAMPS,
@@ -30,6 +31,7 @@ import {
     requiredIf,
     UK,
     UK_CODE,
+    statesOf,
 } from "@/lib/validation";
 
 const STEPS = [
@@ -64,6 +66,7 @@ const rulesFor = (countries) => ({
     contact_email: [required("Enter an email address."), email()],
     address_line1: [required("Enter the first line of the address.")],
     town: [required("Enter the town or city.")],
+    state: [(value, data) => (statesOf(data.country, countries) && !filled(value) ? "Choose the state." : null)],
     postcode: [
         (value, data) =>
             hasPostcodeRule(data.country) && !filled(value)
@@ -279,6 +282,7 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
             address_line1: "",
             address_line2: "",
             town: "",
+            state: "",
             postcode: "",
             country: UK,
             delivery_same: true,
@@ -289,6 +293,7 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
         { rules: rulesFor(countries), rememberKey: "Onboarding/Shop" },
     );
     const inUk = data.country === UK;
+    const states = statesOf(data.country, countries);
 
     const field = (key) => ({
         id: key,
@@ -310,6 +315,8 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
         setData((prev) => ({
             ...prev,
             country: code,
+            // A state only makes sense within its own country's list.
+            state: statesOf(code, countries)?.includes(prev.state) ? prev.state : "",
             ...(code !== UK && { delivery_same: true }),
             ...(prev.contact_phone_code === dialCodeOf(prev.country, countries) && {
                 contact_phone_code: dialCodeOf(code, countries),
@@ -614,6 +621,11 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
                                             />
                                         </AuthField>
                                     </div>
+                                    {states && (
+                                        <AuthField id="state" label="State" error={errors.state}>
+                                            <StateSelect value={data.state} onChange={(v) => setData("state", v)} states={states} className={authInputClass} />
+                                        </AuthField>
+                                    )}
                                 </Section>
 
                                 {/* We only post hardware to UK shops. */}

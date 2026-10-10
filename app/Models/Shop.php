@@ -44,6 +44,7 @@ class Shop extends Model
         'address_line1',
         'address_line2',
         'town',
+        'state',
         'postcode',
         'country',
         'qr_design_id',
@@ -91,7 +92,7 @@ class Shop extends Model
         // Orders placed before the shop had an address (or arranged by the
         // admin first) pick it up once one is saved - unless already posted.
         static::saved(function (Shop $shop) {
-            if ($shop->wasChanged(['address_line1', 'address_line2', 'town', 'postcode', 'delivery_address']) && $shop->deliveryAddress()) {
+            if ($shop->wasChanged(['address_line1', 'address_line2', 'town', 'state', 'postcode', 'delivery_address']) && $shop->deliveryAddress()) {
                 $shop->orders()
                     ->whereNull('delivery_address')
                     ->whereNull('dispatched_at')
@@ -257,7 +258,7 @@ class Shop extends Model
             return $this->delivery_address;
         }
 
-        $address = collect([$this->address_line1, $this->address_line2, $this->town, $this->postcode])
+        $address = collect([$this->address_line1, $this->address_line2, $this->town, $this->state, $this->postcode])
             ->filter()
             ->implode(', ');
 

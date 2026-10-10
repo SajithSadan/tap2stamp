@@ -45,6 +45,7 @@ test('the admin sees every user, including owners who never got a shop', functio
                 'phone' => '+44 7700 900123',
                 'phone_tel' => '+447700900123',
                 'town' => 'Leeds',
+                'state' => null,
                 'postcode' => 'LS1 1AA',
             ],
         ])

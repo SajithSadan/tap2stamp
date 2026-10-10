@@ -70,6 +70,11 @@ export default function Login({ googleEnabled }) {
                         onChange={(v) => setData("password", v)}
                         autoComplete="current-password"
                     />
+                    <div className="mt-1.5 text-right">
+                        <Link href="/forgot-password" className="text-sm font-medium text-brand-accent hover:underline">
+                            Forgot password?
+                        </Link>
+                    </div>
                 </AuthField>
 
                 <button

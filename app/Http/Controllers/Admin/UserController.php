@@ -59,6 +59,7 @@ class UserController extends Controller
                 'phone' => $phone,
                 'phone_tel' => $phone ? str_replace(' ', '', $phone) : null,
                 'town' => $draft['town'] ?? null,
+                'state' => $draft['state'] ?? null,
                 'postcode' => $draft['postcode'] ?? null,
             ] : null,
         ];

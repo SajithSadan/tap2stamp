@@ -78,7 +78,7 @@ const columns = [
                     </span>
                     {u.draft && (
                         <p className="mt-1 max-w-64 text-xs text-brand-muted">
-                            {[u.draft.business_name, [u.draft.town, u.draft.postcode].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}
+                            {[u.draft.business_name, [u.draft.town, u.draft.state, u.draft.postcode].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}
                             {u.draft.phone && (
                                 <>
                                     {" · "}

@@ -15,7 +15,8 @@ import AddressLookup from "@/Components/AddressLookup";
 import CountrySelect from "@/Components/CountrySelect";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import PhoneField from "@/Components/PhoneField";
-import { dialCodeOf, INDIA, phonePlaceholder, UK } from "@/lib/validation";
+import StateSelect from "@/Components/StateSelect";
+import { dialCodeOf, INDIA, phonePlaceholder, statesOf, UK } from "@/lib/validation";
 import { StampStepper } from "@/Components/Dashboard/ShopFields";
 import {
     CopyButton,
@@ -50,7 +51,7 @@ const TABS = [
         icon: LuBuilding2,
         fields: [
             "contact_name", "contact_email", "contact_phone_code", "contact_phone",
-            "address_line1", "address_line2", "town", "postcode", "country", "delivery_address",
+            "address_line1", "address_line2", "town", "state", "postcode", "country", "delivery_address",
         ],
     },
 ];
@@ -292,6 +293,7 @@ export default function ShopSettings({
         address_line1: shop.address_line1 ?? "",
         address_line2: shop.address_line2 ?? "",
         town: shop.town ?? "",
+        state: shop.state ?? "",
         postcode: shop.postcode ?? "",
         country: shop.country ?? UK,
         qr_design_id: shop.qr_design_id ?? "",
@@ -554,6 +556,7 @@ export default function ShopSettings({
                                         form.setData((data) => ({
                                             ...data,
                                             country: code,
+                                            state: statesOf(code, countries)?.includes(data.state) ? data.state : "",
                                             ...(data.contact_phone_code === dialCodeOf(data.country, countries) && {
                                                 contact_phone_code: dialCodeOf(code, countries),
                                             }),
@@ -583,6 +586,16 @@ export default function ShopSettings({
                             <Row id="town" label="Town / city" error={form.errors.town}>
                                 <input type="text" {...text("town")} />
                             </Row>
+                            {statesOf(form.data.country, countries) && (
+                                <Row id="state" label="State" error={form.errors.state}>
+                                    <StateSelect
+                                        value={form.data.state}
+                                        onChange={(v) => form.setData("state", v)}
+                                        states={statesOf(form.data.country, countries)}
+                                        className={inputClass}
+                                    />
+                                </Row>
+                            )}
                             <Row id="postcode" label={form.data.country === INDIA ? "PIN code" : "Postcode"} error={form.errors.postcode}>
                                 <input type="text" autoCapitalize="characters" {...text("postcode")} />
                             </Row>

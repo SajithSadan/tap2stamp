@@ -83,9 +83,10 @@ class ShopOwnerController extends Controller
                     'contact_phone' => $shop->contactPhone(),
                     'contact_phone_tel' => $shop->contactPhoneTel(),
                     'town' => $shop->town,
+                    'state' => $shop->state,
                     'postcode' => $shop->postcode,
                     'country' => Countries::name($shop->country),
-                    'address' => collect([$shop->address_line1, $shop->address_line2, $shop->town, $shop->postcode])->filter()->implode(', ') ?: null,
+                    'address' => collect([$shop->address_line1, $shop->address_line2, $shop->town, $shop->state, $shop->postcode])->filter()->implode(', ') ?: null,
                     'delivery_address' => $shop->delivery_address,
                     // The primary product: ordered (latest paid), awaiting the shop's
                     // bank transfer, or not ordered.

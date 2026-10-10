@@ -5,7 +5,8 @@ import { LuDownload, LuExternalLink, LuNfc, LuQrCode } from "react-icons/lu";
 import AddressLookup from "@/Components/AddressLookup";
 import CountrySelect from "@/Components/CountrySelect";
 import PhoneField from "@/Components/PhoneField";
-import { dialCodeOf, INDIA, phonePlaceholder, UK } from "@/lib/validation";
+import StateSelect from "@/Components/StateSelect";
+import { dialCodeOf, INDIA, phonePlaceholder, statesOf, UK } from "@/lib/validation";
 import OwnerLayout from "@/Components/Dashboard/OwnerLayout";
 import { MAX_STAMPS, MIN_STAMPS } from "@/Components/Dashboard/ShopFields";
 import {
@@ -45,19 +46,22 @@ function ContactPanel({ contact, countries }) {
         address_line1: contact.address_line1 ?? "",
         address_line2: contact.address_line2 ?? "",
         town: contact.town ?? "",
+        state: contact.state ?? "",
         postcode: contact.postcode ?? "",
         country: contact.country ?? UK,
         delivery_same: !contact.delivery_address,
         delivery_address: contact.delivery_address ?? "",
     });
     const inUk = form.data.country === UK;
+    const states = statesOf(form.data.country, countries);
 
     const text = (key) => ({
         value: form.data[key],
         onChange: (e) => form.setData(key, e.target.value),
         className: inputClass,
     });
-    const missing = !contact.contact_phone || !contact.town;
+    // Older Indian shops saved before the state was asked for count as incomplete too.
+    const missing = !contact.contact_phone || !contact.town || (statesOf(contact.country, countries) && !contact.state);
 
     function submit(e) {
         e.preventDefault();
@@ -155,6 +159,7 @@ function ContactPanel({ contact, countries }) {
                                     form.setData((data) => ({
                                         ...data,
                                         country: code,
+                                        state: statesOf(code, countries)?.includes(data.state) ? data.state : "",
                                         ...(data.contact_phone_code === dialCodeOf(data.country, countries) && {
                                             contact_phone_code: dialCodeOf(code, countries),
                                         }),
@@ -206,6 +211,11 @@ function ContactPanel({ contact, countries }) {
                                 {...text("town")}
                             />
                         </Field>
+                        {states && (
+                            <Field label="State" error={form.errors.state}>
+                                <StateSelect value={form.data.state} onChange={(v) => form.setData("state", v)} states={states} className={inputClass} />
+                            </Field>
+                        )}
                         <Field
                             label={inUk ? "Postcode" : form.data.country === INDIA ? "PIN code" : "Postcode (optional)"}
                             error={form.errors.postcode}

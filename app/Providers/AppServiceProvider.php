@@ -6,8 +6,11 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
@@ -28,6 +31,21 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // "Forgot password?" email, in our words (the link is Laravel's: /reset-password/{token}).
+        ResetPassword::toMailUsing(fn (User $user, string $token) => (new MailMessage)
+            ->subject('Reset your TaDa Tap password')
+            ->greeting("Hi {$user->name},")
+            ->line('We got a request to reset the password for your TaDa Tap account.')
+            ->action('Choose a new password', route('password.reset', ['token' => $token, 'email' => $user->email]))
+            ->line('The link works for 60 minutes and only once.')
+            ->line("Didn't ask for this? You can ignore this email - your password stays the same."));
+
+        Event::listen(PasswordReset::class, function (PasswordReset $event) {
+            if ($event->user instanceof User) {
+                ActivityLogger::record('auth.password_reset', 'Reset their password', null, null, null, ActivityLogger::user($event->user));
+            }
+        });
+
         // Activity log: every admin / owner sign-in and sign-out (email or Google).
         Event::listen(Login::class, function (Login $event) {
             if ($event->user instanceof User) {

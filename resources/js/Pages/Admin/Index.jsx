@@ -344,16 +344,21 @@ function buildColumns(origin) {
         },
         {
             id: "location",
-            accessorFn: (s) => orUndefined(s.address),
+            // Searchable by country too ("India", "United Kingdom").
+            accessorFn: (s) => orUndefined(s.address && [s.address, s.country].filter(Boolean).join(", ")),
             header: "Location",
+            // Country, then state, then town.
             sortingFn: (a, b) =>
-                (a.original.town ?? "").localeCompare(b.original.town ?? ""),
+                ["country", "state", "town"].reduce(
+                    (order, key) => order || (a.original[key] ?? "").localeCompare(b.original[key] ?? ""),
+                    0,
+                ),
             sortUndefined: "last",
             meta: {
                 label: "Location",
                 csv: (s) =>
                     [
-                        s.address,
+                        [s.address, s.country].filter(Boolean).join(", "),
                         s.delivery_address
                             ? `Deliver to: ${s.delivery_address}`
                             : null,
@@ -366,18 +371,16 @@ function buildColumns(origin) {
                     <div
                         className="min-w-32 max-w-56"
                         title={[
-                            s.address,
+                            [s.address, s.country].filter(Boolean).join(", "),
                             s.delivery_address &&
                                 `Deliver to: ${s.delivery_address}`,
                         ]
                             .filter(Boolean)
                             .join("\n")}
                     >
-                        <p className="truncate text-brand-text">{s.town}</p>
+                        <p className="truncate text-brand-text">{[s.town, s.state].filter(Boolean).join(", ")}</p>
                         <p className="truncate text-xs text-brand-muted">
-                            {s.postcode}
-                            {s.delivery_address &&
-                                " · separate delivery address"}
+                            {[s.country, s.postcode, s.delivery_address && "separate delivery address"].filter(Boolean).join(" · ")}
                         </p>
                     </div>
                 ) : (

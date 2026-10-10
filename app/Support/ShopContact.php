@@ -23,7 +23,7 @@ class ShopContact
     /** Columns on `shops` this owns. */
     public const FIELDS = [
         'contact_name', 'contact_email', 'contact_phone_code', 'contact_phone',
-        'address_line1', 'address_line2', 'town', 'postcode', 'country', 'delivery_address',
+        'address_line1', 'address_line2', 'town', 'state', 'postcode', 'country', 'delivery_address',
     ];
 
     public const UK_CODE = '44';
@@ -79,6 +79,8 @@ class ShopContact
             'contact_phone_code' => $code,
             'contact_phone' => self::phone((string) ($input['contact_phone'] ?? ''), $code),
             'postcode' => self::postcode((string) ($input['postcode'] ?? ''), $country),
+            // Only kept for countries whose addresses have a state (Countries::STATES).
+            'state' => Countries::states($country) ? (trim((string) ($input['state'] ?? '')) ?: null) : null,
             'contact_email' => strtolower(trim((string) ($input['contact_email'] ?? ''))),
         ];
     }
@@ -164,6 +166,8 @@ class ShopContact
             'address_line1' => [$need, 'string', 'max:150'],
             'address_line2' => ['nullable', 'string', 'max:150'],
             'town' => [$need, 'string', 'max:100'],
+            // India: one of its states / union territories. Elsewhere not asked.
+            'state' => ($states = Countries::states($country)) ? [$need, 'string', Rule::in($states)] : ['nullable', 'string', 'max:100'],
             // Countries without a known format: optional, any short text.
             'postcode' => $postcode ? [$need, 'string', 'regex:'.$postcode] : ['nullable', 'string', 'max:20'],
             'delivery_same' => $required ? ['boolean'] : ['nullable', 'boolean'],
@@ -188,6 +192,8 @@ class ShopContact
             'postcode.regex' => $country === Countries::INDIA
                 ? 'Enter a valid 6-digit PIN code.'
                 : 'Enter a valid postcode, e.g. SW1A 1AA.',
+            'state.required' => 'Choose the state.',
+            'state.in' => 'Choose the state from the list.',
             'delivery_address.required_if' => 'Enter the delivery address, or tick "Same as the shop address".',
         ];
     }

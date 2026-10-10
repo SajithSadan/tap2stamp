@@ -75,7 +75,7 @@ test('UK and India keep their exact phone and postcode rules', function () {
     $this->actingAs($owner)->post('/onboarding', overseasSetup(['country' => 'GB', 'contact_phone' => '212 555', 'postcode' => '']))
         ->assertSessionHasErrors(['contact_phone', 'postcode']);
 
-    $this->actingAs($owner)->post('/onboarding', overseasSetup(['country' => 'IN', 'contact_phone' => '98765 43210', 'postcode' => '560001']))
+    $this->actingAs($owner)->post('/onboarding', overseasSetup(['country' => 'IN', 'contact_phone' => '98765 43210', 'postcode' => '560001', 'state' => 'Karnataka']))
         ->assertRedirect('/dashboard');
     expect(Shop::sole())->country->toBe('IN')->contact_phone_code->toBe('91')->contact_phone->toBe('9876543210');
 });

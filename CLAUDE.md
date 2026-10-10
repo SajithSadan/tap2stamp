@@ -720,12 +720,16 @@ as it's set up (no approval step).
   Google-**verified** email may create or claim an account, and a Google account is **never
   linked to an admin**. Google-only owners have `password = null`.
 - **Business contact & location** (collected at shop setup, so Google sign-ups give it too):
-  `shops.contact_name/contact_email/contact_phone`, `address_line1/address_line2/town/postcode`,
+  `shops.contact_name/contact_email/contact_phone`, `address_line1/address_line2/town/state/postcode`,
   `delivery_address` (null = same as the shop). One place validates + tidies it:
   `App\Support\ShopContact` (phone → `+44…` for any UK landline/mobile format or `+91` mobile;
   postcode upper-cased with its space; `delivery_same` tick box). Required in the forms,
   nullable in the table (older shops). Owners edit it on Settings in its **own** form
   (`PUT /dashboard/settings/contact`) so the main settings form still saves for older shops.
+  **State**: asked (a dropdown, required) only for countries with a list in
+  `Countries::STATES` - India's 36 states / UTs; sent to the forms with each country
+  (`Countries::options()` → `states`, `statesOf()` in `lib/validation.js`, `StateSelect.jsx`);
+  dropped for other countries (`ShopContact::normalise`). Part of `Shop::deliveryAddress()`.
   The admin Shops grid shows Contact + Location columns. The contact person/email **default to
   the owner's login** (sign-up pre-fills them; admin "Add shop" copies them; a data migration
   backfilled older shops; `Shop::contactDetails()` falls back for the forms) but stay separate
@@ -751,7 +755,14 @@ as it's set up (no approval step).
   dashboard group sends an owner without a shop there — every dashboard action assumes
   `auth()->user()->shop` exists. Shared form pieces with the admin "Add shop":
   `Components/Dashboard/ShopFields.jsx`.
-- Not built yet: email verification and password reset (mail is `log` locally).
+- **Password reset** ("Forgot password?" on Login): `PasswordResetLinkController` (`/forgot-password`,
+  throttled; always answers `SENT` - never reveals whether an email has an account) emails
+  Laravel's reset link (broker: 60 min, one per minute per account; wording in
+  `AppServiceProvider` via `ResetPassword::toMailUsing`) → `NewPasswordController`
+  (`/reset-password/{token}`) sets it (min 8, confirmed), rotates `remember_token`, logs the
+  user in and logs `auth.password_reset`. Also how Google-only owners add a password.
+  Mail: Hostinger SMTP in production, `log` locally.
+- Not built yet: email verification.
 
 ## Products & orders (additive — the counter display)
 

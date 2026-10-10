@@ -73,6 +73,27 @@ class Countries
     ];
 
     /** @return list<string> */
+    /**
+     * States (or similar) asked for in the address, by country - only where
+     * the address needs one. India: its 28 states and 8 union territories.
+     */
+    public const STATES = [
+        self::INDIA => [
+            'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar',
+            'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa',
+            'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka',
+            'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya',
+            'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+            'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+        ],
+    ];
+
+    /** @return list<string>|null the country's states, or null when its addresses don't ask for one */
+    public static function states(?string $code): ?array
+    {
+        return self::STATES[$code] ?? null;
+    }
+
     public static function codes(): array
     {
         return array_keys(self::ALL);
@@ -102,7 +123,7 @@ class Countries
     public static function options(): array
     {
         return collect(self::ALL)
-            ->map(fn (array $c, string $code) => ['code' => $code, 'name' => $c[0], 'dial' => $c[1]])
+            ->map(fn (array $c, string $code) => ['code' => $code, 'name' => $c[0], 'dial' => $c[1], 'states' => self::states($code)])
             ->sortBy(fn (array $c) => [$c['code'] === self::UK ? 0 : 1, $c['name']])
             ->values()
             ->all();
