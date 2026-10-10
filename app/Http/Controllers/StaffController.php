@@ -70,12 +70,14 @@ class StaffController extends Controller
 
     public function scan(Request $request, StampService $service): JsonResponse
     {
-        $request->validate(['payload' => ['required', 'string']]);
+        // redeem: the "Mark reward as given" confirmation for a full card (StampService::scan).
+        $request->validate(['payload' => ['required', 'string'], 'redeem' => ['sometimes', 'boolean']]);
 
         [$status, $body] = $service->scan(
             $request->attributes->get('staffDevice')->shop,
             $request->string('payload')->value(),
             $request->attributes->get('staffMember'),
+            redeem: $request->boolean('redeem'),
         );
 
         return response()->json($body, $status);

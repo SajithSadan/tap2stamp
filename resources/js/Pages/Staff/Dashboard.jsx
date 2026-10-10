@@ -1,11 +1,8 @@
 import { Head } from "@inertiajs/react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Html5Qrcode } from "html5-qrcode";
-import { stopScanner } from "@/lib/scanner";
 import { useEffect, useRef, useState } from "react";
 import {
-    LuCamera,
     LuCheck,
     LuChartColumn,
     LuDelete,
@@ -17,82 +14,11 @@ import {
     LuStore,
     LuUsers,
 } from "react-icons/lu";
+import CardScanner from "@/Components/CardScanner";
 import OfflineBanner from "@/Components/OfflineBanner";
 import TechsaFooter from "@/Components/TechsaFooter";
 import { STAFF_TOKEN_KEY } from "@/lib/storage";
 
-const READER_ID = "staff-qr-reader";
-const DEBOUNCE_MS = 2000;
-const DISMISS_MS = 3000;
-
-function playFeedback(ok) {
-    try {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        const ctx = new Ctx();
-        const oscillator = ctx.createOscillator();
-        const gain = ctx.createGain();
-        oscillator.frequency.value = ok ? 880 : 220;
-        oscillator.connect(gain);
-        gain.connect(ctx.destination);
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        oscillator.start();
-        oscillator.stop(ctx.currentTime + 0.15);
-    } catch {
-        // Audio can be blocked (autoplay policy, unsupported browser) -
-        // vibration below is enough of a fallback, no need to surface this.
-    }
-
-    if (navigator.vibrate) {
-        navigator.vibrate(ok ? 80 : [80, 60, 80]);
-    }
-}
-
-const toneClasses = {
-    success: "bg-green-600 text-white",
-    warning: "bg-amber-500 text-white",
-    error: "bg-red-600 text-white",
-};
-
-function ResultBanner({ result }) {
-    if (!result) return null;
-
-    const tone =
-        result.status === "ok"
-            ? "success"
-            : result.code === "cooldown"
-              ? "warning"
-              : "error";
-    const heading =
-        result.code === "reward_redeemed"
-            ? "Reward redeemed!"
-            : result.code === "stamp_added" && result.reward_ready
-              ? "Stamped · reward ready!"
-              : result.code === "stamp_added"
-                ? "Stamped"
-                : result.message;
-
-    return (
-        <div
-            className={`fixed inset-x-0 top-0 z-30 px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] text-center shadow-md ${toneClasses[tone]}`}
-        >
-            <p className="text-lg font-bold">{heading}</p>
-            {result.customer_name ? (
-                <p className="mt-0.5 text-sm opacity-90">
-                    {result.customer_name}
-                    {typeof result.stamps === "number" &&
-                        ` · ${result.stamps}/${result.max_stamps}`}
-                </p>
-            ) : (
-                result.code !== "stamp_added" &&
-                result.code !== "reward_redeemed" && (
-                    <p className="mt-0.5 text-sm opacity-90">
-                        {result.message}
-                    </p>
-                )
-            )}
-        </div>
-    );
-}
 
 function CenteredMessage({ icon: Icon, title, children }) {
     return (
@@ -310,160 +236,17 @@ function PinSignIn({ shopName, members, api, onSignedIn }) {
 
 /* ---------- Scan tab ---------- */
 
+// One scan at a time, with a result screen and "Scan next"; full cards ask
+// "Mark reward as given" first (Components/CardScanner).
 function ScanTab({ api, onScanned, onApiError }) {
-    const [cameraError, setCameraError] = useState(false);
-    const [result, setResult] = useState(null);
-    const [manualPayload, setManualPayload] = useState("");
-    const lastScanRef = useRef({ payload: null, time: 0 });
-    const dismissTimerRef = useRef(null);
-    const busyRef = useRef(false);
-
-    function showResult(data) {
-        setResult(data);
-        playFeedback(data.status === "ok");
-
-        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-        dismissTimerRef.current = setTimeout(() => setResult(null), DISMISS_MS);
-    }
-
-    function submitScan(payload) {
-        if (busyRef.current) return;
-        busyRef.current = true;
-
-        api.post("/api/staff/scan", { payload })
-            .then(({ data }) => {
-                showResult(data);
-                onScanned();
-            })
-            .catch((error) => {
-                if (onApiError(error)) return;
-
-                const status = error.response?.status;
-
-                if (!error.response) {
-                    showResult({
-                        status: "error",
-                        code: "network_error",
-                        message:
-                            "Could not reach the server. Check your connection.",
-                    });
-                } else if (status === 429) {
-                    showResult({
-                        status: "error",
-                        code: "rate_limited",
-                        message:
-                            "Scanning too fast. Wait a moment and try again.",
-                    });
-                } else if (error.response.data?.code) {
-                    showResult(error.response.data);
-                } else {
-                    showResult({
-                        status: "error",
-                        code: "server_error",
-                        message: "Something went wrong. Try scanning again.",
-                    });
-                }
-            })
-            .finally(() => {
-                busyRef.current = false;
-            });
-    }
-
-    function onDecode(decodedText) {
-        const payload = decodedText.trim();
-        if (!payload) return;
-
-        const now = Date.now();
-
-        if (
-            payload === lastScanRef.current.payload &&
-            now - lastScanRef.current.time < DEBOUNCE_MS
-        ) {
-            return;
-        }
-
-        lastScanRef.current = { payload, time: now };
-        submitScan(payload);
-    }
-
-    function submitManual(e) {
-        e.preventDefault();
-        const payload = manualPayload.trim();
-        if (!payload || busyRef.current) return;
-
-        setManualPayload("");
-        onDecode(payload);
-    }
-
-    // Mounted only while this tab is open, so leaving the tab releases the camera.
-    useEffect(() => {
-        const scanner = new Html5Qrcode(READER_ID);
-
-        const started = scanner
-            .start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                onDecode,
-                () => {},
-            )
-            .catch(() => setCameraError(true));
-
-        return () => {
-            if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-            stopScanner(scanner, started);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
     return (
         <div className="flex flex-1 flex-col bg-black">
-            <ResultBanner result={result} />
-            <div className="relative flex flex-1 items-center justify-center">
-                {cameraError ? (
-                    <div className="px-6 text-center text-white">
-                        <LuCamera className="mx-auto h-10 w-10 text-white/70" />
-                        <p className="mt-3 font-semibold">
-                            Camera access denied
-                        </p>
-                        <p className="mt-1 text-sm text-white/70">
-                            Allow camera access for this site in your browser
-                            settings, then reload the page.
-                        </p>
-                    </div>
-                ) : (
-                    <div id={READER_ID} className="w-full max-w-md" />
-                )}
-            </div>
-            <div className="bg-brand-card px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-                <p className="mb-2 text-center text-xs text-brand-muted">
-                    Point the camera at the customer’s card QR code, or use a
-                    scanner below.
-                </p>
-                <form
-                    onSubmit={submitManual}
-                    className="mx-auto flex w-full max-w-md gap-2"
-                >
-                    <input
-                        type="text"
-                        value={manualPayload}
-                        onChange={(e) => setManualPayload(e.target.value)}
-                        placeholder="Scan or enter QR code"
-                        aria-label="Scan or enter customer QR code"
-                        autoComplete="off"
-                        autoCapitalize="off"
-                        spellCheck={false}
-                        autoFocus
-                        className="h-12 min-w-0 flex-1 rounded-xl border border-brand-border bg-white px-3 text-sm text-brand-text outline-none placeholder:text-brand-muted/70 focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/10"
-                    />
-                    <button
-                        type="submit"
-                        disabled={!manualPayload.trim()}
-                        className="h-12 shrink-0 rounded-xl bg-brand-accent px-4 text-sm font-semibold text-brand-accent-text transition-opacity disabled:opacity-50"
-                    >
-                        Submit
-                    </button>
-                </form>
-            </div>
+            <CardScanner
+                request={(payload, redeem) => api.post("/api/staff/scan", { payload, ...(redeem && { redeem: true }) })}
+                onApiError={onApiError}
+                onScanned={onScanned}
+                autoFocusInput
+            />
         </div>
     );
 }

@@ -42,6 +42,10 @@ jobs:
       - name: Build Vite Assets
         env:
           VITE_APP_NAME: ${{ secrets.VITE_APP_NAME }}
+          # Baked into the JavaScript at build time (the server's .env isn't used here):
+          # without them the customer card page never connects to Pusher for live updates.
+          VITE_PUSHER_APP_KEY: ${{ secrets.VITE_PUSHER_APP_KEY }}
+          VITE_PUSHER_APP_CLUSTER: ${{ secrets.VITE_PUSHER_APP_CLUSTER }}
         run: yarn build
 
       # Debugging: Print FTP server and username

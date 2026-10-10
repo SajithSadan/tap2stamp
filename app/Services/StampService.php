@@ -17,9 +17,16 @@ use Throwable;
 class StampService
 {
     /**
+     * A full card is never redeemed by a scan alone: the scan answers
+     * `reward_ready` (nothing changes) and the staff member or owner confirms
+     * with "Mark reward as given" - the same payload again with $redeem. So
+     * an accidental second scan can't reset a card. $redeem on a card that
+     * isn't full (e.g. a double tap after it was given) answers `no_reward`
+     * and never stamps.
+     *
      * @return array{0: int, 1: array<string, mixed>} [HTTP status, JSON body]
      */
-    public function scan(Shop $shop, string $payload, ?StaffMember $staff = null, ?int $ownerId = null): array
+    public function scan(Shop $shop, string $payload, ?StaffMember $staff = null, ?int $ownerId = null, bool $redeem = false): array
     {
         if (! preg_match('/^TOKEN:([0-9a-fA-F-]{36})\|SHOP:(\d+)$/', $payload, $matches)) {
             return $this->error(422, 'invalid_qr', "That doesn't look like a loyalty card QR code.");
@@ -39,7 +46,7 @@ class StampService
             return $this->error(404, 'customer_not_found', 'No customer found for this QR code.');
         }
 
-        [$status, $body] = DB::transaction(function () use ($customer, $shop, $staff, $ownerId) {
+        [$status, $body] = DB::transaction(function () use ($customer, $shop, $staff, $ownerId, $redeem) {
             // lockForUpdate() inside the transaction: two near-simultaneous
             // scans of the same card must serialize here, or both could read
             // the same current_stamps and both increment - a lost update.
@@ -58,7 +65,13 @@ class StampService
             $maxStamps = $shop->max_stamps;
 
             if ($card->current_stamps >= $maxStamps) {
-                return $this->redeem($card, $customer, $maxStamps, $staff, $ownerId);
+                return $redeem
+                    ? $this->redeem($card, $customer, $maxStamps, $staff, $ownerId)
+                    : $this->rewardReady($card, $customer, $shop);
+            }
+
+            if ($redeem) {
+                return $this->noReward($card, $customer, $maxStamps);
             }
 
             $cooldownHours = (int) config('loyalty.stamp_cooldown_hours');
@@ -124,6 +137,36 @@ class StampService
         ]];
     }
 
+    /** A full card was scanned: show the reward and wait for "Mark reward as given". Nothing changes. */
+    private function rewardReady(CustomerShopCard $card, Customer $customer, Shop $shop): array
+    {
+        return [200, [
+            'status' => 'ok',
+            'code' => 'reward_ready',
+            'message' => 'Reward ready to give.',
+            'stamps' => $card->current_stamps,
+            'max_stamps' => $shop->max_stamps,
+            'customer_name' => $customer->name,
+            'reward_title' => $shop->reward_title,
+            'rewards_claimed' => $card->rewards_claimed,
+        ]];
+    }
+
+    /** "Mark reward as given" on a card that isn't full - typically a second tap after it was given. */
+    private function noReward(CustomerShopCard $card, Customer $customer, int $maxStamps): array
+    {
+        return [409, [
+            'status' => 'error',
+            'code' => 'no_reward',
+            'message' => $card->current_stamps === 0
+                ? 'This reward has already been given.'
+                : 'This card isn\'t full yet, so there is no reward to give.',
+            'stamps' => $card->current_stamps,
+            'max_stamps' => $maxStamps,
+            'customer_name' => $customer->name,
+        ]];
+    }
+
     private function cooldown(CustomerShopCard $card, Customer $customer, int $maxStamps, int $cooldownHours): array
     {
         $nextAllowedAt = $card->last_stamped_at->copy()->addHours($cooldownHours);
@@ -162,6 +205,7 @@ class StampService
             'max_stamps' => $maxStamps,
             'customer_name' => $customer->name,
             'reward_ready' => $card->current_stamps >= $maxStamps,
+            'reward_title' => $card->shop->reward_title,
         ]];
     }
 

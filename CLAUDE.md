@@ -178,11 +178,20 @@ Stage 6's endpoint exists too.
   - the SW serves `/icons/*` cache-first.
 - **`StampService::scan()`**: the only place stamp/redeem logic lives. Strict payload regex →
   shop match against the _authenticated device's_ shop (never trust the QR's own SHOP: value
-  alone) → `lockForUpdate()` inside `DB::transaction()` → full card redeems (resets to 0,
-  `rewards_claimed++`, ignores cooldown) → cooldown check → otherwise stamps
+  alone) → `lockForUpdate()` inside `DB::transaction()` → a full card is **not** redeemed by a
+  scan: it answers `reward_ready` (nothing changes) and the staff member / owner confirms with
+  "Mark reward as given" = the same payload with `redeem: true` → redeem (resets to 0,
+  `rewards_claimed++`, ignores cooldown); `redeem` on a card that isn't full → 409 `no_reward`,
+  never a stamp (so a double scan / double tap can't lose a reward) → cooldown check → otherwise stamps
   (`current_stamps++`, flags `reward_ready` if that fills the card). Returns `[httpStatus,
 body]` tuples, not exceptions — the controller just does
   `response()->json($body, $httpStatus)`.
+- **Scanner UI** (`Components/CardScanner.jsx`, used by the staff Scan tab and the owner's
+  `OwnerScanner`): one scan at a time - the camera closes after a decode and a result screen
+  (✓ / ⚠ / ✕, customer, stamp dots) offers **Scan next**; a full card shows a **Reward ready**
+  screen (reward title, "Mark reward as given" / "Not now"); a stamp that fills the card also
+  offers "Give the reward now". The card page logs Pusher diagnostics to the console as
+  `[TaDa live]` (key presence, connection state, subscription, events).
 - **`POST /api/staff/scan`**, **`GET /api/staff/me`**, **`GET /api/staff/summary`** — all thin,
   all delegate to the device on the request / to `StampService`.
 - **Test coverage gap, disclosed rather than silently skipped**: "concurrent double-scan only

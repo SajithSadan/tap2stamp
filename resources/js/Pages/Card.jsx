@@ -450,7 +450,12 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
     useEffect(() => {
         if (!card?.uuid || preview) return;
 
+        // Console diagnostics for live updates, all prefixed "[TaDa live]" (filter on it).
+        // Only the start of the public key is shown, never anything secret.
+        const log = (...args) => console.info("[TaDa live]", ...args);
         const key = import.meta.env.VITE_PUSHER_APP_KEY;
+        const cluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+        log("config", { key: key ? `${key.slice(0, 6)}…` : "MISSING - built without VITE_PUSHER_APP_KEY", cluster: cluster || "MISSING" });
         if (!key) return;
 
         let pusher;
@@ -458,12 +463,15 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
         const channelName = `card.${card.uuid}.${card.shop_id}`;
 
         try {
-            pusher = new Pusher(key, {
-                cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
-            });
+            pusher = new Pusher(key, { cluster });
+            pusher.connection.bind("state_change", ({ previous, current }) => log(`connection: ${previous} → ${current}`));
+            pusher.connection.bind("error", (error) => log("connection error", error));
             channel = pusher.subscribe(channelName);
+            channel.bind("pusher:subscription_succeeded", () => log("subscribed to", channelName));
+            channel.bind("pusher:subscription_error", (error) => log("subscription failed", channelName, error));
 
             channel.bind("card.updated", (data) => {
+                log("card.updated received", data);
                 setCard((prev) =>
                     prev
                         ? {
@@ -488,8 +496,9 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                     setTimeout(() => setRedeemedToast(false), 3000);
                 }
             });
-        } catch {
+        } catch (error) {
             // Connection failed - customer can still refresh to see updates.
+            log("could not start live updates", error);
         }
 
         return () => {

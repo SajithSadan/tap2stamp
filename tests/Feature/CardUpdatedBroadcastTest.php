@@ -38,7 +38,13 @@ test('a redemption dispatches CardUpdated with action reward_redeemed', function
     $customer = Customer::factory()->create();
     CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id, 'current_stamps' => 6]);
 
+    // Just scanning the full card broadcasts nothing (nothing changed)...
     $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop)], ['Authorization' => 'Bearer token'])
+        ->assertJson(['code' => 'reward_ready']);
+    Event::assertNotDispatched(CardUpdated::class);
+
+    // ...marking it as given does.
+    $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop), 'redeem' => true], ['Authorization' => 'Bearer token'])
         ->assertOk();
 
     Event::assertDispatched(CardUpdated::class, fn (CardUpdated $event) => $event->action === 'reward_redeemed' && $event->stamps === 0);

@@ -1,11 +1,13 @@
 <?php
 
 use App\Enums\ActionType;
+use App\Enums\UserRole;
 use App\Models\Customer;
 use App\Models\CustomerShopCard;
 use App\Models\Shop;
 use App\Models\StaffDevice;
 use App\Models\StampLog;
+use App\Models\User;
 
 function payloadFor(Customer $customer, Shop $shop): string
 {
@@ -62,7 +64,29 @@ test('filling the card flags reward_ready', function () {
     $response->assertJson(['stamps' => 6, 'reward_ready' => true]);
 });
 
-test('scanning a full card redeems the reward instead of adding a stamp', function () {
+test('scanning a full card only shows the reward - nothing changes until it is marked as given', function () {
+    $shop = Shop::factory()->create(['max_stamps' => 6, 'reward_title' => 'Free coffee']);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    $customer = Customer::factory()->create(['name' => 'Priya']);
+    $card = CustomerShopCard::factory()->create([
+        'customer_id' => $customer->id,
+        'shop_id' => $shop->id,
+        'current_stamps' => 6,
+        'rewards_claimed' => 1,
+    ]);
+
+    // An accidental second (or third) scan of a full card changes nothing.
+    foreach ([1, 2] as $scan) {
+        $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop)], ['Authorization' => 'Bearer token'])
+            ->assertOk()
+            ->assertJson(['status' => 'ok', 'code' => 'reward_ready', 'stamps' => 6, 'max_stamps' => 6, 'customer_name' => 'Priya', 'reward_title' => 'Free coffee']);
+    }
+
+    expect($card->fresh())->current_stamps->toBe(6)->rewards_claimed->toBe(1)
+        ->and(StampLog::where('action_type', ActionType::RewardRedeemed)->count())->toBe(0);
+});
+
+test('"Mark reward as given" redeems a full card, once', function () {
     $shop = Shop::factory()->create(['max_stamps' => 6]);
     StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
@@ -73,19 +97,37 @@ test('scanning a full card redeems the reward instead of adding a stamp', functi
         'rewards_claimed' => 1,
     ]);
 
-    $response = $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop)], [
-        'Authorization' => 'Bearer token',
-    ]);
+    $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop), 'redeem' => true], ['Authorization' => 'Bearer token'])
+        ->assertOk()
+        ->assertJson(['status' => 'ok', 'code' => 'reward_redeemed', 'stamps' => 0]);
 
-    $response->assertOk();
-    $response->assertJson(['status' => 'ok', 'code' => 'reward_redeemed', 'stamps' => 0]);
+    expect($card->fresh())->rewards_claimed->toBe(2)->current_stamps->toBe(0)
+        ->and(StampLog::where('action_type', ActionType::RewardRedeemed)->count())->toBe(1);
 
-    expect($card->fresh()->rewards_claimed)->toBe(2);
-    expect($card->fresh()->current_stamps)->toBe(0);
-    expect(StampLog::where('action_type', ActionType::RewardRedeemed)->count())->toBe(1);
+    // A double tap: "already given" - never a second reward, never a stamp.
+    $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop), 'redeem' => true], ['Authorization' => 'Bearer token'])
+        ->assertStatus(409)
+        ->assertJson(['code' => 'no_reward', 'message' => 'This reward has already been given.']);
+
+    expect($card->fresh())->rewards_claimed->toBe(2)->current_stamps->toBe(0)
+        ->and(StampLog::count())->toBe(1);
 });
 
-test('redemption ignores the cooldown - a full card redeems even right after its last stamp', function () {
+test('"Mark reward as given" on a card that is not full never stamps it', function () {
+    $shop = Shop::factory()->create(['max_stamps' => 6]);
+    StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
+    $customer = Customer::factory()->create();
+    $card = CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id, 'current_stamps' => 3]);
+
+    $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop), 'redeem' => true], ['Authorization' => 'Bearer token'])
+        ->assertStatus(409)
+        ->assertJson(['code' => 'no_reward', 'stamps' => 3]);
+
+    expect($card->fresh()->current_stamps)->toBe(3)
+        ->and(StampLog::count())->toBe(0);
+});
+
+test('a reward can be given even right after the stamp that filled the card (no cooldown)', function () {
     $shop = Shop::factory()->create(['max_stamps' => 6]);
     StaffDevice::factory()->withStaff()->create(['shop_id' => $shop->id, 'token_hash' => hash('sha256', 'token')]);
     $customer = Customer::factory()->create();
@@ -96,12 +138,24 @@ test('redemption ignores the cooldown - a full card redeems even right after its
         'last_stamped_at' => now(),
     ]);
 
-    $response = $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop)], [
-        'Authorization' => 'Bearer token',
-    ]);
+    $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop)], ['Authorization' => 'Bearer token'])
+        ->assertJson(['code' => 'reward_ready']);
+    $this->postJson('/api/staff/scan', ['payload' => payloadFor($customer, $shop), 'redeem' => true], ['Authorization' => 'Bearer token'])
+        ->assertOk()
+        ->assertJson(['code' => 'reward_redeemed']);
+});
 
-    $response->assertOk();
-    $response->assertJson(['code' => 'reward_redeemed']);
+test('the owner\'s scanner works the same: reward_ready first, then mark as given', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id, 'max_stamps' => 6]);
+    $customer = Customer::factory()->create();
+    $card = CustomerShopCard::factory()->create(['customer_id' => $customer->id, 'shop_id' => $shop->id, 'current_stamps' => 6]);
+
+    $this->actingAs($owner)->postJson('/dashboard/scan', ['payload' => payloadFor($customer, $shop)])->assertJson(['code' => 'reward_ready']);
+    expect($card->fresh()->current_stamps)->toBe(6);
+
+    $this->postJson('/dashboard/scan', ['payload' => payloadFor($customer, $shop), 'redeem' => true])->assertJson(['code' => 'reward_redeemed']);
+    expect($card->fresh()->current_stamps)->toBe(0);
 });
 
 test('a cooldown blocks a second stamp too soon after the last one', function () {
