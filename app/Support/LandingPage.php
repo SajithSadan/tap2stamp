@@ -22,60 +22,98 @@ class LandingPage
 
     public const MAX_CURRENCIES = 12;
 
+    public const MAX_TRUST_POINTS = 6;
+
     /** @return array<string, mixed> */
     public static function defaults(): array
     {
+        $plan = fn (array $plan) => [
+            'note' => null,
+            'badge' => null,
+            'highlighted' => false,
+            'cta_label' => 'Start Free 30-Day Trial',
+            'period' => '/ year',
+            'billing_note' => 'Billed annually after 30-day free trial',
+            ...$plan,
+        ];
+
         return [
-            'title' => 'The digital loyalty card your customers will actually use',
-            'description' => 'Replace paper punch cards with a tap or a scan. No app, no passwords - just more visits, reviews and regulars.',
+            // Hero
+            'kicker' => 'Digital Loyalty & Growth Engine for Retail, Dining & Salons',
+            'title' => 'Get Back-to-Back Repeat Customers to Your Shop with TaDa Tap',
+            'description' => 'Turn first-time visitors into regular customers. Launch instant stamp cards, AI menus, interactive dine-in games, and automated WhatsApp re-engagement in less than 5 minutes - no app download required.',
+            'primary_cta' => 'Start 1-Month Free Trial',
+            'demo_cta' => 'Watch 60-Sec Demo',
             'youtube_url' => null,
-            'default_currency' => 'GBP',
-            'currencies' => ['GBP'],
+            // Trust banner, under the video
+            'trust_title' => 'Register for Free - Your First 30 Days Are On Us',
+            'trust_description' => 'Test TaDa Tap directly at your counter for 30 full days with zero risk. If you see customer retention increase, switch to our paid annual plan. No lock-in, cancel anytime.',
+            'trust_points' => [
+                'Instant Self-Serve Setup (Ready in 5 mins)',
+                'No Mobile App Download Needed (Works in Mobile Browser)',
+                'Dedicated Support for Kerala & GCC Businesses',
+            ],
+            // Pricing
+            'pricing_title' => 'Simple, Transparent Annual Pricing',
+            'pricing_subtitle' => 'Invest once a year, grow footfall daily. All plans include your first month completely free.',
+            'default_currency' => 'INR',
+            'currencies' => ['INR', 'AED'],
             'plans' => [
-                [
+                $plan([
                     'name' => 'Starter',
-                    'description' => 'For small businesses starting digital loyalty.',
-                    'note' => 'Free for Year 1 when you buy hardware above',
-                    'badge' => null,
-                    'highlighted' => false,
-                    'cta_label' => 'Start Free',
-                    'period' => '/ month',
-                    'billing_note' => 'Billed annually',
-                    'prices' => ['GBP' => '4.99'],
-                    'features' => ['Digital loyalty card', 'NFC tap-to-stamp', 'Custom stamp count & reward', 'Up to 500 active customers', 'Email support', 'Google Reviews Collection', 'Instagram Link'],
-                ],
-                [
+                    'description' => 'Best for Juice Bars, Small Salons & Retail Kiosks',
+                    'prices' => ['INR' => '2999', 'AED' => '220'],
+                    'features' => [
+                        'Unlimited Customer Scans & Digital Loyalty Stamp Cards',
+                        'One-Tap Google Review & Instagram Profile Booster',
+                        'Basic Customer Database & Daily Footfall Analytics',
+                        'Ready-to-Print QR Code Counter Stand (High-res PDF)',
+                        'Standard WhatsApp Chat Support',
+                    ],
+                ]),
+                $plan([
                     'name' => 'Growth',
-                    'description' => 'For businesses ready to engage customers.',
-                    'note' => null,
+                    'description' => 'Best for Cafes, Restaurants & Busy Spas',
                     'badge' => 'Most Popular',
                     'highlighted' => true,
-                    'cta_label' => 'Start Free',
-                    'period' => '/ month',
-                    'billing_note' => 'Billed annually',
-                    'prices' => ['GBP' => '9.99'],
-                    'features' => ['Everything in Starter', 'AI Featured Google Reviews', 'Digital menu & offers page', 'Unlimited active customers', 'Customer insights dashboard', 'Priority email support'],
-                ],
-                [
-                    'name' => 'Business',
-                    'description' => 'For growing, multi-location businesses.',
-                    'note' => null,
-                    'badge' => null,
-                    'highlighted' => false,
-                    'cta_label' => 'Get Started',
-                    'period' => '/ month',
-                    'billing_note' => 'Billed annually',
-                    'prices' => ['GBP' => '15.99'],
-                    'features' => ['Everything in Growth', 'Multiple locations', 'Advanced analytics & reporting', 'Custom branding options', 'Whatsapp API Integration', 'Priority phone & email support'],
-                ],
+                    'prices' => ['INR' => '4999', 'AED' => '360'],
+                    'features' => [
+                        'Everything in Starter, plus:',
+                        'AI Smart Menu Builder (Snap a photo of your paper menu to generate an interactive digital menu instantly)',
+                        'Automated WhatsApp Win-Back Campaigns (Automatically re-engage customers absent for 30+ days via TaDa Tap platform)',
+                        'Repeat Visitor Tracking & Frequency Metrics',
+                        "Custom Branding (Add your shop's logo & brand colors to the web app interface)",
+                        'Priority Email & WhatsApp Support',
+                    ],
+                ]),
+                $plan([
+                    'name' => 'Elite Pro',
+                    'description' => 'For Premium Resto-Bars, Lounge Cafes & Multi-Chain Outlets',
+                    'cta_label' => 'Contact / Start Free Trial',
+                    'prices' => ['INR' => '7999', 'AED' => '580'],
+                    'features' => [
+                        'Everything in Growth, plus:',
+                        'Interactive Dine-In Mini Games (Spin-the-Wheel, Scratch & Win to engage customers while waiting for food)',
+                        'Instant Table Rewards & Coupon Generation',
+                        "Dedicated WhatsApp Business API Integration (Send re-engagement campaigns directly under your shop's official WhatsApp name & number)",
+                        'Multi-Outlet / Multi-Branch Centralized Dashboard',
+                        'Acrylic NFC / QR Counter Stand Shipped to Your Doorstep',
+                        '1-on-1 Onboarding Specialist',
+                    ],
+                ]),
             ],
         ];
     }
 
-    /** @return array<string, mixed> the saved page, or the defaults */
+    /**
+     * The saved page, or the defaults. A page saved before a field existed
+     * (e.g. the trust banner) gets that field's default, not nothing.
+     *
+     * @return array<string, mixed>
+     */
     public static function content(): array
     {
-        return Setting::get(Setting::LANDING_PAGE) ?? self::defaults();
+        return array_replace(self::defaults(), Setting::get(Setting::LANDING_PAGE) ?? []);
     }
 
     /**
@@ -109,24 +147,28 @@ class LandingPage
     }
 
     /**
-     * What the page shows: the plans with one price each, in $currency.
+     * What the page shows: the plans priced in $currency only - the visitor's
+     * own (from their IP). Other countries' prices never reach the page, not
+     * even in its data, so nobody can compare them and pick a cheaper
+     * country. A plan without a price in $currency shows the default one.
      *
      * @return array<string, mixed>
      */
     public static function forVisitor(array $content, string $currency): array
     {
-        $symbol = Currencies::symbol($currency);
+        $default = $content['default_currency'] ?? 'GBP';
 
         return [
-            'title' => $content['title'],
-            'description' => $content['description'],
+            ...collect($content)->only([
+                'kicker', 'title', 'description', 'primary_cta', 'demo_cta',
+                'trust_title', 'trust_description', 'trust_points', 'pricing_title', 'pricing_subtitle',
+            ])->all(),
             'youtube_id' => self::youtubeId($content['youtube_url'] ?? null),
             'currency' => $currency,
             'plans' => collect($content['plans'])->map(fn (array $plan) => [
                 ...collect($plan)->except('prices')->all(),
-                // A plan with no price in this currency falls back to the default one.
-                'price' => $plan['prices'][$currency] ?? $plan['prices'][$content['default_currency']] ?? null,
-                'symbol' => isset($plan['prices'][$currency]) ? $symbol : Currencies::symbol($content['default_currency']),
+                'price' => $plan['prices'][$currency] ?? $plan['prices'][$default] ?? null,
+                'symbol' => Currencies::symbol(isset($plan['prices'][$currency]) ? $currency : $default),
             ])->values()->all(),
         ];
     }

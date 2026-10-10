@@ -28,6 +28,7 @@ class UpdateLandingPageRequest extends FormRequest
 
         $this->merge([
             'plans' => $plans,
+            'trust_points' => collect((array) $this->input('trust_points', []))->map(fn ($p) => trim((string) $p))->filter()->values()->all(),
             'currencies' => array_values(array_unique(array_map('strtoupper', (array) $this->input('currencies', [])))),
             'default_currency' => strtoupper((string) $this->input('default_currency')),
         ]);
@@ -38,8 +39,17 @@ class UpdateLandingPageRequest extends FormRequest
         $currencies = (array) $this->input('currencies', []);
 
         return [
+            'kicker' => ['nullable', 'string', 'max:120'],
             'title' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:400'],
+            'primary_cta' => ['required', 'string', 'max:40'],
+            'demo_cta' => ['nullable', 'string', 'max:40'],
+            'trust_title' => ['nullable', 'string', 'max:120'],
+            'trust_description' => ['nullable', 'string', 'max:400'],
+            'trust_points' => ['array', 'max:'.LandingPage::MAX_TRUST_POINTS],
+            'trust_points.*' => ['string', 'max:80'],
+            'pricing_title' => ['required', 'string', 'max:120'],
+            'pricing_subtitle' => ['nullable', 'string', 'max:300'],
             'youtube_url' => ['nullable', 'string', 'max:300', function (string $attribute, mixed $value, Closure $fail) {
                 if (filled($value) && ! LandingPage::youtubeId($value)) {
                     $fail('Paste a YouTube video link, e.g. https://www.youtube.com/watch?v=…');
@@ -52,13 +62,14 @@ class UpdateLandingPageRequest extends FormRequest
             'plans.*.name' => ['required', 'string', 'max:40'],
             'plans.*.description' => ['nullable', 'string', 'max:200'],
             'plans.*.note' => ['nullable', 'string', 'max:120'],
-            'plans.*.badge' => ['nullable', 'string', 'max:30'],
+            'plans.*.badge' => ['nullable', 'string', 'max:40'],
             'plans.*.highlighted' => ['boolean'],
             'plans.*.cta_label' => ['required', 'string', 'max:30'],
             'plans.*.period' => ['nullable', 'string', 'max:30'],
             'plans.*.billing_note' => ['nullable', 'string', 'max:60'],
             'plans.*.features' => ['array', 'max:'.LandingPage::MAX_FEATURES],
-            'plans.*.features.*' => ['string', 'max:80'],
+            // "Title (a longer detail)" is shown as a bold title + its detail; a line ending in ":" as a heading.
+            'plans.*.features.*' => ['string', 'max:200'],
             // As displayed: up to 2 decimals, e.g. 4.99 or 399.
             ...collect($currencies)->mapWithKeys(fn ($code) => [
                 "plans.*.prices.{$code}" => ['required', 'string', 'regex:/^\d{1,7}(\.\d{1,2})?$/'],
@@ -82,8 +93,16 @@ class UpdateLandingPageRequest extends FormRequest
         $blank = fn ($v) => filled($v) ? trim($v) : null;
 
         return [
+            'kicker' => $blank($data['kicker'] ?? null),
             'title' => trim($data['title']),
             'description' => $blank($data['description'] ?? null),
+            'primary_cta' => trim($data['primary_cta']),
+            'demo_cta' => $blank($data['demo_cta'] ?? null),
+            'trust_title' => $blank($data['trust_title'] ?? null),
+            'trust_description' => $blank($data['trust_description'] ?? null),
+            'trust_points' => array_values($data['trust_points'] ?? []),
+            'pricing_title' => trim($data['pricing_title']),
+            'pricing_subtitle' => $blank($data['pricing_subtitle'] ?? null),
             'youtube_url' => $blank($data['youtube_url'] ?? null),
             'default_currency' => $data['default_currency'],
             'currencies' => $data['currencies'],

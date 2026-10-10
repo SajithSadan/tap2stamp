@@ -18,11 +18,14 @@ class LandingPageController extends Controller
     {
         return Inertia::render('Admin/LandingPage', [
             'content' => LandingPage::content(),
+            // For "Load default content": the suggested copy and plans, loaded into the form (saved only on Save).
+            'defaults' => LandingPage::defaults(),
             'currencyOptions' => Currencies::options(),
             'limits' => [
                 'plans' => LandingPage::MAX_PLANS,
                 'features' => LandingPage::MAX_FEATURES,
                 'currencies' => LandingPage::MAX_CURRENCIES,
+                'trustPoints' => LandingPage::MAX_TRUST_POINTS,
             ],
             'ipLookup' => filled(config('services.ipinfo.token')),
         ]);

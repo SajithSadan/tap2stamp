@@ -681,22 +681,33 @@ Enquiries come from all over the world, but we only ship hardware in the UK.
 
 ## Landing page at "/" (additive — replaces the old redirect to log in)
 
-- **`/`** (`LandingController`): signed-out visitors get `Pages/Landing.jsx` (title, description,
-  a YouTube video, pricing plans; every "Start Free" → `/register`). Signed-in users are still
-  redirected to `homeUrl()`; an admin can view it with `/?preview=1`.
+- **`/`** (`LandingController`): signed-out visitors get `Pages/Landing.jsx`. Signed-in users are
+  still redirected to `homeUrl()`; an admin can view it with `/?preview=1`. Sections, top to
+  bottom: **hero** (badge `kicker`, `title` H1, `description`, `primary_cta` → `/register`,
+  `demo_cta` → scrolls to the video and plays it), **video** (`#demo`), **trust banner**
+  (`trust_title`, `trust_description`, `trust_points` with ticks; hidden when all empty),
+  **pricing** (`pricing_title`, `pricing_subtitle`, the plan cards). Every
+  plan button → `/register`.
 - **Edited by the admin** at `/admin/landing-page` (`Admin\LandingPageController`,
   `Admin/LandingPage.jsx`, nav "Landing page", desktop only), stored as one JSON setting
-  (`Setting::LANDING_PAGE`); `App\Support\LandingPage::defaults()` until first saved (the three
-  plans from the marketing site). Up to 4 plans: name, badge, description, offer line (gift icon),
-  price per currency, text after/under the price ("/ month", "Billed annually" - plain text,
-  no monthly/annual toggle), features (one per line), button text, highlighted (dark card).
-- **Currency by IP**: prices are **typed per currency** by the admin (no conversion; every plan
-  needs a price in every offered currency). `App\Services\VisitorCountry` gives the country:
-  Cloudflare `CF-IPCountry` first, else ipinfo.io Lite (`IPINFO_TOKEN`, server-side, 2 s
-  timeout, cached per IP hash for 7 days; private IPs never looked up). `Currencies::forCountry()`
-  maps it to a currency; if that isn't offered → the admin's default currency. `?currency=USD`
-  shows an offered currency on purpose (the admin's Preview buttons). Prices reach the page
-  already resolved (`plans.*.price` + `symbol`), never the full price table.
+  (`Setting::LANDING_PAGE`). `LandingPage::content()` = the saved page **merged over**
+  `LandingPage::defaults()`, so a page saved before a field existed gets that field's default.
+  The editor's **"Load default content"** fills the form with the defaults (saved only on Save).
+  Up to 4 plans: name, badge (short pill), "who it's for" (`description`), offer line (gift
+  icon), price per currency, text after/under the price ("/ year", "Billed annually after …"),
+  features (one per line, ≤ 200 chars: `Title (detail)` shows the detail smaller, a line ending
+  in `:` is a heading), button text, highlighted (dark, mint-ringed, raised card).
+- **Currency**: prices are **typed per currency** by the admin (no conversion; every plan needs a
+  price in every offered currency). A visitor sees **only their own country's currency** - no
+  switch, and **other currencies' prices never reach the page or its data** (so nobody can
+  compare countries and sign up as the cheapest one). There is **no currency note** either - the
+  "Prices in {currency}" line in `Landing.jsx` is commented out on purpose; don't show it again
+  unless the user asks.
+  The country: `App\Services\VisitorCountry` (Cloudflare `CF-IPCountry` first, else ipinfo.io
+  Lite (`IPINFO_TOKEN`, server-side, 2 s timeout, cached per IP hash for 7 days; private IPs
+  never looked up)) → `Currencies::forCountry()`; not offered → the default currency.
+  `?currency=USD` works **only in the admin's preview** (`?preview=1`, signed in as admin);
+  the public's is ignored. Whole numbers are shown grouped (₹2,999).
 - **Video**: `LandingPage::youtubeId()` accepts watch / youtu.be / shorts / embed / live links;
   the page shows the thumbnail and loads the `youtube-nocookie.com` player only on click.
 

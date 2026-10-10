@@ -26,8 +26,9 @@ class LandingController extends Controller
         }
 
         $content = LandingPage::content();
-        // ?currency=USD shows an offered currency on purpose (e.g. the admin checking a price).
-        $currency = LandingPage::currencyFor($content, $country->for($request), $request->query('currency'));
+        // ?currency=USD (Admin → Landing page → Preview) only for the admin: the public only
+        // ever sees their own country's prices, so nobody can shop around for a cheaper one.
+        $currency = LandingPage::currencyFor($content, $country->for($request), $adminPreview ? $request->query('currency') : null);
 
         return Inertia::render('Landing', LandingPage::forVisitor($content, $currency));
     }

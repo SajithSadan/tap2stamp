@@ -12,6 +12,7 @@ function landingWithCurrencies(): array
 {
     $content = LandingPage::defaults();
     $content['currencies'] = ['GBP', 'USD', 'INR'];
+    $content['default_currency'] = 'GBP';
     $content['youtube_url'] = 'https://youtu.be/dQw4w9WgXcQ';
     $content['plans'] = collect($content['plans'])->map(fn ($plan, $i) => [
         ...$plan,
@@ -36,8 +37,16 @@ function landingAdmin(): User
 function landingForm(array $overrides = []): array
 {
     return [
+        'kicker' => '  For cafes  ',
         'title' => 'Loyalty for independents',
         'description' => 'Tap to stamp.',
+        'primary_cta' => 'Start free trial',
+        'demo_cta' => '',
+        'trust_title' => 'First month free',
+        'trust_description' => '',
+        'trust_points' => ['No app needed', '', '  Cancel anytime  '],
+        'pricing_title' => 'Pricing',
+        'pricing_subtitle' => '',
         'youtube_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10',
         'currencies' => ['GBP', 'EUR'],
         'default_currency' => 'GBP',
@@ -54,18 +63,53 @@ beforeEach(fn () => config(['services.ipinfo.token' => null]));
 
 // --- The public page ---------------------------------------------------------------
 
-test('visitors see the default page in pounds until the admin saves one', function () {
+test('visitors see the default page (hero, trust banner, 3 plans in INR / AED) until the admin saves one', function () {
     $this->get('/')->assertInertia(fn ($page) => $page
         ->component('Landing')
-        ->where('currency', 'GBP')
+        ->where('kicker', 'Digital Loyalty & Growth Engine for Retail, Dining & Salons')
+        ->where('title', 'Get Back-to-Back Repeat Customers to Your Shop with TaDa Tap')
+        ->where('primary_cta', 'Start 1-Month Free Trial')
+        ->where('trust_title', 'Register for Free - Your First 30 Days Are On Us')
+        ->has('trust_points', 3)
+        ->where('pricing_title', 'Simple, Transparent Annual Pricing')
+        ->where('currency', 'INR')
         ->where('youtube_id', null)
         ->has('plans', 3)
         ->where('plans.0.name', 'Starter')
-        ->where('plans.0.symbol', '£')
-        ->where('plans.0.price', '4.99')
+        ->where('plans.0.symbol', '₹')
+        ->where('plans.0.price', '2999')
+        ->where('plans.0.period', '/ year')
+        ->where('plans.1.name', 'Growth')
         ->where('plans.1.highlighted', true)
-        ->missing('plans.0.prices')
+        ->where('plans.1.badge', 'Most Popular')
+        ->where('plans.2.price', '7999')
     );
+});
+
+test('visitors only ever get their own currency\'s prices - never the others, not even in the page data', function () {
+    landingWithCurrencies();
+
+    $page = $this->withHeader('CF-IPCountry', 'IN')->get('/')->viewData('page');
+    $data = json_encode($page['props']);
+
+    expect($page['props']['currency'])->toBe('INR')
+        ->and($page['props'])->not->toHaveKey('currencies')
+        ->and($page['props']['plans'][0])->not->toHaveKey('prices')
+        // The GBP / USD prices of the saved page appear nowhere in what's sent.
+        ->and($data)->not->toContain('4.99')->not->toContain('5.99')->not->toContain('15.99');
+});
+
+test('a page saved before the new sections existed gets their defaults', function () {
+    $old = LandingPage::defaults();
+    unset($old['kicker'], $old['trust_title'], $old['trust_points'], $old['pricing_title'], $old['primary_cta']);
+    $old['title'] = 'Our own title';
+    Setting::set(Setting::LANDING_PAGE, $old);
+
+    $this->get('/')->assertInertia(fn ($page) => $page
+        ->where('title', 'Our own title')
+        ->where('pricing_title', 'Simple, Transparent Annual Pricing')
+        ->where('primary_cta', 'Start 1-Month Free Trial')
+        ->has('trust_points', 3));
 });
 
 test('signed-in users still go straight to their home; the admin can preview', function () {
@@ -118,11 +162,20 @@ test('local IPs and failed lookups fall back to the default currency', function 
     $this->withServerVariables(['REMOTE_ADDR' => '8.8.4.4'])->get('/')->assertInertia(fn ($page) => $page->where('currency', 'GBP'));
 });
 
-test('?currency= shows an offered currency on purpose, and ignores others', function () {
+test('?currency= is ignored for the public, so nobody can look up another country\'s prices', function () {
     landingWithCurrencies();
 
-    $this->get('/?currency=inr')->assertInertia(fn ($page) => $page->where('currency', 'INR')->where('plans.2.price', '1299'));
-    $this->get('/?currency=JPY')->assertInertia(fn ($page) => $page->where('currency', 'GBP'));
+    $this->withHeader('CF-IPCountry', 'GB')->get('/?currency=INR')->assertInertia(fn ($page) => $page
+        ->where('currency', 'GBP')
+        ->where('plans.2.price', '15.99'));
+});
+
+test('the admin\'s preview can show any offered currency, and ignores others', function () {
+    landingWithCurrencies();
+    $this->actingAs(landingAdmin());
+
+    $this->get('/?preview=1&currency=inr')->assertInertia(fn ($page) => $page->where('currency', 'INR')->where('plans.2.price', '1299'));
+    $this->get('/?preview=1&currency=JPY')->assertInertia(fn ($page) => $page->where('currency', 'GBP'));
 });
 
 test('youtube links of every usual shape give the video id', function (string $url) {
@@ -161,7 +214,11 @@ test('the admin saves the page; it is tidied and shown to visitors', function ()
     $saved = Setting::get(Setting::LANDING_PAGE);
     expect($saved['plans'][0]['features'])->toBe(['Loyalty card', 'NFC tap'])
         ->and($saved['plans'][0]['note'])->toBeNull()
-        ->and($saved['currencies'])->toBe(['GBP', 'EUR']);
+        ->and($saved['currencies'])->toBe(['GBP', 'EUR'])
+        ->and($saved['kicker'])->toBe('For cafes')
+        ->and($saved['demo_cta'])->toBeNull()
+        ->and($saved['trust_points'])->toBe(['No app needed', 'Cancel anytime'])
+        ->and($saved['pricing_subtitle'])->toBeNull();
 
     auth()->logout();
     $this->withHeader('CF-IPCountry', 'DE')->get('/')->assertInertia(fn ($page) => $page
@@ -188,4 +245,24 @@ test('the landing page form is validated', function (array $overrides, string $f
     'unknown currency' => [['currencies' => ['GBP', 'XYZ']], 'currencies.1'],
     'default not offered' => [['default_currency' => 'USD'], 'default_currency'],
     'no plans' => [['plans' => []], 'plans'],
+    'no main button' => [['primary_cta' => ''], 'primary_cta'],
+    'no pricing title' => [['pricing_title' => ''], 'pricing_title'],
+    'too many trust badges' => [['trust_points' => array_fill(0, 7, 'Badge')], 'trust_points'],
 ]);
+
+test('feature lines can carry a longer detail', function () {
+    $form = landingForm();
+    $form['plans'][0]['features'] = ['AI Smart Menu Builder ('.str_repeat('x', 150).')'];
+
+    $this->actingAs(landingAdmin())->put('/admin/landing-page', $form)->assertSessionHasNoErrors();
+
+    $form['plans'][0]['features'] = [str_repeat('x', 201)];
+    $this->put('/admin/landing-page', $form)->assertSessionHasErrors('plans.0.features.0');
+});
+
+test('the editor gets the defaults for "Load default content"', function () {
+    $this->actingAs(landingAdmin())->get('/admin/landing-page')->assertInertia(fn ($page) => $page
+        ->component('Admin/LandingPage')
+        ->where('defaults.plans.2.name', 'Elite Pro')
+        ->where('limits.trustPoints', LandingPage::MAX_TRUST_POINTS));
+});

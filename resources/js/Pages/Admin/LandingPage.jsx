@@ -1,5 +1,6 @@
 import { useForm } from "@inertiajs/react";
-import { LuArrowDown, LuArrowUp, LuExternalLink, LuPlus, LuTrash2, LuX } from "react-icons/lu";
+import { useConfirm } from "@/Components/ConfirmDialog";
+import { LuArrowDown, LuArrowUp, LuExternalLink, LuPlus, LuRotateCcw, LuTrash2, LuX } from "react-icons/lu";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import { FieldError, inputClass, Panel, primaryButton, secondaryButton, Switch } from "@/Components/Dashboard/Ui";
 
@@ -49,15 +50,37 @@ function Field({ label, hint, error, children, className = "" }) {
     );
 }
 
-export default function LandingPage({ content, currencyOptions, limits, ipLookup }) {
-    const form = useForm({
-        title: content.title ?? "",
-        description: content.description ?? "",
-        youtube_url: content.youtube_url ?? "",
-        currencies: content.currencies ?? ["GBP"],
-        default_currency: content.default_currency ?? "GBP",
-        plans: toForm(content.plans ?? []),
-    });
+/** Saved (or default) content as the form's values. */
+const toFormData = (content) => ({
+    kicker: content.kicker ?? "",
+    title: content.title ?? "",
+    description: content.description ?? "",
+    primary_cta: content.primary_cta ?? "",
+    demo_cta: content.demo_cta ?? "",
+    youtube_url: content.youtube_url ?? "",
+    trust_title: content.trust_title ?? "",
+    trust_description: content.trust_description ?? "",
+    trust_points_text: (content.trust_points ?? []).join("\n"),
+    pricing_title: content.pricing_title ?? "",
+    pricing_subtitle: content.pricing_subtitle ?? "",
+    currencies: content.currencies ?? ["GBP"],
+    default_currency: content.default_currency ?? "GBP",
+    plans: toForm(content.plans ?? []),
+});
+
+export default function LandingPage({ content, defaults, currencyOptions, limits, ipLookup }) {
+    const form = useForm(toFormData(content));
+    const [confirm, confirmDialog] = useConfirm();
+
+    // The suggested copy and plans, into the form - nothing changes until Save.
+    async function loadDefaults() {
+        const ok = await confirm({
+            title: "Load the default content?",
+            message: "The whole form is replaced with the suggested hero, trust banner and pricing plans. Nothing is saved until you press Save - Discard brings back what's live.",
+            confirmLabel: "Load defaults",
+        });
+        if (ok) form.setData({ ...toFormData(defaults), youtube_url: form.data.youtube_url });
+    }
     const { data, errors } = form;
     const symbol = (code) => currencyOptions.find((c) => c.code === code)?.symbol ?? `${code} `;
     const videoId = data.youtube_url.match(YOUTUBE)?.[1];
@@ -92,8 +115,9 @@ export default function LandingPage({ content, currencyOptions, limits, ipLookup
 
     function submit(e) {
         e.preventDefault();
-        form.transform((d) => ({
+        form.transform(({ trust_points_text, ...d }) => ({
             ...d,
+            trust_points: trust_points_text.split("\n"),
             plans: d.plans.map(({ features_text, ...p }) => ({ ...p, features: features_text.split("\n") })),
         }));
         form.put("/admin/landing-page", { preserveScroll: true, onSuccess: () => form.setDefaults() });
@@ -108,6 +132,9 @@ export default function LandingPage({ content, currencyOptions, limits, ipLookup
             description="The public page at your app's home: what visitors read, watch and pay."
             actions={
                 <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={loadDefaults} className={secondaryButton}>
+                        <LuRotateCcw className="h-4 w-4" /> Load default content
+                    </button>
                     {data.currencies.map((code) => (
                         <a key={code} href={`/?preview=1&currency=${code}`} target="_blank" rel="noreferrer" className={secondaryButton}>
                             <LuExternalLink className="h-4 w-4" /> Preview {code}
@@ -117,14 +144,25 @@ export default function LandingPage({ content, currencyOptions, limits, ipLookup
             }
         >
             <form onSubmit={submit} noValidate className="space-y-4">
-                <Panel title="Top of the page">
+                <Panel title="Hero" description="The top of the page.">
                     <div className="space-y-4">
-                        <Field label="Title" error={errors.title}>
+                        <Field label="Badge above the heading (optional)" error={errors.kicker}>
+                            <input type="text" maxLength={120} placeholder="Digital Loyalty & Growth Engine for Retail, Dining & Salons" {...text("kicker")} />
+                        </Field>
+                        <Field label="Heading" error={errors.title}>
                             <input type="text" maxLength={120} {...text("title")} />
                         </Field>
-                        <Field label="Description" error={errors.description}>
+                        <Field label="Subtitle" error={errors.description}>
                             <textarea rows={3} maxLength={400} {...text("description")} className={`${inputClass} resize-y`} />
                         </Field>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field label="Main button" hint="Opens sign-up (/register)." error={errors.primary_cta}>
+                                <input type="text" maxLength={40} placeholder="Start 1-Month Free Trial" {...text("primary_cta")} />
+                            </Field>
+                            <Field label="Demo button (optional)" hint="Scrolls to the video and plays it. Hidden without a video." error={errors.demo_cta}>
+                                <input type="text" maxLength={40} placeholder="Watch 60-Sec Demo" {...text("demo_cta")} />
+                            </Field>
+                        </div>
                         <Field label="YouTube video" hint="Paste the video's link. Leave empty for no video." error={errors.youtube_url}>
                             <input type="url" placeholder="https://www.youtube.com/watch?v=…" {...text("youtube_url")} />
                         </Field>
@@ -134,9 +172,34 @@ export default function LandingPage({ content, currencyOptions, limits, ipLookup
                     </div>
                 </Panel>
 
+                <Panel title="Trust banner" description="The dark strip under the video. Leave it all empty to hide it.">
+                    <div className="space-y-4">
+                        <Field label="Title" error={errors.trust_title}>
+                            <input type="text" maxLength={120} {...text("trust_title")} />
+                        </Field>
+                        <Field label="Text" error={errors.trust_description}>
+                            <textarea rows={3} maxLength={400} {...text("trust_description")} className={`${inputClass} resize-y`} />
+                        </Field>
+                        <Field label="Badges" hint={`One per line, up to ${limits.trustPoints}. Each gets a tick.`} error={errors.trust_points}>
+                            <textarea rows={3} {...text("trust_points_text")} className={`${inputClass} resize-y`} />
+                        </Field>
+                    </div>
+                </Panel>
+
+                <Panel title="Pricing heading">
+                    <div className="space-y-4">
+                        <Field label="Title" error={errors.pricing_title}>
+                            <input type="text" maxLength={120} placeholder="Simple, Transparent Annual Pricing" {...text("pricing_title")} />
+                        </Field>
+                        <Field label="Subtitle (optional)" error={errors.pricing_subtitle}>
+                            <input type="text" maxLength={300} {...text("pricing_subtitle")} />
+                        </Field>
+                    </div>
+                </Panel>
+
                 <Panel
                     title="Currencies"
-                    description="Visitors see their own country's currency when it's offered here, otherwise the default."
+                    description="Visitors see their own country's currency when it's offered here, otherwise the default - and can switch between the offered ones on the page."
                 >
                     {!ipLookup && (
                         <p className="mb-4 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
@@ -222,10 +285,10 @@ export default function LandingPage({ content, currencyOptions, limits, ipLookup
                             <Field label="Name" error={errors[`plans.${i}.name`]}>
                                 <input type="text" maxLength={40} placeholder="Starter" {...planText(i, "name")} />
                             </Field>
-                            <Field label="Badge (optional)" error={errors[`plans.${i}.badge`]}>
-                                <input type="text" maxLength={30} placeholder="Most Popular" {...planText(i, "badge")} />
+                            <Field label="Badge (optional)" hint="A short pill on the card, e.g. Most Popular." error={errors[`plans.${i}.badge`]}>
+                                <input type="text" maxLength={40} placeholder="Most Popular" {...planText(i, "badge")} />
                             </Field>
-                            <Field label="Description" className="sm:col-span-2" error={errors[`plans.${i}.description`]}>
+                            <Field label="Who it's for" hint="Under the plan name, e.g. Best for Cafes, Restaurants & Busy Spas." className="sm:col-span-2" error={errors[`plans.${i}.description`]}>
                                 <input type="text" maxLength={200} {...planText(i, "description")} />
                             </Field>
                             <Field label="Offer line (optional)" hint="Shown with a gift icon above the price." className="sm:col-span-2" error={errors[`plans.${i}.note`]}>
@@ -255,13 +318,15 @@ export default function LandingPage({ content, currencyOptions, limits, ipLookup
                                 </div>
                             </div>
 
-                            <Field label="After the price" hint='e.g. "/ month"' error={errors[`plans.${i}.period`]}>
+                            <Field label="After the price" hint='e.g. "/ year"' error={errors[`plans.${i}.period`]}>
                                 <input type="text" maxLength={30} {...planText(i, "period")} />
                             </Field>
                             <Field label="Under the price (optional)" hint='e.g. "Billed annually"' error={errors[`plans.${i}.billing_note`]}>
                                 <input type="text" maxLength={60} {...planText(i, "billing_note")} />
                             </Field>
-                            <Field label="Features" hint={`One per line, up to ${limits.features}.`} className="sm:col-span-2" error={errors[`plans.${i}.features`]}>
+                            <Field
+                                label="Features"
+                                hint={`One per line, up to ${limits.features}. "Title (detail)" shows the detail smaller; a line ending in ":" is a heading.`} className="sm:col-span-2" error={errors[`plans.${i}.features`]}>
                                 <textarea rows={6} {...planText(i, "features_text")} className={`${inputClass} resize-y`} />
                             </Field>
                             <Field label="Button text" error={errors[`plans.${i}.cta_label`]}>
@@ -302,6 +367,7 @@ export default function LandingPage({ content, currencyOptions, limits, ipLookup
                     </div>
                 )}
             </form>
+            {confirmDialog}
         </AdminLayout>
     );
 }
