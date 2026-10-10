@@ -9,6 +9,7 @@ import IconBadge from '@/Components/IconBadge';
 import OfflineBanner from '@/Components/OfflineBanner';
 import StampGrid from '@/Components/StampGrid';
 import { CUSTOMER_UUID_KEY, LAST_SHOP_SLUG_KEY } from '@/lib/storage';
+import { adoptLinkedCustomer, CustomerAppHead, InstallPrompt } from '@/Components/CustomerApp';
 import { themeVars, useDocumentTheme, useThemeFonts } from '@/lib/theme';
 
 function SkeletonTile() {
@@ -147,7 +148,18 @@ export default function MyCards() {
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(false);
 
+    // ?add=1: the card page's iPhone "Add" sent them here - show the Add to Home Screen steps.
+    const [autoSteps] = useState(() => {
+        try {
+            return new URLSearchParams(window.location.search).get("add") === "1";
+        } catch {
+            return false;
+        }
+    });
+
     useEffect(() => {
+        // The installed app's first launch: its link carries the card id (iPhone apps start with empty storage).
+        adoptLinkedCustomer();
         const storedUuid = window.localStorage.getItem(CUSTOMER_UUID_KEY);
 
         if (!storedUuid) {
@@ -183,11 +195,18 @@ export default function MyCards() {
     return (
         <>
             <Head title="My Cards" />
+            <CustomerAppHead uuid={uuid} />
             <OfflineBanner />
             <div className="min-h-screen bg-brand-bg pb-24">
                 <div className="mx-auto max-w-sm px-5 pt-8">
                     <h1 className="font-heading text-xl font-bold text-brand-text">My Cards</h1>
                     <p className="mt-1 text-sm text-brand-muted">All your loyalty cards in one place.</p>
+
+                    {uuid && cards?.length > 0 && (
+                        <div className="mt-4">
+                            <InstallPrompt uuid={uuid} autoOpenSteps={autoSteps} />
+                        </div>
+                    )}
 
                     <div className="mt-5 space-y-3">
                         {loading && (

@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import BottomNav from "@/Components/BottomNav";
+import { CustomerAppHead, InstallPrompt } from "@/Components/CustomerApp";
 import OfflineBanner from "@/Components/OfflineBanner";
 import RegistrationModal from "@/Components/RegistrationModal";
 import RatingTile from "@/Components/RatingTile";
@@ -588,6 +589,8 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
     return (
         <>
             <Head title={shop.name} />
+            {/* Installable as this customer's "My Cards" home-screen app once they have a card. */}
+            {!preview && <CustomerAppHead uuid={card?.uuid} />}
             <OfflineBanner />
             {preview && (
                 <p className="fixed inset-x-0 top-3 z-20 mx-auto w-fit rounded-full bg-neutral-900 px-3 py-1 text-xs font-medium text-white">
@@ -1088,6 +1091,13 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                             )}
                         </AnimatePresence>,
                         document.body,
+                    )}
+
+                    {/* Once they've got a stamp: keep their cards on the home screen (Install / Add to Home Screen). */}
+                    {card && !preview && (card.stamps > 0 || card.rewards_claimed > 0) && (
+                        <div className="mt-4">
+                            <InstallPrompt uuid={card.uuid} />
+                        </div>
                     )}
                 </main>
             </div>

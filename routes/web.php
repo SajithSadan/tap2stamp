@@ -101,6 +101,8 @@ Route::get('/menu/{menuSlug}', [MenuController::class, 'show'])
 // localStorage identity as the card routes above - no shop in the URL
 // since this aggregates every shop the customer has a card at.
 Route::get('/my-cards', fn () => Inertia::render('MyCards'))->name('my-cards');
+// The customer's "My Cards" home-screen app (its start_url carries their card id - iPhone home-screen apps don't share Safari's storage).
+Route::get('/my-cards/app/{customer:uuid}.webmanifest', [MyCardsController::class, 'manifest'])->middleware('throttle:60,1')->name('my-cards.manifest');
 Route::get('/my-cards/{customer:uuid}', [MyCardsController::class, 'index'])->name('my-cards.index');
 
 // Auth: owners and the one admin share the same users table + login form,

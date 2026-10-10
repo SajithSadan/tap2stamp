@@ -82,6 +82,15 @@ shops doesn't need to keep re-finding each shop's individual link.
 - Shared localStorage key constants live in `resources/js/lib/storage.js`
   (`CUSTOMER_UUID_KEY`, `LAST_SHOP_SLUG_KEY`) so `Card.jsx`, `MyCards.jsx`, and `BottomNav.jsx`
   can't drift out of sync on the key names.
+- **Home-screen app** (`Components/CustomerApp.jsx`): My Cards installs as the customer's own
+  app. `GET /my-cards/app/{customer:uuid}.webmanifest` (`MyCardsController::manifest()`) has
+  `start_url` `/my-cards?c={uuid}`, because an iPhone home-screen app gets **separate,
+  empty storage** from Safari. `adoptLinkedCustomer()` stores `?c` **only when nothing is
+  stored yet**, so someone else's link never replaces a customer's own card. `InstallPrompt`
+  (on My Cards, and on the card page once there's a stamp) shows Install where the browser
+  offers it (Android/Chrome). On iPhone it shows "Add", which goes to `/my-cards?c=…&add=1`
+  (Add to Home Screen saves the current URL) and then shows the Share → Add to Home Screen
+  steps. "Not now" snoozes it for 14 days, and it's hidden when the app is already installed.
 
 ## Admin panel (additive — expands Stage 4 beyond the original doc)
 

@@ -55,3 +55,26 @@ test('a card from another customer is never included', function () {
     $response->assertOk();
     $response->assertJsonCount(0, 'cards');
 });
+
+// --- "My Cards" home-screen app ----------------------------------------------------
+
+test('each customer gets their own installable My Cards app, opening their cards', function () {
+    $customer = Customer::factory()->create();
+
+    $response = $this->get("/my-cards/app/{$customer->uuid}.webmanifest")
+        ->assertOk()
+        ->assertHeader('Content-Type', 'application/manifest+json');
+
+    expect($response->json())->toMatchArray([
+        'id' => '/my-cards',
+        'short_name' => 'My Cards',
+        'display' => 'standalone',
+        'scope' => '/',
+        // iPhone home-screen apps don't share Safari's storage, so the app's link carries the card id.
+        'start_url' => "/my-cards?c={$customer->uuid}",
+    ])->and($response->json('icons'))->toHaveCount(4);
+});
+
+test('an unknown customer has no app', function () {
+    $this->get('/my-cards/app/00000000-0000-4000-8000-000000000000.webmanifest')->assertNotFound();
+});
