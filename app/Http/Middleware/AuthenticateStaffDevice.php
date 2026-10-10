@@ -32,6 +32,17 @@ class AuthenticateStaffDevice
             ], 401);
         }
 
+        // Shop blocked by the admin: the device stays approved (so it works again
+        // once unblocked) but can't sign in or scan. 403, not 401, so the
+        // staff app keeps its token.
+        if ($device->shop->isBlocked()) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 'shop_blocked',
+                'message' => "{$device->shop->name}'s account is paused.",
+            ], 403);
+        }
+
         $device->update(['last_used_at' => now()]);
         $request->attributes->set('staffDevice', $device);
 

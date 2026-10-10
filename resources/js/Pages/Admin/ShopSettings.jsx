@@ -32,6 +32,7 @@ import OrderEditDialog from "@/Components/Dashboard/OrderEditDialog";
 import OrderPaymentActions from "@/Components/Dashboard/OrderPaymentActions";
 import OrderStageEditor from "@/Components/Dashboard/OrderStageEditor";
 import WhatsAppButton from "@/Components/Dashboard/WhatsAppButton";
+import { BlockedBanner, BlockShopButton } from "@/Components/Dashboard/ShopBlockControls";
 import { formatPence } from "@/lib/money";
 
 /** The page's tabs, and which form fields live on each (to flag errors). */
@@ -365,9 +366,12 @@ export default function ShopSettings({
                             <LuEye className="h-4 w-4" /> View as owner
                         </Link>
                     )}
+                    {!shop.blocked_at && <BlockShopButton shop={shop} />}
                 </div>
             }
         >
+            {shop.blocked_at && <BlockedBanner shop={shop} />}
+
             <nav role="tablist" aria-label="Shop settings" className="-mx-1 mb-4 flex gap-1 overflow-x-auto border-b border-brand-border px-1 [scrollbar-width:none]">
                 {TABS.map((t) => {
                     const count = t.key === "menu" ? menuItemsCount : t.key === "orders" ? orders.length : null;

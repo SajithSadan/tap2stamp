@@ -82,10 +82,11 @@ function ShopCardTile({ uuid, card }) {
     const [lightboxOpen, setLightboxOpen] = useState(false);
 
     useEffect(() => {
+        if (!card.active) return;
         QRCode.toDataURL(`TOKEN:${uuid}|SHOP:${card.shop_id}`, { margin: 1, width: 240 })
             .then(setQrSrc)
             .catch(() => setQrSrc(null));
-    }, [uuid, card.shop_id]);
+    }, [uuid, card.shop_id, card.active]);
 
     const rewardReady = card.stamps >= card.max_stamps;
     useThemeFonts(card.theme);
@@ -93,7 +94,9 @@ function ShopCardTile({ uuid, card }) {
     return (
         // The shop's own theme, scoped to its tile (and its QR lightbox).
         <div style={card.theme ? themeVars(card.theme) : undefined} className="font-sans">
-            <div className="relative flex items-stretch gap-3 overflow-hidden rounded-2xl border border-brand-border bg-brand-card p-4 shadow-sm">
+            <div
+                className={`relative flex items-stretch gap-3 overflow-hidden rounded-2xl border border-brand-border bg-brand-card p-4 shadow-sm ${card.active ? "" : "opacity-60 grayscale"}`}
+            >
                 {/* Spine stripe - a plain white rounded rectangle didn't read as
                     a "card" the way a physical loyalty card does. */}
                 <div className="absolute inset-y-0 left-0 w-1.5 bg-brand-accent" />
@@ -114,27 +117,30 @@ function ShopCardTile({ uuid, card }) {
 
                     <p className="mt-2 text-xs font-medium text-brand-muted">
                         {card.stamps}/{card.max_stamps} stamps
-                        {rewardReady && <span className="ml-1 font-semibold text-brand-accent">· Reward ready!</span>}
+                        {card.active && rewardReady && <span className="ml-1 font-semibold text-brand-accent">· Reward ready!</span>}
                     </p>
+                    {!card.active && <p className="mt-1 text-xs font-semibold text-brand-text">This card isn't active at the moment.</p>}
                 </div>
 
                 {/* Perforated stub, like a ticket - separates the QR from the
                     card body instead of hiding it behind an accordion toggle. */}
-                <button
-                    onClick={() => setLightboxOpen(true)}
-                    className="flex shrink-0 flex-col items-center justify-center gap-1 border-l border-dashed border-brand-border pl-3"
-                >
-                    {qrSrc ? (
-                        <img
-                            src={qrSrc}
-                            alt={`QR code for ${card.shop_name}`}
-                            className="h-16 w-16 rounded-lg border border-brand-border bg-white p-1"
-                        />
-                    ) : (
-                        <div className="h-16 w-16 animate-pulse rounded-lg bg-brand-border" />
-                    )}
-                    <span className="text-[10px] font-medium text-brand-muted">Tap to scan</span>
-                </button>
+                {card.active && (
+                    <button
+                        onClick={() => setLightboxOpen(true)}
+                        className="flex shrink-0 flex-col items-center justify-center gap-1 border-l border-dashed border-brand-border pl-3"
+                    >
+                        {qrSrc ? (
+                            <img
+                                src={qrSrc}
+                                alt={`QR code for ${card.shop_name}`}
+                                className="h-16 w-16 rounded-lg border border-brand-border bg-white p-1"
+                            />
+                        ) : (
+                            <div className="h-16 w-16 animate-pulse rounded-lg bg-brand-border" />
+                        )}
+                        <span className="text-[10px] font-medium text-brand-muted">Tap to scan</span>
+                    </button>
+                )}
             </div>
 
             <AnimatePresence>{lightboxOpen && <QrLightbox card={card} qrSrc={qrSrc} onClose={() => setLightboxOpen(false)} />}</AnimatePresence>

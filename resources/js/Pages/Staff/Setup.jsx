@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { LuCircleCheck, LuStore } from 'react-icons/lu';
 import { STAFF_TOKEN_KEY } from '@/lib/storage';
 
-export default function Setup({ valid, token, shopName, deviceName }) {
+export default function Setup({ valid, blocked = false, token, shopName, deviceName }) {
     const [redirecting, setRedirecting] = useState(false);
 
     useEffect(() => {
@@ -31,6 +31,12 @@ export default function Setup({ valid, token, shopName, deviceName }) {
                                 {deviceName} is now set up for <span className="text-brand-text">{shopName}</span>.
                             </p>
                             <p className="mt-3 text-xs text-brand-muted">{redirecting ? 'Opening the scanner…' : 'Setting up…'}</p>
+                        </>
+                    ) : blocked ? (
+                        <>
+                            <LuStore className="mx-auto h-10 w-10 text-brand-muted" />
+                            <h1 className="mt-3 font-heading text-lg font-bold text-brand-text">{shopName} is paused</h1>
+                            <p className="mt-1 text-sm text-brand-muted">This shop's account is paused, so devices can't be set up right now. Please ask the shop owner.</p>
                         </>
                     ) : (
                         <>

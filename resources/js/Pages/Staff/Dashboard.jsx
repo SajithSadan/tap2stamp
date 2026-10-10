@@ -41,7 +41,7 @@ function CenteredMessage({ icon: Icon, title, children }) {
 
 /* ---------- PIN sign-in ---------- */
 
-function PinSignIn({ shopName, members, api, onSignedIn }) {
+function PinSignIn({ shopName, members, api, onSignedIn, onApiError }) {
     const [member, setMember] = useState(null);
     const [pin, setPin] = useState("");
     const [error, setError] = useState(null);
@@ -60,6 +60,7 @@ function PinSignIn({ shopName, members, api, onSignedIn }) {
         api.post("/api/staff/sign-in", { staff_member_id: member.id, pin })
             .then(({ data }) => onSignedIn(data.staff))
             .catch((err) => {
+                if (onApiError?.(err)) return;
                 const status = err.response?.status;
                 setError(
                     status === 429
@@ -450,7 +451,7 @@ export default function Dashboard() {
         }
     });
 
-    const [authState, setAuthState] = useState("loading"); // loading | ready | unauthenticated | error
+    const [authState, setAuthState] = useState("loading"); // loading | ready | unauthenticated | blocked | error
     const [retryKey, setRetryKey] = useState(0);
     const [me, setMe] = useState(null);
     const [tab, setTab] = useState("scan");
@@ -480,6 +481,12 @@ export default function Dashboard() {
         if (status === 401) {
             window.localStorage.removeItem(STAFF_TOKEN_KEY);
             setAuthState("unauthenticated");
+            return true;
+        }
+
+        // The admin blocked the shop: keep the token (it works again once unblocked).
+        if (status === 403 && error.response.data?.code === "shop_blocked") {
+            setAuthState("blocked");
             return true;
         }
 
@@ -567,6 +574,29 @@ export default function Dashboard() {
         );
     }
 
+    if (authState === "blocked") {
+        return (
+            <>
+                {headTags}
+                <CenteredMessage icon={LuStore} title="This shop is paused">
+                    <p className="mt-2 text-sm text-brand-muted">
+                        Stamps can't be given right now. Please ask the shop
+                        owner.
+                    </p>
+                    <button
+                        onClick={() => {
+                            setAuthState("loading");
+                            setRetryKey((n) => n + 1);
+                        }}
+                        className="mt-4 rounded-xl bg-brand-accent px-4 py-2 text-sm font-semibold text-brand-accent-text"
+                    >
+                        Check again
+                    </button>
+                </CenteredMessage>
+            </>
+        );
+    }
+
     if (authState === "error") {
         return (
             <>
@@ -614,6 +644,7 @@ export default function Dashboard() {
                     members={me.staff_members}
                     api={api}
                     onSignedIn={(staff) => setMe((m) => ({ ...m, staff }))}
+                    onApiError={handleApiError}
                 />
             </>
         );

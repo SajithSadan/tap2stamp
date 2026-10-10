@@ -30,6 +30,9 @@ class ShopSettingsController extends Controller
                 ]),
                 'can_order' => $shop->canOrderProducts(),
                 'whatsapp' => $shop->whatsappNumber(),
+                'blocked_at' => $shop->blocked_at?->toIso8601String(),
+                'blocked_label' => $shop->blocked_at?->timezone('Europe/London')->format('j M Y, H:i'),
+                'blocked_reason' => $shop->blocked_reason,
                 // Contact person/email default to the owner's login.
                 ...$shop->contactDetails(),
             ],

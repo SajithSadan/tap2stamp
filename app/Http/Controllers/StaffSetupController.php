@@ -21,9 +21,13 @@ class StaffSetupController extends Controller
             ->with('shop')
             ->first();
 
+        // A blocked shop's device can't be set up (the link stays valid for later).
+        $blocked = $device?->shop->isBlocked() ?? false;
+
         return Inertia::render('Staff/Setup', [
-            'valid' => $device !== null,
-            'token' => $device ? $token : null,
+            'valid' => $device !== null && ! $blocked,
+            'blocked' => $blocked,
+            'token' => $device && ! $blocked ? $token : null,
             'shopName' => $device?->shop->name,
             'deviceName' => $device?->name,
         ]);

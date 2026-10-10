@@ -101,8 +101,10 @@ class ShopOwnerController extends Controller
                     'rating' => $shop->rating === null ? null : round((float) $shop->rating, 1),
                     'reviews' => $shop->reviews_count,
                     'staff' => $shop->staff,
-                    // Active = stamped recently; quiet = used to, stopped; not started = never stamped.
+                    'blocked_reason' => $shop->blocked_reason,
+                    // Blocked by the admin; active = stamped recently; quiet = used to, stopped; not started = never stamped.
                     'status' => match (true) {
+                        $shop->isBlocked() => 'blocked',
                         $lastActivity === null => 'not_started',
                         $lastActivity->lt($quietSince) => 'quiet',
                         default => 'active',

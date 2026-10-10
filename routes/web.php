@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\QrCodeController;
 use App\Http\Controllers\Admin\QrDesignController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\ShopBlockController;
 use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Controllers\Admin\ShopOwnerController;
 use App\Http\Controllers\Admin\ShopSettingsController;
@@ -56,12 +57,12 @@ Route::get('/', LandingController::class)->name('home');
 // uuid (if any) is known only lives in the browser's localStorage, so the
 // register/card-state endpoints are plain JSON, called client-side after
 // the page has already loaded.
-Route::get('/s/{shop:slug}', [CardController::class, 'show'])->name('card.show');
+Route::get('/s/{shop:slug}', [CardController::class, 'show'])->middleware('shop.active')->name('card.show');
 Route::post('/s/{shop:slug}/register', [CardController::class, 'register'])
-    ->middleware('throttle:10,1')
+    ->middleware(['throttle:10,1', 'shop.active'])
     ->name('card.register');
 Route::post('/s/{shop:slug}/card/{customer:uuid}/join', [CardController::class, 'registerExisting'])
-    ->middleware('throttle:10,1')
+    ->middleware(['throttle:10,1', 'shop.active'])
     ->name('card.join')
     ->withoutScopedBindings();
 // withoutScopedBindings(): a customer isn't a direct relation of a shop
@@ -69,6 +70,7 @@ Route::post('/s/{shop:slug}/card/{customer:uuid}/join', [CardController::class, 
 // CustomerShopCard lookup CardController::cardState() already does, not
 // something Eloquent's automatic nested-binding scoping should guess at.
 Route::get('/s/{shop:slug}/card/{customer:uuid}', [CardController::class, 'cardState'])
+    ->middleware('shop.active')
     ->name('card.state')
     ->withoutScopedBindings();
 
@@ -76,7 +78,7 @@ Route::get('/s/{shop:slug}/card/{customer:uuid}', [CardController::class, 'cardS
 // to our own DB, visible only to the shop owner once Stage 4 exists).
 // Requires an existing card, same nested-binding caveat as card.state.
 Route::post('/s/{shop:slug}/card/{customer:uuid}/review', [ReviewController::class, 'store'])
-    ->middleware('throttle:10,1')
+    ->middleware(['throttle:10,1', 'shop.active'])
     ->name('card.review.store')
     ->withoutScopedBindings();
 
@@ -157,6 +159,8 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/shops/{shop}/settings', [ShopSettingsController::class, 'edit'])->name('shops.settings.edit');
     Route::put('/shops/{shop}/settings', [ShopSettingsController::class, 'update'])->name('shops.settings.update');
     Route::put('/shops/{shop}/features', [ShopSettingsController::class, 'updateFeatures'])->name('shops.features.update');
+    Route::put('/shops/{shop}/block', [ShopBlockController::class, 'store'])->name('shops.block');
+    Route::delete('/shops/{shop}/block', [ShopBlockController::class, 'destroy'])->name('shops.unblock');
     // "View as owner": the shop's owner dashboard, as the owner sees it (read-only until changes are allowed).
     Route::post('/shops/{shop}/view-as-owner', [ViewAsOwnerController::class, 'start'])->name('shops.view-as-owner');
     Route::put('/view-as-owner/editing', [ViewAsOwnerController::class, 'editing'])->name('view-as-owner.editing');

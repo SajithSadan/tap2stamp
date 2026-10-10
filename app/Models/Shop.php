@@ -161,6 +161,7 @@ class Shop extends Model
             'product_ordered_at' => 'datetime',
             'show_card_link' => 'boolean',
             'features' => 'array',
+            'blocked_at' => 'datetime',
         ];
     }
 
@@ -343,6 +344,16 @@ class Shop extends Model
     public function contactPhoneTel(): ?string
     {
         return $this->contactPhone() ? str_replace(' ', '', $this->contactPhone()) : null;
+    }
+
+    /**
+     * Blocked by the admin (closing down, subscription unpaid): its card page,
+     * menu, staff app and owner dashboard stop working until unblocked.
+     * Customers' cards at other shops are untouched.
+     */
+    public function isBlocked(): bool
+    {
+        return $this->blocked_at !== null;
     }
 
     /** The contact number for a wa.me link ("447700900123"), or null. */

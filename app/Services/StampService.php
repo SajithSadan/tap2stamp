@@ -29,6 +29,11 @@ class StampService
      */
     public function scan(Shop $shop, string $payload, ?StaffMember $staff = null, ?int $ownerId = null, bool $redeem = false): array
     {
+        // Blocked by the admin - the staff API is already closed; this also covers the owner scanner.
+        if ($shop->isBlocked()) {
+            return $this->error(403, 'shop_blocked', "This shop's account is paused.");
+        }
+
         if (! preg_match('/^TOKEN:([0-9a-fA-F-]{36})\|SHOP:(\d+)$/', $payload, $matches)) {
             return $this->error(422, 'invalid_qr', "That doesn't look like a loyalty card QR code.");
         }

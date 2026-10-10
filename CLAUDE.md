@@ -155,6 +155,25 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   `live` / `business` (step 1 saved in `onboarding_draft`; its business name, phone and town are
   shown to follow up) / `not_started`. Never sends password, remember token, Google id or the raw
   draft. Those owners resume setup with their details when they log in again.
+- **Blocking a shop** (closing down, subscription unpaid): `shops.blocked_at` (null = active,
+  the default) + `blocked_reason` (admin-only note). Admin → shop settings → **Block shop**
+  (dialog with an optional reason; `PUT /admin/shops/{shop}/block`) and the red banner's
+  **Unblock** (`DELETE …/block`), via `Admin\ShopBlockController`. The Shops grid shows the
+  `blocked` status, which overrides the others, and has a Blocked filter. Always check with
+  `Shop::isBlocked()`. **Nothing is deleted.** While blocked:
+  - **Customer pages**: the `shop.active` middleware (`EnsureShopActive`) shows
+    `Pages/ShopInactive.jsx` on the card page (and on the menu, from `MenuController`). The card
+    JSON endpoints (register / join / state / review) answer **403 `shop_inactive`**, never 404,
+    because `Card.jsx` forgets the customer's id on a 404. Only an admin's `?preview=1` still
+    shows the real card.
+  - **My Cards**: lists that card last with `active: false`, greyed out and without a QR. Other
+    shops' cards are untouched.
+  - **Staff**: `AuthenticateStaffDevice` answers **403 `shop_blocked`**. The device stays
+    approved, and the staff app keeps its token and shows "This shop is paused". The setup link
+    shows the same message.
+  - **Stamping**: `StampService::scan` also refuses (this covers the owner scanner).
+  - **Owner dashboard**: `EnsureOwnerHasShop` renders `Dashboard/Blocked` (403) for every
+    dashboard route. An admin using View as owner still gets the real screens.
 - **WhatsApp contact** (admin): a green WhatsApp button (`Components/Dashboard/WhatsAppButton.jsx`)
   on the Shops grid and the Users grid (the shop's contact number, else the number typed at
   sign-up step 1), and labelled in the shop settings header. Links are `https://wa.me/{digits}`;

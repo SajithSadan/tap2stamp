@@ -123,13 +123,21 @@ const STATUS = {
         tone: "bg-brand-bg text-brand-muted ring-1 ring-inset ring-brand-border",
         order: 2,
     },
+    // Blocked by the admin: card, menu, staff app and dashboard are off.
+    blocked: {
+        label: "Blocked",
+        dot: "bg-red-600",
+        tone: "bg-red-500/10 text-red-700",
+        order: 3,
+    },
 };
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, title }) {
     const s = STATUS[status];
 
     return (
         <span
+            title={title || undefined}
             className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${s.tone}`}
         >
             <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
@@ -145,6 +153,7 @@ function StatusChips({ value, onChange, counts }) {
         ["active", "Active"],
         ["quiet", "Quiet"],
         ["not_started", "Not started"],
+        ["blocked", "Blocked"],
         ["no_owner", "No owner"],
         ["no_display", "Display not ordered"],
     ];
@@ -227,7 +236,9 @@ function buildColumns(origin) {
                 STATUS[b.original.status].order,
             enableGlobalFilter: false,
             meta: { label: "Status", csv: (s) => STATUS[s.status].label },
-            cell: ({ getValue }) => <StatusBadge status={getValue()} />,
+            cell: ({ row: { original: s } }) => (
+                <StatusBadge status={s.status} title={s.blocked_reason} />
+            ),
         },
         {
             // Counter display ordered (paid online, or recorded by an admin).
@@ -577,6 +588,7 @@ export default function Index({ shops, quietDays, primaryProduct }) {
             active: shops.filter((s) => s.status === "active").length,
             quiet: shops.filter((s) => s.status === "quiet").length,
             not_started: shops.filter((s) => s.status === "not_started").length,
+            blocked: shops.filter((s) => s.status === "blocked").length,
             no_owner: shops.filter((s) => !s.owner_email).length,
             no_display: shops.filter(needsDisplay).length,
         }),

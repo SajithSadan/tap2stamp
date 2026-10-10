@@ -23,9 +23,12 @@ class MyCardsController extends Controller
                 'stamps' => $card->current_stamps,
                 'max_stamps' => $card->shop->max_stamps,
                 'rewards_claimed' => $card->rewards_claimed,
+                // Blocked by the admin: listed (greyed, no QR) so the customer knows why, after the working ones.
+                'active' => ! $card->shop->isBlocked(),
                 // Each card wears its own shop's look, like on the shop's card page.
                 'theme' => $card->shop->appliedTheme(),
             ])
+            ->sortByDesc('active')
             ->values();
 
         return response()->json(['cards' => $cards]);

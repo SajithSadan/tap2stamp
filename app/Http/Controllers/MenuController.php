@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsureShopActive;
 use App\Models\Shop;
 use App\Services\ShopMenu;
 use App\Support\Features;
@@ -9,6 +10,7 @@ use App\Support\StampIcons;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class MenuController extends Controller
 {
@@ -18,7 +20,7 @@ class MenuController extends Controller
      * their card link (see "Owners don't get their card link"). Old /menu/{id}
      * links (stickers mapped before menu links existed) redirect.
      */
-    public function show(string $menuSlug, ShopMenu $menu): Response|RedirectResponse
+    public function show(string $menuSlug, ShopMenu $menu): Response|RedirectResponse|SymfonyResponse
     {
         $shop = Shop::where('menu_slug', $menuSlug)->first();
 
@@ -32,6 +34,10 @@ class MenuController extends Controller
 
         // Menu switched off for this shop (Admin → Features): not available.
         abort_unless($shop && $shop->hasFeature(Features::MENU), 404);
+
+        if ($shop->isBlocked()) {
+            return EnsureShopActive::inactive(request(), $shop);
+        }
 
         return Inertia::render('Menu', [
             'shop' => self::header($shop),
