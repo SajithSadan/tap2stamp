@@ -7,7 +7,9 @@ import {
     LuCamera,
     LuCheck,
     LuChevronDown,
+    LuEllipsisVertical,
     LuExternalLink,
+    LuEye,
     LuEyeOff,
     LuFileText,
     LuImage,
@@ -25,7 +27,7 @@ import {
     LuX,
 } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
-import { FieldError, primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
+import { FieldError, primaryButton, secondaryButton, Switch } from "@/Components/Dashboard/Ui";
 import PhotoCropper from "@/Components/Menu/PhotoCropper";
 import PhotoFinder from "@/Components/Menu/PhotoFinder";
 import MenuView, { LAYOUT_LABELS } from "@/Components/MenuView";
@@ -702,65 +704,128 @@ function PhotoActions({ item, asking, setAsking, canFind, canSearch, onFind, onU
     }
 
     return (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 pt-1.5 text-xs">
-            <AvailabilitySelect item={item} onSet={onAvailability} />
-            {note && (
-                <span className="text-brand-muted" title={item.image_reason ?? undefined}>
-                    {note}
-                </span>
-            )}
-            {canSearch && (
-                <button type="button" disabled={!canFind} onClick={() => setAsking(true)} title={item.id ? undefined : "Save the menu first"} className={link}>
-                    {item.image_url ? "Change photo" : "Find photo"}
-                </button>
-            )}
-            {/* The shop's own photo - e.g. when the catalog has none. */}
-            <button type="button" disabled={!canFind} onClick={onUpload} title={item.id ? "Take or choose a photo" : "Save the menu first"} className={`inline-flex items-center gap-1 ${link}`}>
-                <LuCamera className="h-3.5 w-3.5" /> Upload photo
+        <div className="flex items-center justify-between gap-2 px-2 pt-2">
+            <AvailabilitySwitch item={item} onSet={onAvailability} />
+            <ActionMenu
+                label={`Photo options for ${item.name || "this item"}`}
+                buttonClass="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-brand-accent hover:bg-brand-bg"
+                button={
+                    <>
+                        <LuImage className="h-3.5 w-3.5" /> Photo <LuChevronDown className="h-3 w-3" />
+                    </>
+                }
+                items={[
+                    !item.id ? "Save the menu first to add a photo." : note,
+                    canSearch && { label: item.image_url ? "Change photo" : "Find photo", icon: LuSparkles, onClick: () => setAsking(true), disabled: !canFind },
+                    { label: "Upload photo", icon: LuCamera, onClick: onUpload, disabled: !canFind },
+                    item.image_url && { label: "Remove photo", icon: LuTrash2, onClick: onRemovePhoto, danger: true },
+                ]}
+            />
+        </div>
+    );
+}
+
+/**
+ * A small menu of actions under a button (the item's Photo and ⋯ menus). Closes
+ * on a pick, a click elsewhere or Esc. `items`: {label, icon, onClick, danger,
+ * disabled}; a string is a plain note line.
+ */
+function ActionMenu({ label, button, buttonClass, items, align = "right" }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const close = (e) => !ref.current?.contains(e.target) && setOpen(false);
+        const esc = (e) => e.key === "Escape" && setOpen(false);
+        document.addEventListener("pointerdown", close);
+        document.addEventListener("keydown", esc);
+        return () => {
+            document.removeEventListener("pointerdown", close);
+            document.removeEventListener("keydown", esc);
+        };
+    }, [open]);
+
+    return (
+        <div ref={ref} className="relative">
+            <button type="button" aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={buttonClass}>
+                {button}
             </button>
-            {item.image_url && (
-                <button type="button" onClick={onRemovePhoto} className="font-medium text-brand-muted hover:text-red-600">
-                    Remove photo
-                </button>
+            {open && (
+                <div
+                    role="menu"
+                    className={`absolute top-full z-30 mt-1 min-w-48 overflow-hidden rounded-xl border border-brand-border bg-brand-card py-1 shadow-lg ${align === "right" ? "right-0" : "left-0"}`}
+                >
+                    {items.filter(Boolean).map((item, i) =>
+                        typeof item === "string" ? (
+                            <p key={i} className="px-3 pb-1 pt-1.5 text-xs text-brand-muted">
+                                {item}
+                            </p>
+                        ) : (
+                            <button
+                                key={item.label}
+                                type="button"
+                                role="menuitem"
+                                disabled={item.disabled}
+                                onClick={() => {
+                                    setOpen(false);
+                                    item.onClick();
+                                }}
+                                className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-brand-bg disabled:cursor-not-allowed disabled:opacity-40 ${
+                                    item.danger ? "text-red-600" : "text-brand-text"
+                                }`}
+                            >
+                                {item.icon && <item.icon className="h-4 w-4 shrink-0 text-current opacity-70" />}
+                                {item.label}
+                            </button>
+                        ),
+                    )}
+                </div>
             )}
         </div>
     );
 }
 
-const AVAILABILITY = [
-    ["available", "Available", "bg-emerald-500"],
-    ["unavailable", "Not available", "bg-amber-500"],
-    ["hidden", "Hidden", "bg-slate-400"],
-];
-
 /**
- * Available / Not available (greyed on the menu) / Hidden (not on the menu).
- * Saved straight away - not part of Save, so it never marks the menu unsaved,
- * and staff can change it from their app at the same time. New items: after saving.
+ * Available ⇄ Not available (greyed on the menu) as one switch; a hidden item
+ * (off the menu, set from the item's menu) shows "Hidden from menu · Show"
+ * instead. Saved straight away - not part of Save, so it never marks the menu
+ * unsaved, and staff can change it from their app at the same time. New
+ * items get it once the menu is saved.
  */
-function AvailabilitySelect({ item, onSet }) {
-    if (!item.id) return null;
+function AvailabilitySwitch({ item, onSet }) {
+    if (!item.id) return <span className="text-xs text-brand-muted">Save to set availability</span>;
     const value = item.availability ?? "available";
-    const dot = AVAILABILITY.find(([key]) => key === value)?.[2];
+
+    if (value === "hidden") {
+        return (
+            <span className="inline-flex items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-500/10 px-2 py-1 font-semibold text-slate-600">
+                    <LuEyeOff className="h-3.5 w-3.5" /> Hidden from menu
+                </span>
+                <button type="button" onClick={() => onSet(item, "available")} className="font-semibold text-brand-accent hover:underline">
+                    Show
+                </button>
+            </span>
+        );
+    }
+
+    const on = value === "available";
 
     return (
-        <label className="relative inline-flex items-center">
-            <span className={`pointer-events-none absolute left-2 h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden="true" />
-            <select
-                value={value}
-                onChange={(e) => onSet(item, e.target.value)}
-                aria-label={`Availability of ${item.name}`}
-                className={`cursor-pointer appearance-none rounded-full border py-0.5 pl-5 pr-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-brand-accent/30 ${
-                    value === "available" ? "border-brand-border bg-brand-card text-brand-muted" : "border-amber-500/40 bg-amber-500/10 text-amber-800"
-                }`}
-            >
-                {AVAILABILITY.map(([key, label]) => (
-                    <option key={key} value={key}>
-                        {label}
-                    </option>
-                ))}
-            </select>
-        </label>
+        <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-label={`${item.name} available`}
+            onClick={() => onSet(item, on ? "unavailable" : "available")}
+            className="inline-flex items-center gap-2 rounded-full py-1 pr-1 text-xs font-semibold"
+        >
+            <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${on ? "bg-brand-accent" : "bg-amber-500"}`}>
+                <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${on ? "translate-x-4" : ""}`} />
+            </span>
+            <span className={on ? "text-brand-text" : "text-amber-700"}>{on ? "Available" : "Not available"}</span>
+        </button>
     );
 }
 
@@ -814,7 +879,8 @@ function ItemRow({ item, path, errors, first, last, suggestions, photos, unsaved
                 onClick={() => (photos.enabled ? setAsking(true) : photos.upload(item))}
             />
             <div className="min-w-0 flex-1">
-                <div className="flex gap-1">
+                {/* Phone: name on its own line (it was cut off beside the price); wider screens: side by side. */}
+                <div className="flex flex-col sm:flex-row sm:gap-1">
                     <input
                         type="text"
                         value={item.name}
@@ -829,7 +895,7 @@ function ItemRow({ item, path, errors, first, last, suggestions, photos, unsaved
                         onChange={(e) => onChange({ price: e.target.value })}
                         placeholder="£0.00"
                         aria-label="Price"
-                        className={`${quietInput} w-28 shrink-0 text-right font-semibold tabular-nums ${errors[`${path}.price`] ? errorRing : ""}`}
+                        className={`${quietInput} w-32 shrink-0 font-semibold tabular-nums sm:w-28 sm:text-right ${errors[`${path}.price`] ? errorRing : ""}`}
                     />
                 </div>
                 <input
@@ -862,7 +928,35 @@ function ItemRow({ item, path, errors, first, last, suggestions, photos, unsaved
                     }
                 />
             </div>
-            <div className="flex shrink-0 items-center opacity-100 transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+            {/* Phone: one ⋯ menu (the icons squeezed the name); wider screens: icons on hover. */}
+            <div className="shrink-0 sm:hidden">
+                <ActionMenu
+                    label={`More for ${item.name || "this item"}`}
+                    buttonClass={iconButton}
+                    button={<LuEllipsisVertical className="h-4 w-4" />}
+                    items={[
+                        { label: "Move up", icon: LuArrowUp, onClick: () => onMove(-1), disabled: first },
+                        { label: "Move down", icon: LuArrowDown, onClick: () => onMove(1), disabled: last },
+                        item.id &&
+                            (item.availability === "hidden"
+                                ? { label: "Show on menu", icon: LuEye, onClick: () => photos.setAvailability(item, "available") }
+                                : { label: "Hide from menu", icon: LuEyeOff, onClick: () => photos.setAvailability(item, "hidden") }),
+                        { label: "Remove item", icon: LuTrash2, onClick: onRemove, danger: true },
+                    ]}
+                />
+            </div>
+            <div className="hidden shrink-0 items-center transition-opacity focus-within:opacity-100 sm:flex sm:opacity-0 sm:group-hover:opacity-100">
+                {item.id && (
+                    <button
+                        type="button"
+                        onClick={() => photos.setAvailability(item, item.availability === "hidden" ? "available" : "hidden")}
+                        className={iconButton}
+                        aria-label={item.availability === "hidden" ? "Show on menu" : "Hide from menu"}
+                        title={item.availability === "hidden" ? "Show on menu" : "Hide from menu"}
+                    >
+                        {item.availability === "hidden" ? <LuEye className="h-4 w-4" /> : <LuEyeOff className="h-4 w-4" />}
+                    </button>
+                )}
                 <button type="button" disabled={first} onClick={() => onMove(-1)} className={iconButton} aria-label="Move item up">
                     <LuArrowUp className="h-4 w-4" />
                 </button>
@@ -1064,7 +1158,7 @@ function writeDraft(shopId, sections) {
  * `urls.base` is where the menu is saved (+ /read, /theme), `urls.back` the
  * optional "Back to shop" link.
  */
-export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sections: saved, menuUrl, urls, aiEnabled, imagesEnabled = false, photoCheck = "ai", menuOff = false, maxFiles, themes, currentTheme }) {
+export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sections: saved, menuUrl, urls, aiEnabled, imagesEnabled = false, photoCheck = "ai", menuOff = false, maxFiles, themes, currentTheme, showOnCard = true }) {
     const [draft] = useState(() => readDraft(shop.id));
     const [sections, setSections] = useState(() => withKeys(draft ?? saved));
     const [dirty, setDirty] = useState(draft !== null);
@@ -1340,6 +1434,23 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
         }
     }
 
+    // ---- "View menu" on the loyalty card: saved straight away ----
+    const [cardButtonBusy, setCardButtonBusy] = useState(false);
+
+    function setCardButton(enabled) {
+        router.put(
+            `${urls.base}/card-button`,
+            { enabled },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                only: ["showOnCard", "flash"],
+                onStart: () => setCardButtonBusy(true),
+                onFinish: () => setCardButtonBusy(false),
+            },
+        );
+    }
+
     // ---- Available / not available / hidden: saved straight away, like photos (not part of Save) ----
     function patchSaved(id, patch) {
         setSections((current) => current.map((s) => ({ ...s, items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) })));
@@ -1486,6 +1597,20 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                     </span>
                 </p>
             )}
+            {/* "View menu" on the customer's loyalty card - saved straight away, like the theme. */}
+            <div className="mb-4 rounded-xl border border-brand-border bg-brand-card px-4 py-3">
+                <Switch
+                    checked={showOnCard && !menuOff}
+                    disabled={menuOff || cardButtonBusy}
+                    onChange={setCardButton}
+                    label='Show "View menu" on the loyalty card'
+                    description={
+                        menuOff
+                            ? "Available once Menu is switched on for this shop."
+                            : "Customers see a View menu button on their stamp card. It only shows when the menu has items."
+                    }
+                />
+            </div>
             {confirmDialog}
             {review && <PhotoReview review={review} onAnswer={onAnswer} />}
             {uploading && <PhotoCropper file={uploading.file} itemName={uploading.item.name} onCancel={() => setUploading(null)} onDone={uploadPhoto} />}

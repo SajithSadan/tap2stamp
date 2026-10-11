@@ -71,6 +71,11 @@ class OwnerMenuController extends Controller
         return ShopMenuController::confirmPhoto($request, $request->user()->shop, $images);
     }
 
+    public function cardButton(Request $request): RedirectResponse
+    {
+        return ShopMenuController::saveCardButton($request, $request->user()->shop);
+    }
+
     public function availability(Request $request, ShopMenu $menu): JsonResponse
     {
         return ShopMenuController::saveAvailability($request, $request->user()->shop, $menu);

@@ -663,7 +663,8 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
   on the public menu; `ShopMenu::publicSections()` doesn't send it, and drops sections left
   empty). It's **saved straight away and isn't part of the menu's Save**, through
   `ShopMenu::setAvailability()`, which logs `menu.availability`:
-  - owner / admin: the editor's `AvailabilitySelect` on each saved item →
+  - owner / admin: in the editor, each saved item's `AvailabilitySwitch` (Available ⇄ Not
+    available) and Hide / Show (the ⋯ menu on phones, the eye icon on desktop) →
     `PUT {base}/availability {item, availability}`;
   - staff: the staff app's **Menu** tab → `GET /api/staff/menu` +
     `PUT /api/staff/menu/availability` (signed in, own shop only). The tab shows only when `/me`
@@ -672,7 +673,16 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
   `ShopMenu::replace()` **never takes availability from the editor**: staff may have changed it
   since the editor opened. Each item keeps its own (by the `id` the editor sends, else by
   name), and new items start available. `MenuView` greys out unavailable items and skips
-  hidden ones (so the editor's preview matches).
+  hidden ones (so the editor's preview matches). Editor row layout: the status switch, then one
+  **Photo ▾** menu (`ActionMenu`: find / change / upload / remove). On phones, name and price
+  sit on separate lines, and move / hide / remove are in a ⋯ menu.
+- **"View menu" on the card page**: a tile (first of the quick actions in `Card.jsx`) linking
+  to the public menu. It's sent as `shop.menu_url` = `Shop::cardMenuUrl()`, which is non-null
+  only with Menu on for the shop **and** `shops.show_menu_on_card` (default true) **and** at
+  least one item that isn't hidden. Owner and admin switch it at the top of the menu editor
+  (`PUT {base}/card-button {enabled}`, `ShopMenuController::saveCardButton`; editor prop
+  `showOnCard`). It's disabled in the admin's editor while Menu is off; the owner's route is
+  behind `feature:menu`.
 - **QR stickers**: `QrDestinationField` has a **Menu** tab (fills `/menu/{menu_slug}`);
   `QrCodeController::shopIdForDestination()` assigns those stickers (and old `/menu/{id}`
   ones) to the shop too.

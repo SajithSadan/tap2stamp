@@ -59,6 +59,8 @@ class ShopMenuController extends Controller
             'maxFiles' => MenuReader::MAX_FILES,
             'themes' => collect(MenuThemes::all())->map(fn ($theme, $key) => ['key' => $key, ...$theme])->values(),
             'currentTheme' => $shop->menuTheme()['key'],
+            // The "View menu" button on the customer card page (owner and admin can switch it).
+            'showOnCard' => (bool) $shop->show_menu_on_card,
         ];
     }
 
@@ -201,6 +203,20 @@ class ShopMenuController extends Controller
         abort_if($outcome === null, 422, "That photo couldn't be read - try another one.");
 
         return response()->json(['items' => [['id' => $item->id] + MenuItemImages::summary($item->fresh('section'), $outcome)]]);
+    }
+
+    public function cardButton(Request $request, Shop $shop): RedirectResponse
+    {
+        return self::saveCardButton($request, $shop);
+    }
+
+    /** {enabled}: the "View menu" button on the customer card page, saved straight away. */
+    public static function saveCardButton(Request $request, Shop $shop): RedirectResponse
+    {
+        $validated = $request->validate(['enabled' => ['required', 'boolean']]);
+        $shop->forceFill(['show_menu_on_card' => $validated['enabled']])->save();
+
+        return back()->with('status', $validated['enabled'] ? 'Customers now see "View menu" on their loyalty card.' : '"View menu" is off on the loyalty card.');
     }
 
     public function availability(Request $request, Shop $shop, ShopMenu $menu): JsonResponse

@@ -162,6 +162,7 @@ class Shop extends Model
             'show_card_link' => 'boolean',
             'features' => 'array',
             'blocked_at' => 'datetime',
+            'show_menu_on_card' => 'boolean',
         ];
     }
 
@@ -354,6 +355,19 @@ class Shop extends Model
     public function isBlocked(): bool
     {
         return $this->blocked_at !== null;
+    }
+
+    /**
+     * The "View menu" link for the customer card page, or null: needs Menu on
+     * for the shop, the owner / admin switch on, and an item customers can see.
+     */
+    public function cardMenuUrl(): ?string
+    {
+        $show = $this->show_menu_on_card
+            && $this->hasFeature(Features::MENU)
+            && $this->menuItems()->where('menu_items.availability', '!=', MenuItem::HIDDEN)->exists();
+
+        return $show ? $this->menuUrl() : null;
     }
 
     /** The contact number for a wa.me link ("447700900123"), or null. */

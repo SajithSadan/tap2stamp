@@ -49,6 +49,8 @@ class CardController extends Controller
                 'banner_url' => $shop->bannerUrl(),
                 'logo_url' => $shop->logoUrl(),
                 'header_style' => $shop->headerStyle(),
+                // "View menu" tile (Menu on, the shop's switch on, something to show).
+                'menu_url' => $shop->cardMenuUrl(),
                 // The sign-up's phone country picker starts on the shop's own country.
                 'country' => $shop->country,
             ],

@@ -12,7 +12,7 @@ import RegistrationModal from "@/Components/RegistrationModal";
 import RatingTile from "@/Components/RatingTile";
 import { HiSparkles } from "react-icons/hi2";
 import { FaInstagram } from "react-icons/fa6";
-import { LuChevronRight, LuScan, LuWifi } from "react-icons/lu";
+import { LuChevronRight, LuScan, LuUtensils, LuWifi } from "react-icons/lu";
 import { PiStorefrontFill } from "react-icons/pi";
 import { StampIcon } from "@/lib/stampIcons";
 import { headerTextStyle, headerTintStyle } from "@/lib/headerStyle";
@@ -868,8 +868,34 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                     )}
 
                     {/* Quick actions: only the ones the shop has set up. */}
-                    {(shop.instagram_url || card) && (
+                    {(shop.instagram_url || card || shop.menu_url) && (
                         <div className="space-y-2">
+                            {/* The shop's menu (Menu on + the owner's "View menu" switch, see Shop::cardMenuUrl). */}
+                            {shop.menu_url && (
+                                <a
+                                    href={shop.menu_url}
+                                    className={`flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition active:scale-[0.99] ${surface}`}
+                                >
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-accent/10">
+                                        <LuUtensils
+                                            className="h-6 w-6 text-brand-accent"
+                                            aria-hidden="true"
+                                        />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block font-semibold text-brand-text">
+                                            View menu
+                                        </span>
+                                        <span className="mt-0.5 block text-sm text-brand-muted">
+                                            See what's on today
+                                        </span>
+                                    </span>
+                                    <LuChevronRight
+                                        className="h-5 w-5 shrink-0 text-brand-muted"
+                                        aria-hidden="true"
+                                    />
+                                </a>
+                            )}
                             {card &&
                                 (shop.google_review_direct &&
                                 shop.google_review_url ? (

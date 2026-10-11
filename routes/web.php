@@ -182,6 +182,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     // The shop's own photo for an item (cropped + compressed in the editor).
     Route::post('/shops/{shop}/menu/images/upload', [ShopMenuController::class, 'uploadPhoto'])->middleware('throttle:30,1')->name('shops.menu.images.upload');
     Route::put('/shops/{shop}/menu/availability', [ShopMenuController::class, 'availability'])->middleware('throttle:120,1')->name('shops.menu.availability');
+    Route::put('/shops/{shop}/menu/card-button', [ShopMenuController::class, 'cardButton'])->name('shops.menu.card-button');
 
     // Product orders (to post out) and the products shops can order.
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
@@ -295,6 +296,7 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
         Route::post('/menu/images/confirm', [OwnerMenuController::class, 'reviewConfirm'])->middleware('throttle:60,1')->name('menu.images.confirm');
         Route::post('/menu/images/upload', [OwnerMenuController::class, 'uploadPhoto'])->middleware('throttle:30,1')->name('menu.images.upload');
         Route::put('/menu/availability', [OwnerMenuController::class, 'availability'])->middleware('throttle:120,1')->name('menu.availability');
+        Route::put('/menu/card-button', [OwnerMenuController::class, 'cardButton'])->name('menu.card-button');
     });
 
     // WhatsApp offers to this shop's opted-in customers, sent in batches by the open page.
