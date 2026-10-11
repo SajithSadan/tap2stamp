@@ -182,6 +182,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     // The shop's own photo for an item (cropped + compressed in the editor).
     Route::post('/shops/{shop}/menu/images/upload', [ShopMenuController::class, 'uploadPhoto'])->middleware('throttle:30,1')->name('shops.menu.images.upload');
     Route::put('/shops/{shop}/menu/availability', [ShopMenuController::class, 'availability'])->middleware('throttle:120,1')->name('shops.menu.availability');
+    Route::post('/shops/{shop}/menu/ai-toggle', [ShopMenuController::class, 'aiToggle'])->middleware('throttle:20,1')->name('shops.menu.ai-toggle');
     Route::put('/shops/{shop}/menu/card-button', [ShopMenuController::class, 'cardButton'])->name('shops.menu.card-button');
 
     // Product orders (to post out) and the products shops can order.
@@ -296,6 +297,7 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
         Route::post('/menu/images/confirm', [OwnerMenuController::class, 'reviewConfirm'])->middleware('throttle:60,1')->name('menu.images.confirm');
         Route::post('/menu/images/upload', [OwnerMenuController::class, 'uploadPhoto'])->middleware('throttle:30,1')->name('menu.images.upload');
         Route::put('/menu/availability', [OwnerMenuController::class, 'availability'])->middleware('throttle:120,1')->name('menu.availability');
+        Route::post('/menu/ai-toggle', [OwnerMenuController::class, 'aiToggle'])->middleware('throttle:20,1')->name('menu.ai-toggle');
         Route::put('/menu/card-button', [OwnerMenuController::class, 'cardButton'])->name('menu.card-button');
     });
 
@@ -350,6 +352,7 @@ Route::middleware('staff.auth')->prefix('api/staff')->name('staff.')->group(func
         Route::get('/customers', [StaffController::class, 'customers'])->name('customers');
         // Mark menu items available / not available / hidden (only while the shop has Menu on).
         Route::get('/menu', [StaffController::class, 'menu'])->name('menu');
+        Route::post('/menu/ai-toggle', [StaffController::class, 'menuCommand'])->middleware('throttle:20,1')->name('menu.ai-toggle');
         Route::put('/menu/availability', [StaffController::class, 'menuAvailability'])->middleware('throttle:120,1')->name('menu.availability');
     });
 });

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Requests\Admin\ReadMenuRequest;
 use App\Http\Requests\Admin\SaveShopMenuRequest;
+use App\Services\MenuCommandParser;
 use App\Services\MenuItemImages;
 use App\Services\MenuReader;
 use App\Services\ShopMenu;
@@ -74,6 +75,11 @@ class OwnerMenuController extends Controller
     public function cardButton(Request $request): RedirectResponse
     {
         return ShopMenuController::saveCardButton($request, $request->user()->shop);
+    }
+
+    public function aiToggle(Request $request, MenuCommandParser $parser): JsonResponse
+    {
+        return ShopMenuController::parseCommand($request, $request->user()->shop, $parser);
     }
 
     public function availability(Request $request, ShopMenu $menu): JsonResponse

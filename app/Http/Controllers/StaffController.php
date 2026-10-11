@@ -9,6 +9,7 @@ use App\Models\CustomerShopCard;
 use App\Models\StaffMember;
 use App\Models\StampLog;
 use App\Services\ActivityLogger;
+use App\Services\MenuCommandParser;
 use App\Services\ShopMenu;
 use App\Services\StampService;
 use App\Support\Features;
@@ -37,6 +38,8 @@ class StaffController extends Controller
             'staff_members' => $device->shop->staffMembers()->active()->orderBy('name')->get(['id', 'name']),
             // The Menu tab (mark items not available / hidden) - only with Menu on and a menu to show.
             'menu_enabled' => $device->shop->hasFeature(Features::MENU) && $device->shop->menuItems()->exists(),
+            // The Menu tab's "tell the AI" bar (needs a Gemini key).
+            'menu_ai' => app(MenuCommandParser::class)->configured(),
         ]);
     }
 
@@ -54,7 +57,16 @@ class StaffController extends Controller
         ]);
     }
 
-    /** {item, availability} for one item of this device's shop, saved straight away. */
+    /** {command} → matched items to confirm (MenuCommandParser); changes nothing. */
+    public function menuCommand(Request $request, MenuCommandParser $parser): JsonResponse
+    {
+        $shop = $request->attributes->get('staffDevice')->shop;
+        abort_unless($shop->hasFeature(Features::MENU), 404);
+
+        return ShopMenuController::parseCommand($request, $shop, $parser);
+    }
+
+    /** {item | items, availability} for this device's shop, saved straight away. */
     public function menuAvailability(Request $request, ShopMenu $menu): JsonResponse
     {
         $shop = $request->attributes->get('staffDevice')->shop;

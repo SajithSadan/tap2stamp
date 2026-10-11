@@ -295,6 +295,15 @@ creates shops and an artisan command can't run without SSH.
   `loyalty_uuid` on a 404, and `Staff/Dashboard.jsx` only clears `staff_token` on a 401. Anything else
   shows a retry state.
 - The dashboard's activity feed shows name, action and staff name only, never a phone number.
+- **Tenant isolation** (`tests/Feature/TenantIsolationTest.php`): a second owner and a second
+  shop's staff device attack a victim shop with every id they could guess, and the victim's
+  data must be unchanged afterwards. The last test **fails when a new `dashboard/...{id}`
+  route is added** until its ownership check is tested and the route is listed there. It
+  also enforces `role:admin` on every `admin/*` route, `staff.auth` on every `api/staff/*`
+  route and `role:owner` on every `dashboard/*` route. Rules: look records up through the
+  signed-in shop (`$request->user()->shop->…()`, `$shop->menuItems()…`, the device's
+  `shop_id`), never by a bare id; check every id in a batch **before** changing anything; save
+  only `validated()` input.
 - **Card page preview**: `/s/{slug}?preview=1` (every admin / owner "open customer page"
   link) renders the real look with a sample card from `CardController::previewCard()`. It
   never reads or writes `loyalty_uuid` / `loyalty_last_shop_slug`, never shows sign-up or
@@ -676,6 +685,21 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
   hidden ones (so the editor's preview matches). Editor row layout: the status switch, then one
   **Photo ▾** menu (`ActionMenu`: find / change / upload / remove). On phones, name and price
   sit on separate lines, and move / hide / remove are in a ⋯ menu.
+- **AI stock-out command** ("Chicken theernnu", "Disable fish items", "Meals available now"):
+  `Components/Menu/AiStockCommand.jsx` (text box + mic via the browser's Web Speech API, with a
+  voice language picker: English / English (India) / Malayalam; remembered) sits in the menu
+  editor and the staff app's Menu tab. `POST {base}/ai-toggle {command}` (owner
+  `/dashboard/menu`, admin `/admin/shops/{shop}/menu`, staff `/api/staff/menu`; never a
+  client-sent shop id; throttled 20/min) → `App\Services\MenuCommandParser`. Gemini gets
+  **only id + name** per item, plus the command, with a system instruction (English /
+  Malayalam / Manglish) and a JSON schema `{action: disable|enable, matched_item_ids,
+  explanation}`. It uses the same key / models / busy fallback as `MenuReader` (not
+  `gemini-1.5-flash`, which is retired). Ids not in this shop are dropped. **It changes
+  nothing**: the dialog lists the matches (each can be unticked) and "Confirm update" sends
+  them to the same `{base}/availability` as the switches, which takes `items: [...]` for a
+  batch. Every id must belong to the shop **before** anything is saved (otherwise a 404, and
+  nothing changes); the batch is logged as one entry. The bar shows only with a Gemini key
+  (editor `aiEnabled`, staff `/me` `menu_ai`).
 - **"View menu" on the card page**: a tile (first of the quick actions in `Card.jsx`) linking
   to the public menu. It's sent as `shop.menu_url` = `Shop::cardMenuUrl()`, which is non-null
   only with Menu on for the shop **and** `shops.show_menu_on_card` (default true) **and** at

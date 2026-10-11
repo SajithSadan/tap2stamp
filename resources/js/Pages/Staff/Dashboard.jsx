@@ -16,6 +16,7 @@ import {
     LuUtensils,
 } from "react-icons/lu";
 import CardScanner from "@/Components/CardScanner";
+import AiStockCommand from "@/Components/Menu/AiStockCommand";
 import OfflineBanner from "@/Components/OfflineBanner";
 import TechsaFooter from "@/Components/TechsaFooter";
 import { STAFF_TOKEN_KEY } from "@/lib/storage";
@@ -445,7 +446,7 @@ const AVAILABILITY = [
  * Mark menu items not available today (still listed on the menu, greyed out)
  * or hidden (off the menu), saved straight away. Shows only with Menu on.
  */
-function MenuTab({ api, onApiError }) {
+function MenuTab({ api, onApiError, ai = false }) {
     const [sections, setSections] = useState(null);
     const [failed, setFailed] = useState(false);
     const [query, setQuery] = useState("");
@@ -482,6 +483,32 @@ function MenuTab({ api, onApiError }) {
         });
     }
 
+    // "Chicken theernnu" → confirm → the same save as the buttons.
+    async function parseCommand(command) {
+        try {
+            const { data } = await api.post("/api/staff/menu/ai-toggle", { command });
+            return data;
+        } catch (err) {
+            if (onApiError(err)) return { items: [] };
+            throw new Error(err.response?.data?.message ?? "Couldn't reach the AI - use the buttons below.");
+        }
+    }
+
+    async function applyCommand(ids, availability) {
+        try {
+            await api.put("/api/staff/menu/availability", { items: ids, availability });
+        } catch (err) {
+            if (!onApiError(err)) throw new Error("Couldn't update - check the connection and try again.");
+            return;
+        }
+        setSections((current) =>
+            current.map((s) => ({
+                ...s,
+                items: s.items.map((i) => (ids.includes(i.id) ? { ...i, availability } : i)),
+            })),
+        );
+    }
+
     const q = query.trim().toLowerCase();
     const shown = (sections ?? [])
         .map((s) => ({ ...s, items: s.items.filter((i) => !q || i.name.toLowerCase().includes(q)) }))
@@ -490,6 +517,9 @@ function MenuTab({ api, onApiError }) {
 
     return (
         <div className="flex-1 overflow-y-auto px-4 py-5">
+            {ai && sections?.length > 0 && (
+                <AiStockCommand parse={parseCommand} apply={applyCommand} className="mb-4" />
+            )}
             <div className="relative">
                 <LuSearch className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-brand-muted" />
                 <input
@@ -844,7 +874,7 @@ export default function Dashboard() {
                         <LookupTab api={api} onApiError={handleApiError} />
                     )}
                     {tab === "menu" && me.menu_enabled && (
-                        <MenuTab api={api} onApiError={handleApiError} />
+                        <MenuTab api={api} onApiError={handleApiError} ai={me.menu_ai} />
                     )}
                     {tab === "today" && (
                         <TodayTab

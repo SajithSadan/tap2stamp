@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\ReadMenuRequest;
 use App\Http\Requests\Admin\SaveShopMenuRequest;
 use App\Models\MenuItem;
 use App\Models\Shop;
+use App\Services\MenuCommandParser;
 use App\Services\MenuItemImages;
 use App\Services\MenuReader;
 use App\Services\ShopMenu;
@@ -224,16 +225,52 @@ class ShopMenuController extends Controller
         return self::saveAvailability($request, $shop, $menu);
     }
 
-    /** {item, availability}: saved straight away, not part of the menu's Save. */
+    /**
+     * {item, availability} for one item, or {items: [...], availability} for
+     * several (a confirmed AI command). Saved straight away, not part of the
+     * menu's Save; an id that isn't this shop's is a 404.
+     */
     public static function saveAvailability(Request $request, Shop $shop, ShopMenu $menu): JsonResponse
     {
         $validated = $request->validate([
-            'item' => ['required', 'integer'],
+            'item' => ['required_without:items', 'integer'],
+            'items' => ['required_without:item', 'array', 'min:1', 'max:500'],
+            'items.*' => ['integer'],
             'availability' => ['required', Rule::in(MenuItem::AVAILABILITY)],
         ]);
-        $item = $menu->setAvailability($shop, $validated['item'], $validated['availability']);
+        $ids = array_values(array_unique(isset($validated['items']) ? $validated['items'] : [$validated['item']]));
+        // Every id must be this shop's before anything changes.
+        abort_if($shop->menuItems()->whereIn('menu_items.id', $ids)->count() !== count($ids), 404);
+        $items = $menu->setAvailability($shop, $ids, $validated['availability']);
 
-        return response()->json(['id' => $item->id, 'availability' => $item->availability]);
+        $saved = $items->map(fn (MenuItem $item) => ['id' => $item->id, 'availability' => $item->availability])->values();
+
+        return response()->json(isset($validated['items']) ? ['items' => $saved] : $saved->first());
+    }
+
+    public function aiToggle(Request $request, Shop $shop, MenuCommandParser $parser): JsonResponse
+    {
+        return self::parseCommand($request, $shop, $parser);
+    }
+
+    /**
+     * {command} → the items Gemini matched and the status it means. Changes
+     * nothing: the editor / staff app asks to confirm, then calls
+     * saveAvailability() with the ids.
+     */
+    public static function parseCommand(Request $request, Shop $shop, MenuCommandParser $parser): JsonResponse
+    {
+        abort_unless($parser->configured(), 404);
+        $validated = $request->validate(['command' => ['required', 'string', 'max:'.MenuCommandParser::MAX_LENGTH]]);
+
+        $result = $parser->parse($shop, $validated['command']);
+
+        return match ($result['status']) {
+            'ok' => response()->json($result),
+            'empty' => response()->json(['message' => 'The menu has no items yet.'], 422),
+            'busy' => response()->json(['message' => 'The AI is busy right now - try again in a minute, or switch items by hand.'], 503),
+            default => response()->json(['message' => "The AI isn't available right now - switch items by hand."], 503),
+        };
     }
 
     /** One item of this shop's menu (404 for anyone else's). */

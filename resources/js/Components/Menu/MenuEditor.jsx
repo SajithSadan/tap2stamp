@@ -28,6 +28,7 @@ import {
 } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
 import { FieldError, primaryButton, secondaryButton, Switch } from "@/Components/Dashboard/Ui";
+import AiStockCommand from "@/Components/Menu/AiStockCommand";
 import PhotoCropper from "@/Components/Menu/PhotoCropper";
 import PhotoFinder from "@/Components/Menu/PhotoFinder";
 import MenuView, { LAYOUT_LABELS } from "@/Components/MenuView";
@@ -1467,6 +1468,25 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
         }
     }
 
+    // ---- "Chicken theernnu": Gemini picks the items, the person confirms, then the same save as the switches ----
+    async function parseCommand(command) {
+        try {
+            const { data } = await axios.post(`${urls.base}/ai-toggle`, { command });
+            return data;
+        } catch (e) {
+            throw new Error(e.response?.data?.message ?? "Couldn't reach the AI - switch items by hand.");
+        }
+    }
+
+    async function applyCommand(ids, availability) {
+        try {
+            await axios.put(`${urls.base}/availability`, { items: ids, availability });
+        } catch (e) {
+            throw new Error(e.response?.data?.message ?? "Couldn't update - check the connection and try again.");
+        }
+        setSections((current) => current.map((s) => ({ ...s, items: s.items.map((i) => (ids.includes(i.id) ? { ...i, availability } : i)) })));
+    }
+
     const photos = {
         enabled: imagesEnabled,
         setAvailability,
@@ -1611,6 +1631,8 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                     }
                 />
             </div>
+            {/* Quick "what's sold out" by text or voice (needs Gemini and a saved menu). */}
+            {aiEnabled && savedItems.length > 0 && <AiStockCommand parse={parseCommand} apply={applyCommand} className="mb-4" />}
             {confirmDialog}
             {review && <PhotoReview review={review} onAnswer={onAnswer} />}
             {uploading && <PhotoCropper file={uploading.file} itemName={uploading.item.name} onCancel={() => setUploading(null)} onDone={uploadPhoto} />}

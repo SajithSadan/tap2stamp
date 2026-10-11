@@ -61,30 +61,38 @@ class ShopMenu
     }
 
     /**
-     * Available / unavailable / hidden for one item, saved straight away (the
-     * owner's or admin's editor, or the staff app's Menu tab) and logged.
+     * Available / not available / hidden for one or more of this shop's items
+     * (the owner's or admin's editor, the staff app's Menu tab, or a confirmed
+     * AI command), saved straight away and logged as one entry. Ids that
+     * aren't this shop's are ignored.
+     *
+     * @param  int|list<int>  $itemIds
+     * @return Collection<int, MenuItem> the shop's items asked for, as saved
      */
-    public function setAvailability(Shop $shop, int $itemId, string $availability): MenuItem
+    public function setAvailability(Shop $shop, int|array $itemIds, string $availability): Collection
     {
-        $item = $shop->menuItems()->where('menu_items.id', $itemId)->select('menu_items.*')->firstOrFail();
-        $before = $item->availability;
+        $items = $shop->menuItems()->whereIn('menu_items.id', (array) $itemIds)->select('menu_items.*')->get();
+        $changing = $items->where('availability', '!=', $availability)->values();
 
-        if ($before !== $availability) {
-            $item->update(['availability' => $availability]);
+        if ($changing->isNotEmpty()) {
+            MenuItem::whereIn('id', $changing->pluck('id'))->update(['availability' => $availability]);
+
+            $names = $changing->pluck('name');
+            $what = $names->count() === 1 ? $names->first() : $names->count().' items ('.$names->implode(', ').')';
             ActivityLogger::record(
                 'menu.availability',
                 match ($availability) {
-                    MenuItem::UNAVAILABLE => "Marked {$item->name} as not available",
-                    MenuItem::HIDDEN => "Hid {$item->name} from the menu",
-                    default => "Marked {$item->name} as available",
+                    MenuItem::UNAVAILABLE => "Marked {$what} as not available",
+                    MenuItem::HIDDEN => "Hid {$what} from the menu",
+                    default => "Marked {$what} as available",
                 },
                 $shop->id,
                 $shop,
-                ["{$item->name} · availability" => [$before, $availability]],
+                $changing->mapWithKeys(fn (MenuItem $item) => ["{$item->name} · availability" => [$item->availability, $availability]])->all(),
             );
         }
 
-        return $item;
+        return $items->each(fn (MenuItem $item) => $item->availability = $availability);
     }
 
     /**
