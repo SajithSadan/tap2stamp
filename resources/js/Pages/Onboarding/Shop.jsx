@@ -11,6 +11,7 @@ import AddressLookup from "@/Components/AddressLookup";
 import CountrySelect from "@/Components/CountrySelect";
 import PhoneField from "@/Components/PhoneField";
 import StateSelect from "@/Components/StateSelect";
+import IndustryPicker from "@/Components/IndustryPicker";
 import PhotoCropper, { croppedFile } from "@/Components/Menu/PhotoCropper";
 import {
     CardPreview,
@@ -45,7 +46,7 @@ const STEPS = [
     {
         key: "card",
         label: "Loyalty card",
-        text: "Stamps, reward and your card link.",
+        text: "Your type of business, reward and stamps.",
     },
 ];
 
@@ -86,11 +87,15 @@ const rulesFor = (countries) => ({
             'Enter the delivery address, or tick "Same as the shop address".',
         ),
     ],
+    industry: [required("Choose what kind of business it is.")],
+    industry_other: [
+        requiredIf((data) => data.industry === "other", "Say what kind of business it is."),
+    ],
     reward_title: [required("Say what the reward is.")],
 });
 
 // Fields on the loyalty card step; any other error belongs to "Your business".
-const CARD_FIELDS = ["max_stamps", "reward_title", "logo"];
+const CARD_FIELDS = ["industry", "industry_other", "max_stamps", "reward_title", "logo"];
 const BUSINESS_FIELDS = Object.keys(rulesFor([])).filter(
     (key) => !CARD_FIELDS.includes(key),
 );
@@ -218,7 +223,7 @@ function LogoQuestion({ logoUrl, error, onCropped, onRemove }) {
     const [cropping, setCropping] = useState(null);
 
     return (
-        <Question number={3} title="Add your logo (optional)" description="Shown on your customers' card. You can add or change it later under Theme.">
+        <Question number={4} title="Add your logo (optional)" description="Shown on your customers' card. You can add or change it later under Theme.">
             <div className="flex items-center gap-4">
                 <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white ring-1 ring-brand-border">
                     {logoUrl ? <img src={logoUrl} alt="Your logo" className="h-full w-full object-cover" /> : <LuStore className="h-7 w-7 text-brand-muted" />}
@@ -377,7 +382,7 @@ function fromDraft(draft) {
     };
 }
 
-export default function Shop({ ownerName, ownerEmail, draft, countries }) {
+export default function Shop({ ownerName, ownerEmail, draft, countries, industries = [] }) {
     // Step 1 already passed (draft kept by the server): a reload or a failed
     // final submit picks up on the loyalty card step, nothing to re-type.
     const [step, setStep] = useState(draft ? "card" : "business");
@@ -394,6 +399,8 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
     const { data, setData, post, processing, errors, transform } = useValidatedForm(
         {
             name: "",
+            industry: "",
+            industry_other: "",
             max_stamps: 8,
             reward_title: "",
             // Contact person + email start as the account's own.
@@ -498,6 +505,9 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
         });
     }
 
+    // Reward ideas follow the type of business (the general ones until it's picked).
+    const rewardIdeas = industries.find((i) => i.key === data.industry)?.rewards ?? REWARD_IDEAS;
+
     const firstName = ownerName?.split(" ")[0];
     const onCardStep = step === "card";
     const currentIndex = STEPS.findIndex((s) => s.key === step);
@@ -562,7 +572,7 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
                                         Now, your loyalty card
                                     </h1>
                                     <p className="mt-3 text-base text-brand-muted">
-                                        Three quick choices. The preview updates
+                                        A few quick choices. The preview updates
                                         as you go.
                                     </p>
                                 </>
@@ -821,6 +831,27 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
                                     <div>
                                         <Question
                                             number={1}
+                                            title="What kind of business is it?"
+                                            description="So we can suggest rewards that suit you."
+                                        >
+                                            <IndustryPicker
+                                                industries={industries}
+                                                value={data.industry}
+                                                other={data.industry_other}
+                                                onChange={(key) => setData("industry", key)}
+                                                onOtherChange={(v) => setData("industry_other", v)}
+                                                inputClassName={authInputClass}
+                                                otherError={errors.industry_other}
+                                            />
+                                            {errors.industry && (
+                                                <p role="alert" className="mt-2 text-sm text-red-600">
+                                                    {errors.industry}
+                                                </p>
+                                            )}
+                                        </Question>
+
+                                        <Question
+                                            number={2}
                                             title="What's the reward?"
                                             description="What customers get once their card is full."
                                         >
@@ -842,13 +873,12 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
                                                             e.target.value,
                                                         )
                                                     }
-                                                    placeholder="e.g. Free coffee"
-                                                    autoFocus
+                                                    placeholder={`e.g. ${rewardIdeas[0]}`}
                                                     className={authInputClass}
                                                 />
                                             </AuthField>
                                             <div className="mt-3 flex flex-wrap gap-2">
-                                                {REWARD_IDEAS.map((idea) => (
+                                                {rewardIdeas.map((idea) => (
                                                     <button
                                                         key={idea}
                                                         type="button"
@@ -872,7 +902,7 @@ export default function Shop({ ownerName, ownerEmail, draft, countries }) {
                                         </Question>
 
                                         <Question
-                                            number={2}
+                                            number={3}
                                             title="How many stamps to earn it?"
                                             description="One stamp per visit. Fewer stamps means the reward comes round sooner."
                                         >

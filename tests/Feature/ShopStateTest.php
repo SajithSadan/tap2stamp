@@ -9,7 +9,7 @@ use App\Support\Countries;
 function indiaSetup(array $overrides = []): array
 {
     return [
-        'name' => 'Kochi Cafe', 'max_stamps' => 8, 'reward_title' => 'Free chai',
+        'name' => 'Kochi Cafe', 'max_stamps' => 8, 'reward_title' => 'Free chai', 'industry' => 'cafe',
         'country' => 'IN', 'contact_name' => 'Anu', 'contact_email' => 'anu@kochi.cafe',
         'contact_phone' => '98765 43210', 'address_line1' => '12 MG Road', 'town' => 'Kochi',
         'state' => 'Kerala', 'postcode' => '682016', 'delivery_same' => true,

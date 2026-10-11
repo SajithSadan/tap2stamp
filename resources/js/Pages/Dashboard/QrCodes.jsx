@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { LuDownload, LuFileText, LuLoaderCircle, LuPrinter, LuQrCode } from "react-icons/lu";
 import OwnerLayout from "@/Components/Dashboard/OwnerLayout";
 import { EmptyState, Panel, primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
+import { trackedQrDownload } from "@/lib/qrDownloads";
 import { downloadQrPng, printQrPdf, qrPngDataUrl, stickerSize } from "@/lib/qrPrint";
+
+const DOWNLOAD_FAILED = "Couldn't download it. Please try again, or try another browser.";
 
 /**
  * Overseas shops (no counter display outside the UK): the QR codes the admin
@@ -15,6 +18,7 @@ function QrCard({ qr, design, shopName }) {
     const [preview, setPreview] = useState(null);
     const [failed, setFailed] = useState(false);
     const [busy, setBusy] = useState(null); // "png" | "pdf"
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         let live = true;
@@ -28,8 +32,11 @@ function QrCard({ qr, design, shopName }) {
 
     async function run(kind, task) {
         setBusy(kind);
+        setError(null);
         try {
-            await task();
+            await trackedQrDownload({ source: "qr_codes", format: kind, codes: [qr] }, task);
+        } catch {
+            setError(DOWNLOAD_FAILED);
         } finally {
             setBusy(null);
         }
@@ -53,6 +60,11 @@ function QrCard({ qr, design, shopName }) {
                 <p className="text-sm text-brand-muted">
                     Opens: <span className="font-medium text-brand-text">{qr.opens ?? "Not set up yet"}</span>
                 </p>
+                {error && (
+                    <p role="alert" className="text-sm text-red-700">
+                        {error}
+                    </p>
+                )}
                 <div className="mt-auto grid grid-cols-2 gap-2">
                     <button type="button" disabled={busy !== null} onClick={() => run("png", () => downloadQrPng(qr, design))} className={secondaryButton}>
                         {busy === "png" ? <LuLoaderCircle className="h-4 w-4 animate-spin" /> : <LuDownload className="h-4 w-4" />} PNG
@@ -68,12 +80,18 @@ function QrCard({ qr, design, shopName }) {
 
 export default function QrCodes({ shop, codes, design }) {
     const [allBusy, setAllBusy] = useState(false);
+    const [allError, setAllError] = useState(null);
     const size = design ? stickerSize(design) : null;
 
     async function downloadAll() {
         setAllBusy(true);
+        setAllError(null);
         try {
-            await printQrPdf({ title: `${shop.name} QR codes`, codes, design, onePerPage: true }, null);
+            await trackedQrDownload({ source: "qr_codes", format: "pdf", codes }, () =>
+                printQrPdf({ title: `${shop.name} QR codes`, codes, design, onePerPage: true }, null),
+            );
+        } catch {
+            setAllError(DOWNLOAD_FAILED);
         } finally {
             setAllBusy(false);
         }
@@ -100,6 +118,11 @@ export default function QrCodes({ shop, codes, design }) {
                 </Panel>
             ) : (
                 <>
+                    {allError && (
+                        <p role="alert" className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-700">
+                            {allError}
+                        </p>
+                    )}
                     <p className="mb-4 flex items-start gap-2 text-sm text-brand-muted">
                         <LuPrinter className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>

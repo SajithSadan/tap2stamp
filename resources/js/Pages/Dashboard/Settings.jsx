@@ -2,6 +2,8 @@ import { Link, router, useForm, usePage } from "@inertiajs/react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { LuDownload, LuExternalLink, LuNfc, LuQrCode } from "react-icons/lu";
+import { reportQrDownload } from "@/lib/qrDownloads";
+import IndustryPicker from "@/Components/IndustryPicker";
 import AddressLookup from "@/Components/AddressLookup";
 import CountrySelect from "@/Components/CountrySelect";
 import PhoneField from "@/Components/PhoneField";
@@ -322,7 +324,7 @@ function MenuOnCardPanel({ enabled }) {
     );
 }
 
-export default function Settings({ shop, contact, countries, menuOnCard = null }) {
+export default function Settings({ shop, contact, countries, industries = [], menuOnCard = null }) {
     const [posterQr, setPosterQr] = useState(null);
     // Only sent when the admin lets this shop see its card link (show_card_link).
     const cardUrl = shop.slug ? `${window.location.origin}/s/${shop.slug}` : null;
@@ -336,7 +338,11 @@ export default function Settings({ shop, contact, countries, menuOnCard = null }
         instagram_url: shop.instagram_url ?? "",
         wifi_ssid: shop.wifi_ssid ?? "",
         wifi_password: shop.wifi_password ?? "",
+        industry: shop.industry ?? "",
+        industry_other: shop.industry_other ?? "",
     });
+    // Not answered yet (the popup asks): leave it out rather than send it empty.
+    form.transform((data) => (data.industry ? data : { ...data, industry: undefined, industry_other: undefined }));
 
     useEffect(() => {
         if (!cardUrl) return;
@@ -388,6 +394,24 @@ export default function Settings({ shop, contact, countries, menuOnCard = null }
                                     className={inputClass}
                                 />
                             </Field>
+                            <div className="sm:col-span-2">
+                                <Field
+                                    label="Type of business"
+                                    error={form.errors.industry}
+                                >
+                                    <IndustryPicker
+                                        id="settings_industry"
+                                        variant="select"
+                                        industries={industries}
+                                        value={form.data.industry}
+                                        other={form.data.industry_other}
+                                        onChange={(key) => form.setData("industry", key ?? "")}
+                                        onOtherChange={(v) => form.setData("industry_other", v)}
+                                        inputClassName={inputClass}
+                                        otherError={form.errors.industry_other}
+                                    />
+                                </Field>
+                            </div>
                             <div className="sm:col-span-2">
                                 <Field
                                     label="Reward"
@@ -566,6 +590,7 @@ export default function Settings({ shop, contact, countries, menuOnCard = null }
                                 <a
                                     href={posterQr}
                                     download={`${shop.slug}-qr.png`}
+                                    onClick={() => reportQrDownload({ source: "settings", format: "png" })}
                                     className={primaryButton}
                                 >
                                     <LuDownload className="h-4 w-4" /> Download

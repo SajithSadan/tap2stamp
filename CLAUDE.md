@@ -364,6 +364,39 @@ download (PNG / sticker-size PDF, drawn by the same renderer as admin prints).
 - **Design**: `Shop::downloadDesign()` = the shop's own `qr_design_id`, else the **default
   design** (`qr_designs.is_default`, at most one; ★ on Admin → QR codes → Designs,
   `PUT /admin/qr-codes/designs/{qrDesign}/default`), else a plain QR.
+- **Download tracking** (does the owner find the QR and manage to download it?):
+  `App\Services\QrDownloads`. The first visit to the QR codes page sets
+  `shops.qr_page_viewed_at`. The file is made in the browser, so every download, whether
+  owner QR codes page PNG / PDF / "Download all" or the Settings counter QR (shops with
+  `show_card_link`), is reported by `lib/qrDownloads.js` to
+  `POST /dashboard/qr-codes/downloaded` {source, format, qr_code_ids, ok, error}. Codes are
+  checked against the shop, and the report is fire and forget. A success sets
+  `qr_downloaded_at` (first) and `qr_downloads++`; a failure sets `qr_download_failures++`
+  (the page shows a "try again" error). Each is also in the activity log: `qr.page_opened`,
+  `qr.downloaded`, `qr.download_failed` with the reason. An admin viewing as owner is never
+  counted. `Shop::downloadsOwnQr()` (overseas, or shown the card link) decides who it applies
+  to. The admin Shops grid has a **QR** column (failed / not opened / opened, not downloaded /
+  date · count) and a **QR not downloaded** chip.
+
+## Shop industry (additive - for follow-up and selling by type of business)
+
+`shops.industry` (key, null = not asked yet) + `industry_other` (the owner's own words, only
+with `other`). The list is `App\Support\Industries::ALL` (key → label, group, reward ideas),
+sent to forms as `industries` (`Industries::options()`); icons in
+`resources/js/lib/industryIcons.js` - **keep the keys in sync** (a test checks). Read the label
+via `Shop::industryLabel()`. One picker, `Components/IndustryPicker.jsx`: `tiles` (sign-up,
+popup) or `select` (Settings, admin).
+
+- **Sign-up**: question 1 of the loyalty card step (required); the reward ideas follow the
+  picked industry.
+- **Older shops**: the shared `industryPrompt` prop (owner, `dashboard.*`, industry null, never
+  an admin viewing as owner) opens `Dashboard/IndustryPrompt.jsx` on any dashboard page -
+  no skip, one tap + Save → `PUT /dashboard/industry`.
+- **Editing**: owner Settings ("Type of business"; not sent = unchanged), admin shop settings →
+  Business tab (may clear it: "Not set" = the owner is asked again), admin "Add shop"
+  (optional `shop_industry`).
+- **Admin Shops grid**: Business column + an "All businesses" dropdown beside the country one
+  (`SelectFilter`; each dropdown's counts follow the other's choice).
 
 ## Feature switches (additive - Menu, WhatsApp, Multiple stamps a day)
 
@@ -799,6 +832,10 @@ Enquiries come from all over the world, but we only ship hardware in the UK.
   redirects to `/dashboard/qr-codes`, checkout and coupon 404, the menu shows **QR codes**
   instead of **Orders** (both entries have `href` closures in `Navigation`), Settings shows
   "Your QR code" instead of "Counter display". `shopSummary()` sends `can_order`.
+- **Admin Shops grid country filter**: a country dropdown beside the status chips (each row
+  carries `country_code`; UK and India listed first, then A-Z, with counts). The chips count
+  and filter **within** the chosen country, so "United Kingdom" + "Display not ordered" (+ CSV)
+  is the list to market the counter display to.
 - **Owner QR codes** (`/dashboard/qr-codes`, `DashboardController::qrCodes`, `Dashboard/QrCodes.jsx`):
   the codes mapped to the shop (`qr_codes.shop_id`), in the design the **admin** picked for the
   shop (`shops.qr_design_id`, Admin → shop settings → Loyalty card → "Owner's QR download";
@@ -1116,6 +1153,8 @@ Plus `shops.country` (char 2, default GB), `shops.qr_design_id` (nullable FK) an
 Plus `products`, `orders`, `shops.product_ordered_at`, `coupons` and `orders.coupon_id/coupon_code` (see "Products & orders").
 Plus `menu_sections` / `menu_items`, `shops.menu_theme` and `shops.menu_slug` (see "Shop menus").
 Plus `activity_logs` (see "Admin activity & logs").
+Plus `shops.industry` / `industry_other` (see "Shop industry").
+Plus `shops.qr_page_viewed_at` / `qr_downloaded_at` / `qr_downloads` / `qr_download_failures` (see "Overseas shops").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to **WhatsApp** offers from **that one shop**, unticked by
 default, and customers can register without it. `CustomerRegistrar` only ever turns it on: an

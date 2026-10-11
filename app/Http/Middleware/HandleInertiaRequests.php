@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\UserRole;
 use App\Models\Setting;
+use App\Support\Industries;
 use App\Support\Navigation;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -59,6 +61,15 @@ class HandleInertiaRequests extends Middleware
             'navigation' => fn () => $request->user() ? Navigation::for($request->user(), $request) : null,
             // Whether "Find address" can be offered (FINDADDRESS_API_KEY set).
             'addressLookup' => fn () => $request->user() !== null && filled(config('services.findaddress.key')),
+            // Owners of shops set up before sign-up asked: the one-time "What kind
+            // of business?" popup (OwnerLayout). Never for an admin viewing as owner.
+            'industryPrompt' => fn () => $request->routeIs('dashboard.*')
+                && $request->user()?->role === UserRole::Owner
+                && ! $request->attributes->get('viewAsAdmin')
+                && ($shop = $request->user()->shop) !== null
+                && $shop->industry === null
+                    ? ['industries' => Industries::options()]
+                    : null,
             // Admin → Settings sidebar colours ({bg, text}, null = default look).
             'sidebarColors' => fn () => $request->user() ? Setting::get(Setting::SIDEBAR_COLORS) : null,
             // One-time reveal values (generated owner password, staff device

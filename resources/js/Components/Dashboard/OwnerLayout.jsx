@@ -21,6 +21,7 @@ import {
 } from "@/Components/Dashboard/Ui";
 import TechsaFooter from "@/Components/TechsaFooter";
 import OwnerScanner from "@/Components/Dashboard/OwnerScanner";
+import IndustryPrompt from "@/Components/Dashboard/IndustryPrompt";
 import { navIcon } from "@/lib/navIcons";
 import { useDocumentTheme } from "@/lib/theme";
 
@@ -380,6 +381,10 @@ export default function OwnerLayout({
 
             {scannerOpen && (
                 <OwnerScanner onClose={() => setScannerOpen(false)} />
+            )}
+
+            {props.industryPrompt && (
+                <IndustryPrompt industries={props.industryPrompt.industries} />
             )}
         </>
     );

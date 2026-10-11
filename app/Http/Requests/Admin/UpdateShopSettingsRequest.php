@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\Shop;
+use App\Support\Industries;
 use App\Support\ShopContact;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -32,6 +33,8 @@ class UpdateShopSettingsRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:150'],
+            // Optional for the admin; not sent = unchanged.
+            ...collect(Industries::rules(required: false))->map(fn (array $rules) => ['sometimes', ...$rules])->all(),
             'max_stamps' => Shop::maxStampsRules(),
             'reward_title' => ['required', 'string', 'max:150'],
             'google_review_url' => ['nullable', 'url:http,https', 'max:500'],
@@ -49,13 +52,20 @@ class UpdateShopSettingsRequest extends FormRequest
 
     public function messages(): array
     {
-        return ShopContact::messages($this->input('country'), $this->input('contact_phone_code'));
+        return [
+            ...ShopContact::messages($this->input('country'), $this->input('contact_phone_code')),
+            ...Industries::messages(),
+        ];
     }
 
     /** The validated values as shop columns. */
     public function shopValues(): array
     {
         $values = collect($this->validated())->except('delivery_same')->all();
+
+        if (array_key_exists('industry', $values)) {
+            $values = [...$values, ...Industries::attributes($values)];
+        }
 
         if ($this->boolean('delivery_same', true) || blank($values['delivery_address'] ?? null)) {
             $values['delivery_address'] = null;

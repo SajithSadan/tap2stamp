@@ -2,6 +2,7 @@ import { Link, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { LuArrowLeft, LuCheck, LuEye, LuEyeOff, LuLoaderCircle, LuRefreshCw } from 'react-icons/lu';
 import CountrySelect from '@/Components/CountrySelect';
+import IndustryPicker from '@/Components/IndustryPicker';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { MAX_STAMPS, MIN_STAMPS, SlugInput, StampStepper, slugify } from '@/Components/Dashboard/ShopFields';
 import { FieldError, inputClass, primaryButton, secondaryButton } from '@/Components/Dashboard/Ui';
@@ -239,11 +240,13 @@ function ThemePicker({ themes, value, onChange, defaultTheme }) {
     );
 }
 
-export default function Create({ themes, defaultTheme, countries }) {
+export default function Create({ themes, defaultTheme, countries, industries = [] }) {
     const { data, setData, post, processing, errors } = useForm({
         shop_name: '',
         shop_slug: '',
         shop_country: 'GB',
+        shop_industry: '',
+        shop_industry_other: '',
         owner_email: '',
         owner_password: '',
         shop_max_stamps: 8,
@@ -318,7 +321,7 @@ export default function Create({ themes, defaultTheme, countries }) {
                             </Field>
                         </div>
                         <SlugIdeas ideas={slugIdeas} current={data.shop_slug} onPick={handlePickIdea} />
-                        <div className="mt-4 max-w-sm">
+                        <div className="mt-4 grid max-w-2xl gap-4 sm:grid-cols-2">
                             <Field
                                 id="shop_country"
                                 label="Country"
@@ -331,6 +334,25 @@ export default function Create({ themes, defaultTheme, countries }) {
                                     onChange={(code) => setData('shop_country', code)}
                                     countries={countries}
                                     className={inputClass}
+                                />
+                            </Field>
+                            <Field
+                                id="shop_industry"
+                                label="Type of business"
+                                hint="Optional - left empty, the owner is asked when they first sign in."
+                                error={errors.shop_industry}
+                            >
+                                <IndustryPicker
+                                    id="shop_industry"
+                                    variant="select"
+                                    allowEmpty
+                                    industries={industries}
+                                    value={data.shop_industry}
+                                    other={data.shop_industry_other}
+                                    onChange={(key) => setData('shop_industry', key ?? '')}
+                                    onOtherChange={(v) => setData('shop_industry_other', v)}
+                                    inputClassName={inputClass}
+                                    otherError={errors.shop_industry_other}
                                 />
                             </Field>
                         </div>

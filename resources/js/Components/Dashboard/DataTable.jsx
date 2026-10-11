@@ -137,6 +137,7 @@ export default function DataTable({
     initialHidden = {},
     searchPlaceholder = "Search",
     toolbar = null,
+    filters = null, // dropdowns beside the search box; `toolbar` then gets its own row below
     exportName = "export",
     storageKey = null,
     empty = null,
@@ -238,6 +239,49 @@ export default function DataTable({
         setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     }
 
+    const searchBox = (className) => (
+        <div className={`relative min-w-0 ${className}`}>
+            <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" />
+            {/* type="text", not "search": the browser's own clear button would double ours. */}
+            <input
+                type="text"
+                inputMode="search"
+                enterKeyHint="search"
+                role="searchbox"
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
+                className={`${inputClass} pl-9 pr-8`}
+            />
+            {globalFilter && (
+                <button
+                    type="button"
+                    onClick={() => setGlobalFilter("")}
+                    aria-label="Clear search"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-brand-muted hover:text-brand-text"
+                >
+                    <LuX className="h-3.5 w-3.5" />
+                </button>
+            )}
+        </div>
+    );
+
+    const actions = (className = "") => (
+        <div className={`flex shrink-0 items-center gap-2 ${className}`}>
+            <ColumnsMenu table={table} />
+            <button
+                type="button"
+                onClick={exportCsv}
+                disabled={total === 0}
+                className={`${secondaryButton} h-[42px]`}
+                title="Download the rows shown as CSV"
+            >
+                <LuDownload className="h-4 w-4" /> <span className="hidden sm:inline">CSV</span>
+            </button>
+        </div>
+    );
+
     const alignClass = (column) =>
         column.columnDef.meta?.align === "right" ? "text-right" : "text-left";
     const stickyFirst = (i, bg) => (i === 0 ? `sticky left-0 ${bg} pl-5` : "");
@@ -249,47 +293,28 @@ export default function DataTable({
     return (
         <div className="min-w-0 rounded-2xl border border-brand-border bg-brand-card shadow-sm">
             {/* Toolbar */}
-            <div className="flex flex-col gap-3 border-b border-brand-border px-4 py-3 sm:px-5 lg:flex-row lg:items-center">
-                <div className="min-w-0 flex-1">{toolbar}</div>
-                <div className="flex items-center gap-2">
-                    <div className="relative min-w-0 flex-1 lg:w-64 lg:flex-none">
-                        <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" />
-                        {/* type="text", not "search": the browser's own clear button would double ours. */}
-                        <input
-                            type="text"
-                            inputMode="search"
-                            enterKeyHint="search"
-                            role="searchbox"
-                            value={globalFilter}
-                            onChange={(e) => setGlobalFilter(e.target.value)}
-                            placeholder={searchPlaceholder}
-                            aria-label={searchPlaceholder}
-                            className={`${inputClass} pl-9 pr-8`}
-                        />
-                        {globalFilter && (
-                            <button
-                                type="button"
-                                onClick={() => setGlobalFilter("")}
-                                aria-label="Clear search"
-                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-brand-muted hover:text-brand-text"
-                            >
-                                <LuX className="h-3.5 w-3.5" />
-                            </button>
-                        )}
+            {filters ? (
+                // Search, dropdowns and actions on one row (dropdowns wrap under the
+                // search on phones); the chips (`toolbar`) get their own row below.
+                <div className="space-y-3 border-b border-brand-border px-4 py-3 sm:px-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {searchBox("order-1 flex-1 md:max-w-sm")}
+                        {actions("order-2 md:order-3 md:ml-auto")}
+                        <div className="order-3 grid w-full grid-cols-2 gap-2 md:order-2 md:flex md:w-auto md:items-center">
+                            {filters}
+                        </div>
                     </div>
-                    <ColumnsMenu table={table} />
-                    <button
-                        type="button"
-                        onClick={exportCsv}
-                        disabled={total === 0}
-                        className={`${secondaryButton} h-[42px]`}
-                        title="Download the rows shown as CSV"
-                    >
-                        <LuDownload className="h-4 w-4" />{" "}
-                        <span className="hidden sm:inline">CSV</span>
-                    </button>
+                    {toolbar && <div className="min-w-0">{toolbar}</div>}
                 </div>
-            </div>
+            ) : (
+                <div className="flex flex-col gap-3 border-b border-brand-border px-4 py-3 sm:px-5 lg:flex-row lg:items-center">
+                    <div className="min-w-0 flex-1">{toolbar}</div>
+                    <div className="flex items-center gap-2">
+                        {searchBox("flex-1 lg:w-64 lg:flex-none")}
+                        {actions()}
+                    </div>
+                </div>
+            )}
 
             {/* The table (and its headers) always stays, even with no matches. */}
             <div ref={scrollBox} className="max-h-[70vh] overflow-auto">

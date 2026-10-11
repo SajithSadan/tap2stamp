@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Shop;
+use App\Support\Industries;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateShopSettingsRequest extends FormRequest
@@ -17,6 +18,8 @@ class UpdateShopSettingsRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:150'],
+            // Not sent = unchanged (the form always sends it once the shop has one).
+            ...collect(Industries::rules())->map(fn (array $rules, string $field) => $field === 'industry' ? ['sometimes', ...$rules] : $rules)->all(),
             'max_stamps' => Shop::maxStampsRules(),
             'reward_title' => ['required', 'string', 'max:150'],
             // Both are buttons on the customer card page, so web addresses only.
@@ -26,5 +29,10 @@ class UpdateShopSettingsRequest extends FormRequest
             'wifi_ssid' => ['nullable', 'string', 'max:150'],
             'wifi_password' => ['nullable', 'string', 'max:150'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return Industries::messages();
     }
 }

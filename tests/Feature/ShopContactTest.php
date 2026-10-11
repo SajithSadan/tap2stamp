@@ -28,6 +28,7 @@ function setupPayload(array $overrides = []): array
         'slug' => 'the-coffee-corner',
         'max_stamps' => 6,
         'reward_title' => 'Free coffee after 6 stamps',
+        'industry' => 'cafe',
         ...contactDetails($overrides),
     ];
 }

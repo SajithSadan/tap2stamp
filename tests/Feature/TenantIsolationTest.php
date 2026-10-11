@@ -168,7 +168,7 @@ test('sign-up can never make an admin, and an owner can only ever have one shop'
     $v = victimAndAttacker();
     // A complete, valid shop setup - so it's the one-shop rule that stops it, not validation.
     $this->actingAs($v['attacker'])->post('/onboarding', [
-        'name' => 'Second shop', 'max_stamps' => 8, 'reward_title' => 'Free coffee', 'country' => 'GB',
+        'name' => 'Second shop', 'max_stamps' => 8, 'reward_title' => 'Free coffee', 'industry' => 'cafe', 'country' => 'GB',
         'contact_name' => 'Eve', 'contact_email' => 'eve@example.test', 'contact_phone' => '07700 900123',
         'address_line1' => '1 High Street', 'town' => 'Leeds', 'postcode' => 'LS1 4AP', 'delivery_same' => true,
     ])->assertSessionHasNoErrors()->assertRedirect('/dashboard');

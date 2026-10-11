@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ActionType;
 use App\Enums\OrderStatus;
+use App\Http\Requests\RecordQrDownloadRequest;
 use App\Http\Requests\UpdateShopContactRequest;
 use App\Http\Requests\UpdateShopHeaderStyleRequest;
 use App\Http\Requests\UpdateShopSettingsRequest;
@@ -22,16 +23,19 @@ use App\Models\StaffMember;
 use App\Models\StampLog;
 use App\Services\ActivityLogger;
 use App\Services\QrCodeGenerator;
+use App\Services\QrDownloads;
 use App\Services\ShopInsights;
 use App\Services\StripeGateway;
 use App\Support\Countries;
 use App\Support\CuratedFonts;
 use App\Support\Features;
 use App\Support\HeaderStyle;
+use App\Support\Industries;
 use App\Support\ShopContact;
 use App\Support\SignupIcons;
 use App\Support\StampIcons;
 use App\Support\ThemeCatalog;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -281,7 +285,10 @@ class DashboardController extends Controller
                 'instagram_url' => $shop->instagram_url,
                 'wifi_ssid' => $shop->wifi_ssid,
                 'wifi_password' => $shop->wifi_password,
+                'industry' => $shop->industry,
+                'industry_other' => $shop->industry_other,
             ],
+            'industries' => Industries::options(),
             'contact' => $shop->contactDetails(),
             'countries' => Countries::options(),
             // "View menu" on the loyalty card - only while Menu is on for the shop (null = not shown).
@@ -301,9 +308,27 @@ class DashboardController extends Controller
             : $shop->google_review_direct;
 
         $validated['google_review_direct'] = (bool) $googleUrl && $directRequested;
+        if (array_key_exists('industry', $validated)) {
+            $validated = [...$validated, ...Industries::attributes($validated)];
+        } else {
+            unset($validated['industry_other']);
+        }
         $shop->update($validated);
 
         return redirect()->route('dashboard.settings');
+    }
+
+    /**
+     * The one-time "What kind of business is it?" popup for shops set up
+     * before sign-up asked (see the shared `industryPrompt` prop).
+     */
+    public function updateIndustry(Request $request): RedirectResponse
+    {
+        $validated = $request->validate(Industries::rules(), Industries::messages());
+
+        $request->user()->shop->update(Industries::attributes($validated));
+
+        return back();
     }
 
     /** Business contact + location - its own form, so older shops' main settings keep saving. */
@@ -445,9 +470,10 @@ class DashboardController extends Controller
      * prints (lib/qrPrint.js). In the menu for overseas shops; UK shops order
      * the counter display instead.
      */
-    public function qrCodes(Request $request, QrCodeGenerator $generator): Response
+    public function qrCodes(Request $request, QrCodeGenerator $generator, QrDownloads $downloads): Response
     {
         $shop = $request->user()->shop;
+        $downloads->pageViewed($shop, $request);
 
         // Overseas shops get their QR straight away: one is issued (mapped to
         // their card) the first time they look, rather than waiting for us.
@@ -478,6 +504,32 @@ class DashboardController extends Controller
             // The shop's own design, else the default one (Admin → Designs), else a plain QR.
             'design' => $shop->downloadDesign()?->toClient(),
         ]);
+    }
+
+    /**
+     * The owner's page reports each QR download (drawn in the browser, so the
+     * server wouldn't otherwise know): did they get it, or did it fail?
+     */
+    public function qrDownloaded(RecordQrDownloadRequest $request, QrDownloads $downloads): JsonResponse
+    {
+        $shop = $request->user()->shop;
+        $ids = $request->validated('qr_code_ids') ?? [];
+
+        // Only this shop's codes - every id checked before anything is recorded.
+        $codes = $shop->qrCodes()->whereIn('qr_codes.id', $ids)->orderBy('serial')->get();
+        abort_if($codes->count() !== count($ids), 404);
+
+        $downloads->record(
+            $shop,
+            $request,
+            $request->validated('source'),
+            $request->validated('format'),
+            $codes->all(),
+            $request->boolean('ok'),
+            $request->validated('error'),
+        );
+
+        return response()->json(['recorded' => true]);
     }
 
     /** The shop's real orders: paid, or arranged by us and awaiting payment. */

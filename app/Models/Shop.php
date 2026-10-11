@@ -6,6 +6,7 @@ use App\Models\Concerns\RecordsActivity;
 use App\Support\Countries;
 use App\Support\Features;
 use App\Support\HeaderStyle;
+use App\Support\Industries;
 use App\Support\MenuThemes;
 use App\Support\ShopContact;
 use App\Support\ThemeCatalog;
@@ -25,7 +26,7 @@ class Shop extends Model
     use HasFactory, RecordsActivity;
 
     /** Activity log: product_ordered_at is set by payment, logged as the order. */
-    protected array $activityIgnore = ['product_ordered_at'];
+    protected array $activityIgnore = ['product_ordered_at', 'qr_page_viewed_at', 'qr_downloaded_at', 'qr_downloads', 'qr_download_failures'];
 
     public function activityShopId(): ?int
     {
@@ -35,6 +36,8 @@ class Shop extends Model
     protected $fillable = [
         'user_id',
         'name',
+        'industry',
+        'industry_other',
         'slug',
         'max_stamps',
         'reward_title',
@@ -163,6 +166,10 @@ class Shop extends Model
             'features' => 'array',
             'blocked_at' => 'datetime',
             'show_menu_on_card' => 'boolean',
+            'qr_page_viewed_at' => 'datetime',
+            'qr_downloaded_at' => 'datetime',
+            'qr_downloads' => 'integer',
+            'qr_download_failures' => 'integer',
         ];
     }
 
@@ -215,6 +222,22 @@ class Shop extends Model
     public function canOrderProducts(): bool
     {
         return ($this->country ?? Countries::UK) === Countries::UK;
+    }
+
+    /** "Barber", or the owner's own words for "Something else"; null = not asked yet. */
+    public function industryLabel(): ?string
+    {
+        return Industries::label($this->industry, $this->industry_other);
+    }
+
+    /**
+     * Does the owner get a QR to download and print themselves? Overseas
+     * shops (QR codes page), or any shop shown its card link (Settings'
+     * counter QR). UK shops otherwise use the counter display.
+     */
+    public function downloadsOwnQr(): bool
+    {
+        return ! $this->canOrderProducts() || $this->show_card_link;
     }
 
     public function orders(): HasMany

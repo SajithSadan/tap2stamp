@@ -23,6 +23,7 @@ function validShop(array $overrides = []): array
         'slug' => 'the-coffee-corner',
         'max_stamps' => 6,
         'reward_title' => 'Free coffee after 6 stamps',
+        'industry' => 'cafe',
         'contact_name' => 'Jamie Smith',
         'contact_email' => 'jamie@coffeecorner.co.uk',
         'contact_phone' => '07700 900123',

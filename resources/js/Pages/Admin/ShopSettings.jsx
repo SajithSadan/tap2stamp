@@ -34,6 +34,7 @@ import OrderStageEditor from "@/Components/Dashboard/OrderStageEditor";
 import WhatsAppButton from "@/Components/Dashboard/WhatsAppButton";
 import { BlockedBanner, BlockShopButton } from "@/Components/Dashboard/ShopBlockControls";
 import { formatPence } from "@/lib/money";
+import IndustryPicker from "@/Components/IndustryPicker";
 
 /** The page's tabs, and which form fields live on each (to flag errors). */
 const TABS = [
@@ -52,6 +53,7 @@ const TABS = [
         label: "Business",
         icon: LuBuilding2,
         fields: [
+            "industry", "industry_other",
             "contact_name", "contact_email", "contact_phone_code", "contact_phone",
             "address_line1", "address_line2", "town", "state", "postcode", "country", "delivery_address",
         ],
@@ -288,6 +290,7 @@ export default function ShopSettings({
     assignedQrCount,
     qrDesigns,
     defaultQrDesign,
+    industries = [],
 }) {
     const [tab, setTab] = useState(initialTab);
     const form = useForm({
@@ -311,6 +314,8 @@ export default function ShopSettings({
         postcode: shop.postcode ?? "",
         country: shop.country ?? UK,
         qr_design_id: shop.qr_design_id ?? "",
+        industry: shop.industry ?? "",
+        industry_other: shop.industry_other ?? "",
         // Ticked = post orders to the shop address (no separate one saved).
         delivery_same: !shop.delivery_address,
         delivery_address: shop.delivery_address ?? "",
@@ -518,6 +523,28 @@ export default function ShopSettings({
 
                 {tab === "business" && (
                     <>
+                        <Section title="Business type">
+                            <Row
+                                id="admin_industry"
+                                label="Type of business"
+                                hint={shop.industry ? null : "Not set - the owner is asked when they next sign in."}
+                                error={form.errors.industry}
+                            >
+                                <IndustryPicker
+                                    id="admin_industry"
+                                    variant="select"
+                                    allowEmpty
+                                    industries={industries}
+                                    value={form.data.industry}
+                                    other={form.data.industry_other}
+                                    onChange={(key) => form.setData("industry", key ?? "")}
+                                    onOtherChange={(v) => form.setData("industry_other", v)}
+                                    inputClassName={inputClass}
+                                    otherError={form.errors.industry_other}
+                                />
+                            </Row>
+                        </Section>
+
                         <Section title="Contact">
                             <Row id="contact_name" label="Contact person" error={form.errors.contact_name}>
                                 <input type="text" {...text("contact_name")} />

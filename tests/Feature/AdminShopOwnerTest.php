@@ -39,6 +39,20 @@ test('an admin can view the shop list', function () {
     );
 });
 
+test('each shop row carries its country code for the country filter', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    Shop::factory()->create(['country' => 'IN', 'created_at' => now()->subDay()]);
+    Shop::factory()->create(['country' => 'GB']);
+
+    $this->actingAs($admin)->get('/admin')->assertInertia(fn ($page) => $page
+        ->component('Admin/Index')
+        ->where('shops.0.country_code', 'GB')
+        ->where('shops.0.country', 'United Kingdom')
+        ->where('shops.1.country_code', 'IN')
+        ->where('shops.1.country', 'India')
+    );
+});
+
 test('each shop row carries the numbers the grid shows', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin]);
     $owner = User::factory()->create(['role' => UserRole::Owner, 'google_id' => 'g-1']);

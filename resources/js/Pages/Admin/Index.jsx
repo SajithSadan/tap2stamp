@@ -3,12 +3,16 @@ import { useMemo, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import {
     LuCheck,
+    LuBriefcase,
+    LuChevronDown,
     LuCopy,
+    LuDownload,
     LuExternalLink,
     LuKeyRound,
     LuPackageCheck,
     LuPlus,
     LuEye,
+    LuGlobe,
     LuSettings,
     LuStore,
     LuX,
@@ -23,6 +27,7 @@ import {
     primaryButton,
 } from "@/Components/Dashboard/Ui";
 import { formatNumber } from "@/lib/charts";
+import { industryIcon } from "@/lib/industryIcons";
 
 /** One-time reveal of a new owner's generated password. Dismissible, never re-shown. */
 function CredentialsNotice({ password, email }) {
@@ -156,11 +161,12 @@ function StatusChips({ value, onChange, counts }) {
         ["blocked", "Blocked"],
         ["no_owner", "No owner"],
         ["no_display", "Display not ordered"],
+        ["no_qr", "QR not downloaded"],
     ];
 
     return (
         <div
-            className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1"
+            className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 md:flex-wrap md:overflow-visible"
             role="group"
             aria-label="Filter by status"
         >
@@ -192,6 +198,93 @@ function StatusChips({ value, onChange, counts }) {
         </div>
     );
 }
+
+/** UK and India first (where we sell / will sell the counter display), then A-Z. */
+const COUNTRY_FIRST = ["GB", "IN"];
+
+/** [{value, label, count}] for every distinct value of `pick(shop)` among the shops. */
+function countBy(shops, pick, labelOf) {
+    const byValue = new Map();
+    for (const s of shops) {
+        const value = pick(s) ?? "";
+        const entry = byValue.get(value) ?? { value, label: labelOf(s), count: 0 };
+        entry.count += 1;
+        byValue.set(value, entry);
+    }
+    return [...byValue.values()];
+}
+
+function countryOptions(shops) {
+    const rank = (code) => {
+        const i = COUNTRY_FIRST.indexOf(code);
+        return i === -1 ? COUNTRY_FIRST.length : i;
+    };
+    return countBy(shops, (s) => s.country_code, (s) => s.country ?? "No country").sort(
+        (a, b) => rank(a.value) - rank(b.value) || a.label.localeCompare(b.label),
+    );
+}
+
+/** Most common first; "Not set" (not answered yet) last. */
+function industryOptions(shops) {
+    return countBy(shops, (s) => s.industry, (s) => (s.industry ? s.industry_label : "Not set")).sort(
+        (a, b) => (a.value === "") - (b.value === "") || b.count - a.count || a.label.localeCompare(b.label),
+    );
+}
+
+/**
+ * A pill-shaped dropdown that narrows the grid (country, industry), with how
+ * many shops each choice has. Dark while something is chosen.
+ */
+function SelectFilter({ label, icon: Icon, allLabel, value, onChange, options, total }) {
+    return (
+        <label className="relative flex min-w-0 items-center md:shrink-0">
+            <span className="sr-only">{label}</span>
+            <Icon className={`pointer-events-none absolute left-3 h-4 w-4 ${value === "all" ? "text-brand-muted" : "text-white/70"}`} />
+            <select
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className={`h-[42px] w-full min-w-0 appearance-none truncate rounded-xl md:w-auto md:max-w-56 pl-9 pr-8 text-sm font-medium ring-1 ring-inset transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent ${
+                    value === "all"
+                        ? "bg-brand-card text-brand-text ring-brand-border hover:bg-brand-bg"
+                        : "bg-brand-deep text-white ring-brand-deep"
+                }`}
+            >
+                <option value="all">
+                    {allLabel} ({total})
+                </option>
+                {options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                        {o.label} ({o.count})
+                    </option>
+                ))}
+            </select>
+            <LuChevronDown
+                className={`pointer-events-none absolute right-3 h-3.5 w-3.5 ${value === "all" ? "text-brand-muted" : "text-white/70"}`}
+            />
+        </label>
+    );
+}
+
+/** QR download states, worst first (sort order) - the ones that need a call come up top. */
+const QR_STATE = {
+    failed: { order: 0, label: "Download failed", tone: "bg-red-500/10 text-red-700" },
+    not_opened: { order: 1, label: "Not opened", tone: "bg-brand-bg text-brand-muted ring-1 ring-inset ring-brand-border" },
+    opened: { order: 2, label: "Opened, not downloaded", tone: "bg-amber-500/10 text-amber-800" },
+    downloaded: { order: 3, label: "Downloaded", tone: "bg-emerald-500/10 text-emerald-700" },
+};
+
+/** One line for the tooltip and the CSV. */
+function qrSummary(qr) {
+    const parts = [
+        qr.state === "downloaded" ? `Downloaded ${qr.downloaded_label} (${qr.downloads} in total)` : QR_STATE[qr.state].label,
+        qr.opened_label && `QR page first opened ${qr.opened_label}`,
+        qr.failures > 0 && `${qr.failures} failed`,
+    ];
+    return parts.filter(Boolean).join(" · ");
+}
+
+/** Prints their own QR and hasn't managed to download it yet. */
+const needsQr = (s) => s.qr && s.qr.state !== "downloaded";
 
 /* ---------- Columns ---------- */
 
@@ -241,6 +334,25 @@ function buildColumns(origin) {
             ),
         },
         {
+            id: "industry",
+            accessorFn: (s) => orUndefined(s.industry_label),
+            header: "Business",
+            sortUndefined: "last",
+            meta: { label: "Type of business", csv: (s) => s.industry_label ?? "" },
+            cell: ({ row: { original: s } }) => {
+                if (!s.industry) {
+                    return <span className="whitespace-nowrap text-xs text-brand-muted">Not set</span>;
+                }
+                const Icon = industryIcon(s.industry);
+                return (
+                    <span className="inline-flex max-w-44 items-center gap-1.5 text-sm text-brand-text" title={s.industry_label}>
+                        <Icon className="h-4 w-4 shrink-0 text-brand-muted" />
+                        <span className="truncate">{s.industry_label}</span>
+                    </span>
+                );
+            },
+        },
+        {
             // Counter display ordered (paid online, or recorded by an admin).
             id: "display",
             accessorFn: (s) => orUndefined(s.product_ordered_at),
@@ -272,6 +384,33 @@ function buildColumns(origin) {
                         Not ordered
                     </span>
                 ),
+        },
+        {
+            // Owners who print their own QR: found the page? did the download work?
+            id: "qr",
+            accessorFn: (s) => (s.qr ? QR_STATE[s.qr.state].order : undefined),
+            header: "QR",
+            enableGlobalFilter: false,
+            sortUndefined: "last",
+            meta: {
+                label: "QR download",
+                csv: (s) => (s.qr ? qrSummary(s.qr) : "Uses the display"),
+            },
+            cell: ({ row: { original: s } }) => {
+                if (!s.qr) {
+                    return <span className="whitespace-nowrap text-xs text-brand-muted">-</span>;
+                }
+                const state = QR_STATE[s.qr.state];
+                return (
+                    <span
+                        title={qrSummary(s.qr)}
+                        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${state.tone}`}
+                    >
+                        {s.qr.state === "downloaded" && <LuDownload className="h-3.5 w-3.5" />}
+                        {s.qr.state === "downloaded" ? `${s.qr.downloaded_label} · ${s.qr.downloads}×` : state.label}
+                    </span>
+                );
+            },
         },
         {
             id: "owner",
@@ -579,29 +718,53 @@ const needsDisplay = (s) => !s.product_ordered_at && !s.product_awaiting;
 export default function Index({ shops, quietDays, primaryProduct }) {
     const { flash } = usePage().props;
     const [status, setStatus] = useState("all");
+    const [country, setCountry] = useState("all");
+    const [industry, setIndustry] = useState("all");
+
+    // The status chips count and filter within the chosen country and industry.
+    const inCountry = useMemo(
+        () =>
+            shops.filter(
+                (s) =>
+                    (country === "all" || (s.country_code ?? "") === country) &&
+                    (industry === "all" || (s.industry ?? "") === industry),
+            ),
+        [shops, country, industry],
+    );
+    // Each dropdown's counts follow the other's choice.
+    const countries = useMemo(
+        () => countryOptions(industry === "all" ? shops : shops.filter((s) => (s.industry ?? "") === industry)),
+        [shops, industry],
+    );
+    const industries = useMemo(
+        () => industryOptions(country === "all" ? shops : shops.filter((s) => (s.country_code ?? "") === country)),
+        [shops, country],
+    );
 
     const columns = useMemo(() => buildColumns(window.location.origin), []);
 
     const counts = useMemo(
         () => ({
-            all: shops.length,
-            active: shops.filter((s) => s.status === "active").length,
-            quiet: shops.filter((s) => s.status === "quiet").length,
-            not_started: shops.filter((s) => s.status === "not_started").length,
-            blocked: shops.filter((s) => s.status === "blocked").length,
-            no_owner: shops.filter((s) => !s.owner_email).length,
-            no_display: shops.filter(needsDisplay).length,
+            all: inCountry.length,
+            active: inCountry.filter((s) => s.status === "active").length,
+            quiet: inCountry.filter((s) => s.status === "quiet").length,
+            not_started: inCountry.filter((s) => s.status === "not_started").length,
+            blocked: inCountry.filter((s) => s.status === "blocked").length,
+            no_owner: inCountry.filter((s) => !s.owner_email).length,
+            no_display: inCountry.filter(needsDisplay).length,
+            no_qr: inCountry.filter(needsQr).length,
         }),
-        [shops],
+        [inCountry],
     );
 
     const rows = useMemo(() => {
-        if (status === "all") return shops;
-        if (status === "no_owner") return shops.filter((s) => !s.owner_email);
-        if (status === "no_display") return shops.filter(needsDisplay);
+        if (status === "all") return inCountry;
+        if (status === "no_owner") return inCountry.filter((s) => !s.owner_email);
+        if (status === "no_display") return inCountry.filter(needsDisplay);
+        if (status === "no_qr") return inCountry.filter(needsQr);
 
-        return shops.filter((s) => s.status === status);
-    }, [shops, status]);
+        return inCountry.filter((s) => s.status === status);
+    }, [inCountry, status]);
 
     return (
         <AdminLayout
@@ -609,7 +772,9 @@ export default function Index({ shops, quietDays, primaryProduct }) {
             description={
                 status === "no_display" && primaryProduct
                     ? `Shops that haven't ordered the ${primaryProduct} (and have no order awaiting payment) - with their contact details to follow up.`
-                    : `Every shop on TaDa Tap and the owner who runs it. Quiet = no stamps for ${quietDays} days.`
+                    : status === "no_qr"
+                      ? "Shops that print their own QR but haven't downloaded it yet. Not opened = may not have found it; opened or failed = may need help downloading."
+                      : `Every shop on TaDa Tap and the owner who runs it. Quiet = no stamps for ${quietDays} days.`
             }
             actions={
                 <Link href="/admin/shops/create" className={primaryButton}>
@@ -648,6 +813,28 @@ export default function Index({ shops, quietDays, primaryProduct }) {
                     searchPlaceholder="Search shop, link or owner"
                     storageKey="admin.shops.table"
                     exportName="tada-tap-shops"
+                    filters={
+                        <>
+                            <SelectFilter
+                                label="Filter by country"
+                                icon={LuGlobe}
+                                allLabel="All countries"
+                                value={country}
+                                onChange={setCountry}
+                                options={countries}
+                                total={countries.reduce((n, o) => n + o.count, 0)}
+                            />
+                            <SelectFilter
+                                label="Filter by type of business"
+                                icon={LuBriefcase}
+                                allLabel="All businesses"
+                                value={industry}
+                                onChange={setIndustry}
+                                options={industries}
+                                total={industries.reduce((n, o) => n + o.count, 0)}
+                            />
+                        </>
+                    }
                     toolbar={
                         <StatusChips
                             value={status}
@@ -655,8 +842,12 @@ export default function Index({ shops, quietDays, primaryProduct }) {
                             counts={counts}
                         />
                     }
-                    filteredExternally={status !== "all"}
-                    onClearAll={() => setStatus("all")}
+                    filteredExternally={status !== "all" || country !== "all" || industry !== "all"}
+                    onClearAll={() => {
+                        setStatus("all");
+                        setCountry("all");
+                        setIndustry("all");
+                    }}
                     empty={<EmptyState icon={LuStore} title="No shops match" />}
                 />
             )}

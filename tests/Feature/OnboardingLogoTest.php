@@ -12,7 +12,7 @@ beforeEach(fn () => Storage::fake('uploads'));
 function logoSetup(array $overrides = []): array
 {
     return [
-        'name' => 'Bean There', 'max_stamps' => 8, 'reward_title' => 'Free coffee',
+        'name' => 'Bean There', 'max_stamps' => 8, 'reward_title' => 'Free coffee', 'industry' => 'cafe',
         'country' => 'GB', 'contact_name' => 'Olive', 'contact_email' => 'olive@bean.test',
         'contact_phone' => '07700 900123', 'address_line1' => '1 High Street', 'town' => 'Leeds',
         'postcode' => 'LS1 4AP', 'delivery_same' => true,

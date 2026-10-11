@@ -11,6 +11,7 @@ use App\Models\Setting;
 use App\Models\Shop;
 use App\Support\Countries;
 use App\Support\Features;
+use App\Support\Industries;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,7 @@ class ShopSettingsController extends Controller
                 ...$shop->only([
                     'id', 'name', 'slug', 'max_stamps', 'reward_title',
                     'google_review_url', 'google_review_direct', 'show_card_link', 'instagram_url',
-                    'wifi_ssid', 'wifi_password', 'qr_design_id',
+                    'wifi_ssid', 'wifi_password', 'qr_design_id', 'industry', 'industry_other',
                 ]),
                 'can_order' => $shop->canOrderProducts(),
                 'whatsapp' => $shop->whatsappNumber(),
@@ -59,6 +60,7 @@ class ShopSettingsController extends Controller
             'deliveryAddress' => $shop->deliveryAddress(),
             'bankDetailsSet' => filled(Setting::get(Setting::BANK_DETAILS)),
             'countries' => Countries::options(),
+            'industries' => Industries::options(),
             // Overseas shops: the QR codes mapped to this shop, and the design the owner downloads them in.
             'assignedQrCount' => $shop->qrCodes()->count(),
             'qrDesigns' => QrDesign::orderBy('name')->get(['id', 'name']),

@@ -24,6 +24,7 @@ function overseasSetup(array $overrides = []): array
         'name' => 'Corner Cafe',
         'max_stamps' => 8,
         'reward_title' => 'Free coffee',
+        'industry' => 'cafe',
         'country' => 'US',
         'contact_name' => 'Sam Lee',
         'contact_email' => 'sam@corner.cafe',

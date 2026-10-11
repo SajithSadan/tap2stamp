@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\Shop;
 use App\Models\User;
 use App\Support\Countries;
+use App\Support\Industries;
 use App\Support\StampIcons;
 use App\Support\ThemeCatalog;
 use Illuminate\Http\JsonResponse;
@@ -87,6 +88,11 @@ class ShopOwnerController extends Controller
                     'state' => $shop->state,
                     'postcode' => $shop->postcode,
                     'country' => Countries::name($shop->country),
+                    // For the grid's country filter (UK / India / ...).
+                    'country_code' => $shop->country,
+                    // Kind of business (null = the owner hasn't been asked yet).
+                    'industry' => $shop->industry,
+                    'industry_label' => $shop->industryLabel(),
                     'address' => collect([$shop->address_line1, $shop->address_line2, $shop->town, $shop->state, $shop->postcode])->filter()->implode(', ') ?: null,
                     'delivery_address' => $shop->delivery_address,
                     // The primary product: ordered (latest paid), awaiting the shop's
@@ -94,6 +100,21 @@ class ShopOwnerController extends Controller
                     'product_ordered_at' => $shop->primary_paid_at ? Carbon::parse($shop->primary_paid_at)->toIso8601String() : null,
                     'product_ordered_label' => $shop->primary_paid_at ? Carbon::parse($shop->primary_paid_at)->format('j M Y') : null,
                     'product_awaiting' => ! $shop->primary_paid_at && $shop->primary_awaiting,
+                    // Owners who print their own QR (overseas, or shown the card link):
+                    // did they find the QR page, did the download work? Null = uses the display.
+                    'qr' => $shop->downloadsOwnQr() ? [
+                        'state' => match (true) {
+                            $shop->qr_downloaded_at !== null => 'downloaded',
+                            $shop->qr_download_failures > 0 => 'failed',
+                            $shop->qr_page_viewed_at !== null => 'opened',
+                            default => 'not_opened',
+                        },
+                        'downloaded_at' => $shop->qr_downloaded_at?->toIso8601String(),
+                        'downloaded_label' => $shop->qr_downloaded_at?->format('j M Y'),
+                        'opened_label' => $shop->qr_page_viewed_at?->format('j M Y'),
+                        'downloads' => $shop->qr_downloads,
+                        'failures' => $shop->qr_download_failures,
+                    ] : null,
                     'customers' => $shop->customers,
                     'new_customers_30d' => $shop->new_customers_30d,
                     'stamps_30d' => $shop->stamps_30d,
@@ -125,6 +146,7 @@ class ShopOwnerController extends Controller
             'themes' => ThemeCatalog::all(),
             'defaultTheme' => ThemeCatalog::DEFAULT,
             'countries' => Countries::options(),
+            'industries' => Industries::options(),
         ]);
     }
 
@@ -170,6 +192,7 @@ class ShopOwnerController extends Controller
                 'contact_name' => $owner->name,
                 'contact_email' => $owner->email,
                 'country' => $request->input('shop_country') ?: Countries::UK,
+                ...Industries::attributes($request->validated(), 'shop_'),
                 // Defaults stay null, so a later change of the default still reaches this shop.
                 'theme' => $theme === ThemeCatalog::DEFAULT ? null : $theme,
                 'stamp_icon' => $stampIcon === StampIcons::DEFAULT ? null : $stampIcon,

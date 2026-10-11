@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Shop;
+use App\Support\Industries;
 
 /**
  * Shop setup, final submit: step 1's business details plus step 2's
@@ -14,6 +15,7 @@ class StoreOnboardingShopRequest extends ValidateOnboardingBusinessRequest
     {
         return [
             ...parent::rules(),
+            ...Industries::rules(),
             'max_stamps' => Shop::maxStampsRules(),
             'reward_title' => ['required', 'string', 'max:150'],
             // Optional, cropped square in the browser first. Same rules as Theme → logo.
@@ -25,6 +27,7 @@ class StoreOnboardingShopRequest extends ValidateOnboardingBusinessRequest
     {
         return [
             ...parent::messages(),
+            ...Industries::messages(),
             ...(new UpdateShopLogoRequest)->messages(),
         ];
     }

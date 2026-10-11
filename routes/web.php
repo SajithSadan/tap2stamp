@@ -267,9 +267,11 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::get('/staff', [DashboardController::class, 'staff'])->name('staff');
     Route::post('/scan', OwnerScanController::class)->middleware('throttle:30,1')->name('scan');
     Route::get('/qr-codes', [DashboardController::class, 'qrCodes'])->name('qr-codes');
+    Route::post('/qr-codes/downloaded', [DashboardController::class, 'qrDownloaded'])->middleware('throttle:30,1')->name('qr-codes.downloaded');
     Route::get('/settings', [DashboardController::class, 'settings'])->name('settings');
     Route::put('/settings', [DashboardController::class, 'updateSettings'])->name('settings.update');
     Route::put('/settings/contact', [DashboardController::class, 'updateContact'])->name('settings.contact');
+    Route::put('/industry', [DashboardController::class, 'updateIndustry'])->name('industry');
     Route::get('/theme', [DashboardController::class, 'theme'])->name('theme');
     Route::put('/theme', [DashboardController::class, 'updateTheme'])->name('theme.update');
     Route::delete('/theme', [DashboardController::class, 'resetTheme'])->name('theme.reset');

@@ -6,6 +6,7 @@ use App\Http\Requests\StoreOnboardingShopRequest;
 use App\Http\Requests\ValidateOnboardingBusinessRequest;
 use App\Models\Shop;
 use App\Support\Countries;
+use App\Support\Industries;
 use App\Support\ShopContact;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,7 @@ class ShopOnboardingController extends Controller
             'ownerEmail' => $request->user()->email,
             'draft' => $request->user()->onboarding_draft,
             'countries' => Countries::options(),
+            'industries' => Industries::options(),
         ]);
     }
 
@@ -59,6 +61,7 @@ class ShopOnboardingController extends Controller
         $shop = DB::transaction(function () use ($request) {
             $shop = $request->user()->shop()->create([
                 ...$request->safe()->only(['name', 'max_stamps', 'reward_title']),
+                ...Industries::attributes($request->validated()),
                 // Made for them - owners don't pick (or see) their card link.
                 'slug' => Shop::uniqueSlug($request->string('name')->value()),
                 ...ShopContact::attributes($request->validated()),
