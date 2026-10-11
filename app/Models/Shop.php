@@ -71,7 +71,7 @@ class Shop extends Model
     /** Stamps-for-a-reward range. Keep in sync with MIN_STAMPS / MAX_STAMPS in Components/Dashboard/ShopFields.jsx. */
     public const MIN_STAMPS = 3;
 
-    public const MAX_STAMPS = 20;
+    public const MAX_STAMPS = 50;
 
     /**
      * The one validation rule for `max_stamps`, shared by onboarding, the

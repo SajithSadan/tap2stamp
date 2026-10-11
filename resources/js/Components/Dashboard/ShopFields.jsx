@@ -4,7 +4,7 @@ import { LuCheck, LuGift, LuMinus, LuPlus } from 'react-icons/lu';
 // own shop setup after sign-up (Onboarding/Shop).
 
 export const MIN_STAMPS = 3;
-export const MAX_STAMPS = 20;
+export const MAX_STAMPS = 50;
 
 const clamp = (n) => Math.min(MAX_STAMPS, Math.max(MIN_STAMPS, n));
 

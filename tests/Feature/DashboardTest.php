@@ -90,11 +90,24 @@ test('settings validation rejects an out-of-range stamp count', function () {
 
     $response = $this->actingAs($owner)->put('/dashboard/settings', [
         'name' => $shop->name,
-        'max_stamps' => 21,
+        'max_stamps' => 51,
         'reward_title' => $shop->reward_title,
     ]);
 
     $response->assertSessionHasErrors('max_stamps');
+});
+
+test('an owner can set a big card, up to 50 stamps', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($owner)->put('/dashboard/settings', [
+        'name' => $shop->name,
+        'max_stamps' => 50,
+        'reward_title' => $shop->reward_title,
+    ])->assertSessionHasNoErrors();
+
+    expect($shop->fresh()->max_stamps)->toBe(50);
 });
 
 test('adding a staff device stores only its hash and flashes the plain token once', function () {

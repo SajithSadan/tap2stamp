@@ -280,36 +280,83 @@ const REWARD_IDEAS = [
     "10% off your next visit",
 ];
 
-/** Every allowed stamp count as one tap target, so there's nothing to type or get wrong. */
+/** Up to this many stamps are one-tap buttons; bigger cards are typed after "More". */
+const PICKER_MAX = 20;
+
+/** Every usual stamp count as one tap target, so there's nothing to type or get wrong; "More" for bigger cards. */
 function StampPicker({ value, onChange }) {
     const counts = Array.from(
-        { length: MAX_STAMPS - MIN_STAMPS + 1 },
+        { length: PICKER_MAX - MIN_STAMPS + 1 },
         (_, i) => MIN_STAMPS + i,
     );
+    const [more, setMore] = useState(value > PICKER_MAX);
+    const chip = (selected) =>
+        `flex h-11 items-center justify-center rounded-full border text-sm font-semibold tabular-nums transition ${
+            selected
+                ? "border-brand-accent bg-brand-accent text-brand-accent-text"
+                : "border-brand-border bg-brand-card text-brand-text hover:border-brand-accent"
+        }`;
 
     return (
-        <div
-            id="max_stamps"
-            role="radiogroup"
-            aria-label="Stamps for a reward"
-            className="flex flex-wrap gap-2"
-        >
-            {counts.map((n) => (
+        <div>
+            <div
+                id="max_stamps"
+                role="radiogroup"
+                aria-label="Stamps for a reward"
+                className="flex flex-wrap gap-2"
+            >
+                {counts.map((n) => (
+                    <button
+                        key={n}
+                        type="button"
+                        role="radio"
+                        aria-checked={!more && value === n}
+                        onClick={() => {
+                            setMore(false);
+                            onChange(n);
+                        }}
+                        className={`${chip(!more && value === n)} w-11`}
+                    >
+                        {n}
+                    </button>
+                ))}
                 <button
-                    key={n}
                     type="button"
                     role="radio"
-                    aria-checked={value === n}
-                    onClick={() => onChange(n)}
-                    className={`flex h-11 w-11 items-center justify-center rounded-full border text-sm font-semibold tabular-nums transition ${
-                        value === n
-                            ? "border-brand-accent bg-brand-accent text-brand-accent-text"
-                            : "border-brand-border bg-brand-card text-brand-text hover:border-brand-accent"
-                    }`}
+                    aria-checked={more}
+                    onClick={() => {
+                        setMore(true);
+                        if (value <= PICKER_MAX) onChange(PICKER_MAX + 5);
+                    }}
+                    className={`${chip(more)} px-4`}
                 >
-                    {n}
+                    More
                 </button>
-            ))}
+            </div>
+
+            {more && (
+                <label className="mt-3 flex items-center gap-2 text-sm text-brand-muted">
+                    <input
+                        type="number"
+                        inputMode="numeric"
+                        min={PICKER_MAX + 1}
+                        max={MAX_STAMPS}
+                        value={value}
+                        onChange={(e) => onChange(Number(e.target.value))}
+                        onBlur={() =>
+                            onChange(
+                                Math.min(
+                                    MAX_STAMPS,
+                                    Math.max(PICKER_MAX + 1, value || 0),
+                                ),
+                            )
+                        }
+                        aria-label="Number of stamps"
+                        className="w-20 rounded-xl border border-brand-border bg-brand-card px-3 py-2 text-center font-semibold tabular-nums text-brand-text outline-none focus:border-brand-accent"
+                    />
+                    stamps (up to {MAX_STAMPS})
+                </label>
+            )}
         </div>
     );
 }

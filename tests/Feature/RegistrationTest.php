@@ -152,7 +152,7 @@ test('shop setup validates the stamps and reward', function (array $overrides, s
     expect(Shop::where('user_id', $owner->id)->exists())->toBeFalse();
 })->with([
     'too few stamps' => [['max_stamps' => 2], 'max_stamps'],
-    'too many stamps' => [['max_stamps' => 21], 'max_stamps'],
+    'too many stamps' => [['max_stamps' => 51], 'max_stamps'],
     'no reward' => [['reward_title' => ''], 'reward_title'],
 ]);
 
