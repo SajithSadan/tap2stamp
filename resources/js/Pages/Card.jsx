@@ -867,6 +867,9 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                         </section>
                     )}
 
+                    {/* Right under their QR, from the first visit (just registered): keep the card on the home screen. */}
+                    {card && !preview && <InstallPrompt uuid={card.uuid} />}
+
                     {/* Quick actions: only the ones the shop has set up. */}
                     {(shop.instagram_url || card || shop.menu_url) && (
                         <div className="space-y-2">
@@ -1119,12 +1122,6 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                         document.body,
                     )}
 
-                    {/* Once they've got a stamp: keep their cards on the home screen (Install / Add to Home Screen). */}
-                    {card && !preview && (card.stamps > 0 || card.rewards_claimed > 0) && (
-                        <div className="mt-4">
-                            <InstallPrompt uuid={card.uuid} />
-                        </div>
-                    )}
                 </main>
             </div>
 

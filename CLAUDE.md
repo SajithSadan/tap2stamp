@@ -87,10 +87,18 @@ shops doesn't need to keep re-finding each shop's individual link.
   `start_url` `/my-cards?c={uuid}`, because an iPhone home-screen app gets **separate,
   empty storage** from Safari. `adoptLinkedCustomer()` stores `?c` **only when nothing is
   stored yet**, so someone else's link never replaces a customer's own card. `InstallPrompt`
-  (on My Cards, and on the card page once there's a stamp) shows Install where the browser
-  offers it (Android/Chrome). On iPhone it shows "Add", which goes to `/my-cards?c=…&add=1`
-  (Add to Home Screen saves the current URL) and then shows the Share → Add to Home Screen
-  steps. "Not now" snoozes it for 14 days, and it's hidden when the app is already installed.
+  is on My Cards, and on the card page **from the first visit** (right after sign-up), **directly
+  under the QR card**. It used to wait for the first stamp and sit at the bottom, so new
+  customers never saw it. It shows:
+  - **Install** when Chrome has offered it (`beforeinstallprompt`);
+  - otherwise **"Add"** with steps:
+    - iPhone: there's never a prompt. "Add" goes to `/my-cards?c=…&add=1` (Add to Home Screen
+      saves the current URL), then the Share → Add to Home Screen steps;
+    - Android before Chrome decides to offer Install: ⋮ menu → Add to Home screen / Install app;
+  - nothing on desktop without a prompt.
+
+  There's no manifest before sign-up: the app's link needs the card id. "Not now" snoozes it
+  for 14 days, and it's hidden when the app is already installed.
 
 ## Admin panel (additive — expands Stage 4 beyond the original doc)
 

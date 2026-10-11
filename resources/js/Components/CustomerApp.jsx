@@ -1,6 +1,6 @@
 import { Head } from "@inertiajs/react";
 import { useEffect, useState } from "react";
-import { LuDownload, LuShare, LuSquarePlus, LuX } from "react-icons/lu";
+import { LuDownload, LuEllipsisVertical, LuShare, LuSquarePlus, LuX } from "react-icons/lu";
 import { CUSTOMER_UUID_KEY } from "@/lib/storage";
 
 /**
@@ -28,6 +28,8 @@ export const isInstalledApp = () =>
 const isIos = () =>
     typeof navigator !== "undefined" &&
     (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+
+const isAndroid = () => typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 
 /**
  * /my-cards?c={uuid} - the installed app's first launch (its storage starts
@@ -83,8 +85,11 @@ function snoozed() {
     }
 }
 
-/** iPhone: the three taps, with Safari's own Share icon. */
-function IosSteps({ onClose }) {
+/**
+ * The taps to add it by hand: iPhone (Safari's Share icon) or Android when
+ * Chrome hasn't offered its own Install yet (the ⋮ browser menu).
+ */
+function IosSteps({ onClose, android = false }) {
     return (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={onClose}>
             <div
@@ -103,10 +108,18 @@ function IosSteps({ onClose }) {
                 <ol className="mt-5 space-y-4 text-sm text-brand-text">
                     <li className="flex items-center gap-3">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-bg">
-                            <LuShare className="h-5 w-5 text-[#007aff]" />
+                            {android ? <LuEllipsisVertical className="h-5 w-5 text-brand-text" /> : <LuShare className="h-5 w-5 text-[#007aff]" />}
                         </span>
                         <span>
-                            Tap <strong>Share</strong> in your browser's toolbar.
+                            {android ? (
+                                <>
+                                    Tap the <strong>⋮ menu</strong> at the top right of your browser.
+                                </>
+                            ) : (
+                                <>
+                                    Tap <strong>Share</strong> in your browser's toolbar.
+                                </>
+                            )}
                         </span>
                     </li>
                     <li className="flex items-center gap-3">
@@ -114,13 +127,31 @@ function IosSteps({ onClose }) {
                             <LuSquarePlus className="h-5 w-5 text-brand-text" />
                         </span>
                         <span>
-                            Scroll down and tap <strong>Add to Home Screen</strong>.
+                            {android ? (
+                                <>
+                                    Tap <strong>Add to Home screen</strong> (or <strong>Install app</strong>).
+                                </>
+                            ) : (
+                                <>
+                                    Scroll down and tap <strong>Add to Home Screen</strong>.
+                                </>
+                            )}
                         </span>
                     </li>
                     <li className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-bg text-sm font-bold text-[#007aff]">Add</span>
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-bg text-sm font-bold ${android ? "text-brand-accent" : "text-[#007aff]"}`}>
+                            {android ? "OK" : "Add"}
+                        </span>
                         <span>
-                            Tap <strong>Add</strong>. Your cards are then one tap away.
+                            {android ? (
+                                <>
+                                    Confirm with <strong>Add</strong> or <strong>Install</strong>. Your cards are then one tap away.
+                                </>
+                            ) : (
+                                <>
+                                    Tap <strong>Add</strong>. Your cards are then one tap away.
+                                </>
+                            )}
                         </span>
                     </li>
                 </ol>
@@ -133,16 +164,21 @@ function IosSteps({ onClose }) {
 }
 
 /**
- * "Add My Cards to your home screen": an Install button where the browser
- * offers one (Android / Chrome), the Share steps on iPhone, nothing
- * elsewhere or when already installed. "Not now" snoozes it for 14 days.
- * `autoOpenSteps`: open the iPhone steps straight away (?add=1).
+ * "Add My Cards to your home screen", from the customer's first visit (right
+ * under their QR on the card page, and on My Cards): Install where the browser
+ * offers it (Chrome's own prompt); otherwise "Add" with the steps - iPhone
+ * (Share → Add to Home Screen, there's no prompt at all) or Android before
+ * Chrome decides to offer Install (⋮ menu → Add to Home screen). Nothing on
+ * desktop without a prompt, or when already installed. "Not now" snoozes it
+ * for 14 days. `autoOpenSteps`: open the iPhone steps straight away (?add=1).
  */
 export function InstallPrompt({ uuid, autoOpenSteps = false }) {
     const [canInstall, setCanInstall] = useState(Boolean(deferredInstall));
     const [hidden, setHidden] = useState(() => isInstalledApp() || snoozed());
     const [steps, setSteps] = useState(false);
     const ios = isIos();
+    // Android before Chrome offers its own Install (it decides when): show the ⋮ menu steps instead.
+    const android = !ios && isAndroid();
 
     useEffect(() => {
         const update = () => setCanInstall(Boolean(deferredInstall));
@@ -154,7 +190,8 @@ export function InstallPrompt({ uuid, autoOpenSteps = false }) {
         if (autoOpenSteps && ios && !isInstalledApp()) setSteps(true);
     }, [autoOpenSteps, ios]);
 
-    if (!uuid || hidden || (!ios && !canInstall)) return steps ? <IosSteps onClose={() => setSteps(false)} /> : null;
+    const stepsDialog = steps ? <IosSteps android={!ios} onClose={() => setSteps(false)} /> : null;
+    if (!uuid || hidden || (!ios && !android && !canInstall)) return stepsDialog;
 
     function notNow() {
         try {
@@ -166,6 +203,17 @@ export function InstallPrompt({ uuid, autoOpenSteps = false }) {
     }
 
     async function install() {
+        if (canInstall) {
+            const prompt = deferredInstall;
+            deferredInstall = null;
+            setCanInstall(false);
+            await prompt?.prompt();
+            return;
+        }
+        if (android) {
+            setSteps(true);
+            return;
+        }
         if (ios) {
             // Add to Home Screen saves the page's own address too: make sure it carries the card id.
             if (!window.location.pathname.startsWith("/my-cards") || !window.location.search.includes("c=")) {
@@ -173,12 +221,7 @@ export function InstallPrompt({ uuid, autoOpenSteps = false }) {
                 return;
             }
             setSteps(true);
-            return;
         }
-        const prompt = deferredInstall;
-        deferredInstall = null;
-        setCanInstall(false);
-        await prompt?.prompt();
     }
 
     return (
@@ -191,14 +234,14 @@ export function InstallPrompt({ uuid, autoOpenSteps = false }) {
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
                     <button type="button" onClick={install} className="inline-flex items-center gap-1.5 rounded-full bg-brand-accent px-3.5 py-1.5 text-xs font-semibold text-brand-accent-text">
-                        <LuDownload className="h-3.5 w-3.5" /> {ios ? "Add" : "Install"}
+                        <LuDownload className="h-3.5 w-3.5" /> {canInstall ? "Install" : "Add"}
                     </button>
                     <button type="button" onClick={notNow} className="text-[11px] font-medium text-brand-muted hover:text-brand-text">
                         Not now
                     </button>
                 </div>
             </div>
-            {steps && <IosSteps onClose={() => setSteps(false)} />}
+            {stepsDialog}
         </>
     );
 }
