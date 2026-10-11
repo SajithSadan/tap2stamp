@@ -26,6 +26,7 @@ class LandingPageController extends Controller
                 'features' => LandingPage::MAX_FEATURES,
                 'currencies' => LandingPage::MAX_CURRENCIES,
                 'trustPoints' => LandingPage::MAX_TRUST_POINTS,
+                'faqs' => LandingPage::MAX_FAQS,
             ],
             'ipLookup' => filled(config('services.ipinfo.token')),
         ]);

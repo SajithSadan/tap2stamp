@@ -28,6 +28,11 @@ class UpdateLandingPageRequest extends FormRequest
 
         $this->merge([
             'plans' => $plans,
+            // Rows with neither a question nor an answer are dropped; half-filled ones are reported.
+            'faqs' => collect((array) $this->input('faqs', []))
+                ->map(fn ($faq) => is_array($faq) ? ['question' => trim((string) ($faq['question'] ?? '')), 'answer' => trim((string) ($faq['answer'] ?? ''))] : $faq)
+                ->filter(fn ($faq) => ! is_array($faq) || $faq['question'] !== '' || $faq['answer'] !== '')
+                ->values()->all(),
             'trust_points' => collect((array) $this->input('trust_points', []))->map(fn ($p) => trim((string) $p))->filter()->values()->all(),
             'currencies' => array_values(array_unique(array_map('strtoupper', (array) $this->input('currencies', [])))),
             'default_currency' => strtoupper((string) $this->input('default_currency')),
@@ -39,6 +44,9 @@ class UpdateLandingPageRequest extends FormRequest
         $currencies = (array) $this->input('currencies', []);
 
         return [
+            // Search results show about 60 characters of a title and 160 of a description.
+            'seo_title' => ['nullable', 'string', 'max:70'],
+            'seo_description' => ['nullable', 'string', 'max:200'],
             'kicker' => ['nullable', 'string', 'max:120'],
             'title' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:400'],
@@ -50,6 +58,10 @@ class UpdateLandingPageRequest extends FormRequest
             'trust_points.*' => ['string', 'max:80'],
             'pricing_title' => ['required', 'string', 'max:120'],
             'pricing_subtitle' => ['nullable', 'string', 'max:300'],
+            'faq_title' => ['nullable', 'string', 'max:120'],
+            'faqs' => ['array', 'max:'.LandingPage::MAX_FAQS],
+            'faqs.*.question' => ['required', 'string', 'max:200'],
+            'faqs.*.answer' => ['required', 'string', 'max:1000'],
             'youtube_url' => ['nullable', 'string', 'max:300', function (string $attribute, mixed $value, Closure $fail) {
                 if (filled($value) && ! LandingPage::youtubeId($value)) {
                     $fail('Paste a YouTube video link, e.g. https://www.youtube.com/watch?v=…');
@@ -83,6 +95,8 @@ class UpdateLandingPageRequest extends FormRequest
             'plans.*.prices.*.required' => 'Enter a price for every currency.',
             'plans.*.prices.*.regex' => 'Enter the price as a number, e.g. 4.99.',
             'default_currency.in' => 'The default currency must be one of the offered ones.',
+            'faqs.*.question.required' => 'Write the question, or clear the answer too to remove it.',
+            'faqs.*.answer.required' => 'Write the answer, or clear the question too to remove it.',
         ];
     }
 
@@ -93,6 +107,8 @@ class UpdateLandingPageRequest extends FormRequest
         $blank = fn ($v) => filled($v) ? trim($v) : null;
 
         return [
+            'seo_title' => $blank($data['seo_title'] ?? null),
+            'seo_description' => $blank($data['seo_description'] ?? null),
             'kicker' => $blank($data['kicker'] ?? null),
             'title' => trim($data['title']),
             'description' => $blank($data['description'] ?? null),
@@ -103,6 +119,8 @@ class UpdateLandingPageRequest extends FormRequest
             'trust_points' => array_values($data['trust_points'] ?? []),
             'pricing_title' => trim($data['pricing_title']),
             'pricing_subtitle' => $blank($data['pricing_subtitle'] ?? null),
+            'faq_title' => $blank($data['faq_title'] ?? null),
+            'faqs' => array_values($data['faqs'] ?? []),
             'youtube_url' => $blank($data['youtube_url'] ?? null),
             'default_currency' => $data['default_currency'],
             'currencies' => $data['currencies'],

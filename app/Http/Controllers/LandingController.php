@@ -30,6 +30,8 @@ class LandingController extends Controller
         // ever sees their own country's prices, so nobody can shop around for a cheaper one.
         $currency = LandingPage::currencyFor($content, $country->for($request), $adminPreview ? $request->query('currency') : null);
 
-        return Inertia::render('Landing', LandingPage::forVisitor($content, $currency));
+        return Inertia::render('Landing', LandingPage::forVisitor($content, $currency))
+            // Title, description, social image and structured data, in the HTML itself.
+            ->withViewData(['seo' => LandingPage::seo($content)]);
     }
 }

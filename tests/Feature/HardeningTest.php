@@ -9,7 +9,7 @@ test('responses carry the security headers', function () {
         ->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertHeader('X-Frame-Options', 'DENY')
         ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-        ->assertHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+        ->assertHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
 });
 
 test('error responses carry the security headers too', function () {

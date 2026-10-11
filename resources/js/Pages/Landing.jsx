@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import {
     LuArrowRight,
     LuCheck,
+    LuChevronDown,
     LuCircleCheck,
     LuGift,
     LuPlay,
@@ -14,8 +15,10 @@ import { Wordmark } from "@/Components/AuthShell";
  * "/" for visitors: hero (badge, heading, subtitle, trial + demo buttons),
  * the YouTube demo, a free-trial trust banner, then pricing - in the
  * visitor's own currency only (picked on the server from their IP, see
- * LandingController; other countries' prices are never sent). All of it is
- * edited in Admin → Landing page (App\Support\LandingPage).
+ * LandingController; other countries' prices are never sent) - and the FAQ.
+ * All of it is edited in Admin → Landing page (App\Support\LandingPage).
+ * The SEO title, description, social image and structured data (incl. the
+ * FAQ's FAQPage schema) are written into the HTML by the server.
  */
 
 const REGISTER = "/register";
@@ -228,6 +231,35 @@ const GRID = {
     4: "md:grid-cols-2 xl:grid-cols-4 max-w-7xl",
 };
 
+/**
+ * The questions as open/close rows. Every answer is in the page's HTML (just
+ * collapsed), which is what Google needs to match the FAQPage schema.
+ */
+function Faq({ title, faqs }) {
+    if (!faqs.length) return null;
+
+    return (
+        <section id="faq" className="scroll-mt-20 px-4 py-20 sm:px-6">
+            <div className="mx-auto max-w-3xl">
+                <h2 className="text-center font-heading text-3xl font-bold text-brand-deep sm:text-4xl">
+                    {title || "Frequently asked questions"}
+                </h2>
+                <div className="mt-10 divide-y divide-brand-border rounded-2xl border border-brand-border bg-white">
+                    {faqs.map((faq, i) => (
+                        <details key={faq.question} className="group" open={i === 0}>
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-left font-semibold text-brand-text sm:px-6 [&::-webkit-details-marker]:hidden">
+                                <h3 className="text-base">{faq.question}</h3>
+                                <LuChevronDown className="h-5 w-5 shrink-0 text-brand-muted transition-transform group-open:rotate-180" />
+                            </summary>
+                            <p className="whitespace-pre-line px-5 pb-5 text-brand-muted sm:px-6">{faq.answer}</p>
+                        </details>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
 export default function Landing({
     kicker,
     title,
@@ -242,6 +274,9 @@ export default function Landing({
     pricing_subtitle,
     currency,
     plans,
+    seo_title,
+    faq_title,
+    faqs = [],
 }) {
     const [playing, setPlaying] = useState(false);
     const demo = useRef(null);
@@ -254,7 +289,8 @@ export default function Landing({
 
     return (
         <>
-            <Head title={title} />
+            {/* Same title as the server wrote (LandingPage::seo()). */}
+            <Head title={seo_title || title} />
 
             <div className="min-h-dvh bg-white text-brand-text">
                 <header className="sticky top-0 z-20 border-b border-brand-border bg-white/95 backdrop-blur">
@@ -267,6 +303,14 @@ export default function Landing({
                             >
                                 Pricing
                             </a>
+                            {faqs.length > 0 && (
+                                <a
+                                    href="#faq"
+                                    className="hidden text-sm font-medium text-brand-muted hover:text-brand-text sm:inline"
+                                >
+                                    FAQ
+                                </a>
+                            )}
                             <Link
                                 href="/login"
                                 className="px-2 text-sm font-medium text-brand-text hover:text-brand-accent"
@@ -372,6 +416,7 @@ export default function Landing({
                             ))}
                         </div>
                     </section>
+                    <Faq title={faq_title} faqs={faqs} />
                 </main>
 
                 <footer className="border-t border-brand-border">

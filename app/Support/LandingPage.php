@@ -24,6 +24,11 @@ class LandingPage
 
     public const MAX_TRUST_POINTS = 6;
 
+    public const MAX_FAQS = 10;
+
+    /** Shared on social media / chat apps: 1200 x 630, in public/images. */
+    public const OG_IMAGE = '/images/og-image.jpg';
+
     /** @return array<string, mixed> */
     public static function defaults(): array
     {
@@ -38,6 +43,9 @@ class LandingPage
         ];
 
         return [
+            // Search engines and link previews (worldwide - no prices: they differ by country).
+            'seo_title' => 'Digital Loyalty Card App for Small Businesses | Tada Tap',
+            'seo_description' => "Replace paper stamp cards with a digital loyalty card on your customers' phones. They scan your QR code to collect stamps - no app to download. Start free.",
             // Hero
             'kicker' => 'Digital Loyalty & Growth Engine for Retail, Dining & Salons',
             'title' => 'Get Back-to-Back Repeat Customers to Your Shop with TaDa Tap',
@@ -56,6 +64,19 @@ class LandingPage
             // Pricing
             'pricing_title' => 'Simple, Transparent Annual Pricing',
             'pricing_subtitle' => 'Invest once a year, grow footfall daily. All plans include your first month completely free.',
+            // FAQ: shown on the page and sent to Google as FAQPage structured data.
+            'faq_title' => 'Frequently asked questions',
+            'faqs' => [
+                ['question' => 'What is a digital loyalty card?', 'answer' => "A digital loyalty card is a stamp card that lives on your customer's phone instead of in their wallet. Every visit adds a stamp, and when the card is full the customer gets the reward you chose - no paper cards to print, lose or forget."],
+                ['question' => 'How does Tada Tap work?', 'answer' => "Customers scan your shop's QR code to get their card - just their name and mobile number, once. On each visit your staff scan the QR code on the customer's card with the Tada Tap staff app to add a stamp. When the card is full, the reward is ready to give."],
+                ['question' => 'Do customers need to download an app?', 'answer' => "No. The loyalty card opens in the phone's web browser on iPhone and Android. Customers can add it to their home screen in one tap, so it works like an app without a download."],
+                ['question' => 'What kinds of businesses use Tada Tap?', 'answer' => 'Any business with repeat customers: cafes, restaurants, bakeries, takeaways, barbers, hair and beauty salons, gyms, clinics, pharmacies, grocery and retail shops, laundries and more.'],
+                ['question' => 'Can I choose the reward and how many stamps it takes?', 'answer' => 'Yes. Pick any reward - a free coffee, a free haircut, 10% off - and anywhere from 3 to 50 stamps. You can change both at any time from your dashboard.'],
+                ['question' => 'Does Tada Tap work in my country?', 'answer' => 'Yes. Tada Tap runs in any web browser, so it works for businesses anywhere in the world, with prices in your local currency. Download and print your QR code to put on the counter, or order a ready-made counter display where it is available.'],
+                ['question' => 'What do my staff need?', 'answer' => 'Just a smartphone. Staff open the Tada Tap staff app in the browser, sign in with their name and PIN, and scan customer cards. Every stamp records who gave it.'],
+                ['question' => 'Can Tada Tap help me get more Google reviews?', 'answer' => 'Yes. Customers can rate their visit and leave feedback from their loyalty card, then share a review on your Google Business Profile in one tap.'],
+                ['question' => 'Is there a free trial?', 'answer' => 'Yes. Every new shop starts with a free trial, and you can sign up without any payment details. Set up your card in about five minutes and see how your customers respond.'],
+            ],
             'default_currency' => 'INR',
             'currencies' => ['INR', 'AED'],
             'plans' => [
@@ -162,6 +183,7 @@ class LandingPage
             ...collect($content)->only([
                 'kicker', 'title', 'description', 'primary_cta', 'demo_cta',
                 'trust_title', 'trust_description', 'trust_points', 'pricing_title', 'pricing_subtitle',
+                'seo_title', 'faq_title', 'faqs',
             ])->all(),
             'youtube_id' => self::youtubeId($content['youtube_url'] ?? null),
             'currency' => $currency,
@@ -170,6 +192,73 @@ class LandingPage
                 'price' => $plan['prices'][$currency] ?? $plan['prices'][$default] ?? null,
                 'symbol' => Currencies::symbol(isset($plan['prices'][$currency]) ? $currency : $default),
             ])->values()->all(),
+        ];
+    }
+
+    /**
+     * The landing page's <head> for search engines and link previews. The
+     * app renders in the browser, so these are written into the HTML by the
+     * server (app.blade.php) - crawlers and chat-app previews don't run JS.
+     * One worldwide site: the canonical is this app's own URL, for every
+     * country (UK shops sign up here too).
+     *
+     * @return array<string, mixed>
+     */
+    public static function seo(array $content): array
+    {
+        $url = rtrim((string) config('app.url'), '/').'/';
+        $title = ($content['seo_title'] ?? null) ?: $content['title'];
+        $description = ($content['seo_description'] ?? null) ?: $content['description'];
+        $image = rtrim($url, '/').self::OG_IMAGE;
+        $faqs = collect($content['faqs'] ?? [])->filter(fn ($faq) => filled($faq['question'] ?? null) && filled($faq['answer'] ?? null))->values();
+
+        $graph = [
+            [
+                '@type' => 'Organization',
+                '@id' => $url.'#organization',
+                'name' => 'Tada Tap',
+                'url' => $url,
+                'logo' => rtrim($url, '/').'/images/favicon-512.png',
+            ],
+            [
+                '@type' => 'WebSite',
+                '@id' => $url.'#website',
+                'name' => 'Tada Tap',
+                'url' => $url,
+                'inLanguage' => 'en',
+                'publisher' => ['@id' => $url.'#organization'],
+            ],
+            [
+                '@type' => 'SoftwareApplication',
+                'name' => 'Tada Tap',
+                'url' => $url,
+                'description' => $description,
+                'applicationCategory' => 'BusinessApplication',
+                'operatingSystem' => 'Web browser, iOS, Android',
+                'publisher' => ['@id' => $url.'#organization'],
+            ],
+        ];
+
+        if ($faqs->isNotEmpty()) {
+            $graph[] = [
+                '@type' => 'FAQPage',
+                '@id' => $url.'#faq',
+                'mainEntity' => $faqs->map(fn (array $faq) => [
+                    '@type' => 'Question',
+                    'name' => $faq['question'],
+                    'acceptedAnswer' => ['@type' => 'Answer', 'text' => $faq['answer']],
+                ])->all(),
+            ];
+        }
+
+        return [
+            'title' => $title,
+            'description' => $description,
+            'canonical' => $url,
+            'image' => $image,
+            'image_alt' => 'Tada Tap - digital loyalty cards customers keep on their phone',
+            // Escaped for a <script> tag: admin-typed text can't close it.
+            'json_ld' => json_encode(['@context' => 'https://schema.org', '@graph' => $graph], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP),
         ];
     }
 }

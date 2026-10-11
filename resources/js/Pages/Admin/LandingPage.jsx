@@ -50,8 +50,29 @@ function Field({ label, hint, error, children, className = "" }) {
     );
 }
 
+/** "54 / 60": a length hint that turns amber past what search results show. */
+function Count({ value, ideal }) {
+    const length = value.trim().length;
+    return <span className={length > ideal ? "text-amber-700" : ""}>{length} / {ideal} characters shown in search results</span>;
+}
+
+/** Roughly how the page shows up on Google - title, address, description. */
+function SearchPreview({ title, description }) {
+    return (
+        <div className="rounded-xl border border-brand-border bg-white p-4">
+            <p className="text-xs text-neutral-600">{window.location.host}</p>
+            <p className="mt-0.5 truncate text-lg text-[#1a0dab]">{title || "Page title"}</p>
+            <p className="mt-0.5 line-clamp-2 text-sm text-neutral-700">{description || "Description"}</p>
+        </div>
+    );
+}
+
 /** Saved (or default) content as the form's values. */
 const toFormData = (content) => ({
+    seo_title: content.seo_title ?? "",
+    seo_description: content.seo_description ?? "",
+    faq_title: content.faq_title ?? "",
+    faqs: (content.faqs ?? []).map((faq) => ({ question: faq.question ?? "", answer: faq.answer ?? "" })),
     kicker: content.kicker ?? "",
     title: content.title ?? "",
     description: content.description ?? "",
@@ -76,7 +97,7 @@ export default function LandingPage({ content, defaults, currencyOptions, limits
     async function loadDefaults() {
         const ok = await confirm({
             title: "Load the default content?",
-            message: "The whole form is replaced with the suggested hero, trust banner and pricing plans. Nothing is saved until you press Save - Discard brings back what's live.",
+            message: "The whole form is replaced with the suggested search title and description, hero, trust banner, pricing plans and FAQ. Nothing is saved until you press Save - Discard brings back what's live.",
             confirmLabel: "Load defaults",
         });
         if (ok) form.setData({ ...toFormData(defaults), youtube_url: form.data.youtube_url });
@@ -86,6 +107,12 @@ export default function LandingPage({ content, defaults, currencyOptions, limits
     const videoId = data.youtube_url.match(YOUTUBE)?.[1];
 
     const setPlan = (i, patch) => form.setData("plans", data.plans.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+    const setFaq = (i, patch) => form.setData("faqs", data.faqs.map((f, j) => (j === i ? { ...f, ...patch } : f)));
+    const moveFaq = (i, by) => {
+        const faqs = [...data.faqs];
+        [faqs[i], faqs[i + by]] = [faqs[i + by], faqs[i]];
+        form.setData("faqs", faqs);
+    };
     const movePlan = (i, by) => {
         const plans = [...data.plans];
         [plans[i], plans[i + by]] = [plans[i + by], plans[i]];
@@ -144,6 +171,26 @@ export default function LandingPage({ content, defaults, currencyOptions, limits
             }
         >
             <form onSubmit={submit} noValidate className="space-y-4">
+                <Panel
+                    title="Search & sharing"
+                    description="How the page appears on Google and when its link is shared (WhatsApp, Facebook, LinkedIn). Written for every country - no prices, they differ by country."
+                >
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                        <div className="space-y-4">
+                            <Field label="Page title" hint={<Count value={data.seo_title} ideal={60} />} error={errors.seo_title}>
+                                <input type="text" maxLength={70} placeholder={defaults.seo_title} {...text("seo_title")} />
+                            </Field>
+                            <Field label="Description" hint={<Count value={data.seo_description} ideal={160} />} error={errors.seo_description}>
+                                <textarea rows={3} maxLength={200} placeholder={defaults.seo_description} {...text("seo_description")} className={`${inputClass} resize-y`} />
+                            </Field>
+                        </div>
+                        <div className="space-y-3">
+                            <SearchPreview title={data.seo_title || data.title} description={data.seo_description || data.description} />
+                            <img src="/images/og-image.jpg" alt="Image shown when the link is shared" className="w-full rounded-xl border border-brand-border" />
+                        </div>
+                    </div>
+                </Panel>
+
                 <Panel title="Hero" description="The top of the page.">
                     <div className="space-y-4">
                         <Field label="Badge above the heading (optional)" error={errors.kicker}>
@@ -354,6 +401,53 @@ export default function LandingPage({ content, defaults, currencyOptions, limits
                     </button>
                 )}
                 <FieldError message={errors.plans} />
+
+                <Panel
+                    title="FAQ"
+                    description="Questions and answers at the bottom of the page. Google also reads them (FAQ structured data). Leave a row empty to remove it."
+                >
+                    <div className="space-y-4">
+                        <Field label="Heading" error={errors.faq_title}>
+                            <input type="text" maxLength={120} placeholder="Frequently asked questions" {...text("faq_title")} />
+                        </Field>
+                        {data.faqs.map((faq, i) => (
+                            <div key={i} className="rounded-xl border border-brand-border p-4">
+                                <div className="flex items-start gap-2">
+                                    <span className="mt-2.5 w-6 shrink-0 text-sm font-semibold tabular-nums text-brand-muted">{i + 1}.</span>
+                                    <div className="min-w-0 flex-1 space-y-2">
+                                        <Field label={<span className="sr-only">Question {i + 1}</span>} error={errors[`faqs.${i}.question`]}>
+                                            <input type="text" maxLength={200} placeholder="Question" value={faq.question} onChange={(e) => setFaq(i, { question: e.target.value })} className={`${inputClass} font-medium`} />
+                                        </Field>
+                                        <Field label={<span className="sr-only">Answer {i + 1}</span>} error={errors[`faqs.${i}.answer`]}>
+                                            <textarea rows={3} maxLength={1000} placeholder="Answer" value={faq.answer} onChange={(e) => setFaq(i, { answer: e.target.value })} className={`${inputClass} resize-y`} />
+                                        </Field>
+                                    </div>
+                                    <div className="flex shrink-0 flex-col gap-1">
+                                        <button type="button" onClick={() => moveFaq(i, -1)} disabled={i === 0} aria-label="Move up" className="rounded-lg p-1.5 text-brand-muted hover:bg-brand-bg hover:text-brand-text disabled:opacity-30">
+                                            <LuArrowUp className="h-4 w-4" />
+                                        </button>
+                                        <button type="button" onClick={() => moveFaq(i, 1)} disabled={i === data.faqs.length - 1} aria-label="Move down" className="rounded-lg p-1.5 text-brand-muted hover:bg-brand-bg hover:text-brand-text disabled:opacity-30">
+                                            <LuArrowDown className="h-4 w-4" />
+                                        </button>
+                                        <button type="button" onClick={() => form.setData("faqs", data.faqs.filter((_, j) => j !== i))} aria-label="Remove question" className="rounded-lg p-1.5 text-brand-muted hover:bg-red-500/10 hover:text-red-700">
+                                            <LuTrash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {data.faqs.length < limits.faqs && (
+                            <button
+                                type="button"
+                                onClick={() => form.setData("faqs", [...data.faqs, { question: "", answer: "" }])}
+                                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-brand-border py-2.5 text-sm font-medium text-brand-muted hover:border-brand-accent hover:text-brand-text"
+                            >
+                                <LuPlus className="h-4 w-4" /> Add question
+                            </button>
+                        )}
+                        <FieldError message={errors.faqs} />
+                    </div>
+                </Panel>
 
                 {(form.isDirty || form.processing) && (
                     <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-brand-border bg-brand-bg py-3">

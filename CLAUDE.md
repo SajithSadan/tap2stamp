@@ -291,7 +291,8 @@ handling Hostinger themselves. `shop:create` was also skipped, because the admin
 creates shops and an artisan command can't run without SSH.
 
 - `SecurityHeaders` middleware is appended globally, not per group, so 404s for unmatched
-  routes get the headers too. There's no CSP yet: it would need Google Fonts, Pusher and
+  routes get the headers too. Permissions-Policy allows camera + microphone for this site
+  only (scanners, voice command). There's no CSP yet: it would need Google Fonts, Pusher and
   Vite allow-listed.
 - The scan throttle is the named limiter `staff-scan` in `AppServiceProvider`, keyed by the
   sha256 of the bearer token, not by IP. Every phone in a shop shares one Wi-Fi IP.
@@ -873,6 +874,24 @@ Enquiries come from all over the world, but we only ship hardware in the UK.
   never looked up)) → `Currencies::forCountry()`; not offered → the default currency.
   `?currency=USD` works **only in the admin's preview** (`?preview=1`, signed in as admin);
   the public's is ignored. Whole numbers are shown grouped (₹2,999).
+- **SEO (worldwide)**: the app renders in the browser, so the landing page's `<head>` is written
+  by the **server**: `LandingController` → `withViewData('seo', LandingPage::seo($content))` →
+  `app.blade.php` (title, meta description, canonical = `APP_URL/`, Open Graph + Twitter with
+  `public/images/og-image.jpg` 1200 x 630, and one JSON-LD `@graph`: Organization, WebSite,
+  SoftwareApplication, FAQPage). JSON-LD is encoded with `JSON_HEX_TAG` so admin text can't
+  close the script. **No hreflang / no link to the UK WordPress site** (user's choice): this
+  app is the one site for every country, UK shops included.
+  The SEO title / description are fields of the landing content (`seo_title`,
+  `seo_description`; worldwide, **no prices**), and so is the **FAQ** (`faq_title`, `faqs`
+  ≤ `MAX_FAQS`), shown on the page (`#faq`, `<details>`, every answer in the HTML) and in
+  FAQPage. Admin → Landing page → "Search & sharing" (with a Google preview) and "FAQ".
+  `app.jsx`'s title formatter leaves a title that already names the app as it is.
+  **Indexable pages: only `/` and `/menu/{slug}`** (`SecurityHeaders::INDEXABLE_ROUTES`);
+  every other response, and everything outside production, sends `X-Robots-Tag: noindex,
+  nofollow`. `/robots.txt` and `/sitemap.xml` come from `SeoController` (no static file):
+  production disallows signed-in areas and plumbing (`/auth/`, `/qr/`, `/api/`…) but **not**
+  `/login`, `/register` or `/s/` (Google must fetch them to see their noindex); the sitemap
+  lists `/` only. Any other environment disallows everything.
 - **Video**: `LandingPage::youtubeId()` accepts watch / youtu.be / shorts / embed / live links;
   the page shows the thumbnail and loads the `youtube-nocookie.com` player only on click.
 

@@ -37,6 +37,7 @@ use App\Http\Controllers\OwnerMenuController;
 use App\Http\Controllers\OwnerScanController;
 use App\Http\Controllers\QrRedirectController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\SeoController;
 use App\Http\Controllers\ShopBannerController;
 use App\Http\Controllers\ShopLogoController;
 use App\Http\Controllers\ShopOnboardingController;
@@ -53,6 +54,9 @@ use Inertia\Inertia;
 // Landing page). Signed-in users: their own home. Named `home` so the guest
 // middleware also sends signed-in visitors of /login here.
 Route::get('/', LandingController::class)->name('home');
+// For search engines (built per install; only production is indexable).
+Route::get('/robots.txt', [SeoController::class, 'robots'])->name('robots');
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
 
 // Customer loyalty card: the page shell renders via Inertia, but which
 // uuid (if any) is known only lives in the browser's localStorage, so the
