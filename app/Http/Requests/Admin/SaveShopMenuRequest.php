@@ -20,6 +20,8 @@ class SaveShopMenuRequest extends FormRequest
             'sections' => ['present', 'array', 'max:40'],
             'sections.*.name' => ['required', 'string', 'max:80'],
             'sections.*.items' => ['present', 'array', 'max:200'],
+            // Only to keep the item's availability across the save (ShopMenu::replace).
+            'sections.*.items.*.id' => ['nullable', 'integer'],
             'sections.*.items.*.name' => ['required', 'string', 'max:120'],
             'sections.*.items.*.description' => ['nullable', 'string', 'max:300'],
             'sections.*.items.*.price' => ['nullable', 'string', 'max:40'],

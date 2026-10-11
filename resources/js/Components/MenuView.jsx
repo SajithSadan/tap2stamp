@@ -68,6 +68,16 @@ function Photo({ item, className }) {
     return <img src={item.image_url} alt={item.name} loading="lazy" className={`shrink-0 object-cover ${className}`} />;
 }
 
+/** Marked "not available" by the shop (MenuItem::UNAVAILABLE): still listed, greyed out. */
+const unavailable = (item) => item.availability === "unavailable";
+const dimmed = (item) => (unavailable(item) ? "opacity-50" : "");
+
+function NotAvailable({ item }) {
+    if (!unavailable(item)) return null;
+
+    return <p className="mt-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-muted">Not available</p>;
+}
+
 /* ---------- The three layouts (MenuThemes::LAYOUTS) ---------- */
 
 function ListSection({ section }) {
@@ -76,7 +86,7 @@ function ListSection({ section }) {
             <h2 className="px-4 pb-1 pt-4 font-heading text-lg font-semibold text-brand-text">{section.name}</h2>
             <ul className="divide-y divide-brand-border">
                 {section.items.map((item, i) => (
-                    <li key={i} className="flow-root px-4 py-3">
+                    <li key={i} className={`flow-root px-4 py-3 ${dimmed(item)}`}>
                         <Photo item={item} className="float-left mb-1 mr-3 h-14 w-14 rounded-xl" />
                         <div>
                             <div className="flex items-baseline justify-between gap-4">
@@ -85,6 +95,7 @@ function ListSection({ section }) {
                             </div>
                             {item.description && <p className="mt-0.5 text-sm text-brand-muted">{item.description}</p>}
                             <Tags tags={item.tags} />
+                            <NotAvailable item={item} />
                         </div>
                     </li>
                 ))}
@@ -104,7 +115,7 @@ function ClassicSection({ section }) {
             </h2>
             <ul className="mt-4 space-y-4">
                 {section.items.map((item, i) => (
-                    <li key={i} className="flow-root">
+                    <li key={i} className={`flow-root ${dimmed(item)}`}>
                         <Photo item={item} className="float-left mb-1 mr-3 h-11 w-11 rounded-full" />
                         <div>
                             <div className="flex items-baseline gap-2">
@@ -114,6 +125,7 @@ function ClassicSection({ section }) {
                             </div>
                             {item.description && <p className="mt-0.5 text-sm italic text-brand-muted">{item.description}</p>}
                             <Tags tags={item.tags} />
+                            <NotAvailable item={item} />
                         </div>
                     </li>
                 ))}
@@ -129,7 +141,7 @@ function CardsSection({ section }) {
             <h2 className="mb-2 px-1 font-heading text-xl font-semibold text-brand-text">{section.name}</h2>
             <ul className="space-y-2">
                 {section.items.map((item, i) => (
-                    <li key={i} className="flow-root rounded-brand border border-brand-border bg-brand-card p-4">
+                    <li key={i} className={`flow-root rounded-brand border border-brand-border bg-brand-card p-4 ${dimmed(item)}`}>
                         <Photo item={item} className="float-left mb-1 mr-3 h-16 w-16 rounded-xl" />
                         <div>
                             <div className="flex items-start justify-between gap-3">
@@ -143,6 +155,7 @@ function CardsSection({ section }) {
                             {/* Full width under the name, not squeezed beside the price. */}
                             {item.description && <p className="mt-1 text-sm text-brand-muted">{item.description}</p>}
                             <Tags tags={item.tags} />
+                            <NotAvailable item={item} />
                         </div>
                     </li>
                 ))}
@@ -168,7 +181,11 @@ export default function MenuView({ shop, sections, theme, embedded = false }) {
     const [active, setActive] = useState(0);
     const Section = LAYOUTS[theme.layout] ?? ListSection;
 
-    const withItems = useMemo(() => sections.filter((s) => s.items.length > 0), [sections]);
+    // Hidden items never show (the public page isn't even sent them; the editor's preview is).
+    const withItems = useMemo(
+        () => sections.map((s) => ({ ...s, items: s.items.filter((item) => item.availability !== "hidden") })).filter((s) => s.items.length > 0),
+        [sections],
+    );
     const itemCount = withItems.reduce((sum, s) => sum + s.items.length, 0);
     const search = query.trim().toLowerCase();
     const shown = search

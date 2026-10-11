@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ActionType;
+use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Requests\StaffSignInRequest;
 use App\Models\CustomerShopCard;
 use App\Models\StaffMember;
 use App\Models\StampLog;
 use App\Services\ActivityLogger;
+use App\Services\ShopMenu;
 use App\Services\StampService;
+use App\Support\Features;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -32,7 +35,32 @@ class StaffController extends Controller
             'staff' => $member ? ['id' => $member->id, 'name' => $member->name] : null,
             // Names only, for the "who's working?" picker on the PIN screen.
             'staff_members' => $device->shop->staffMembers()->active()->orderBy('name')->get(['id', 'name']),
+            // The Menu tab (mark items not available / hidden) - only with Menu on and a menu to show.
+            'menu_enabled' => $device->shop->hasFeature(Features::MENU) && $device->shop->menuItems()->exists(),
         ]);
+    }
+
+    /** The shop's menu for the Menu tab: names, prices and availability only. */
+    public function menu(Request $request, ShopMenu $menu): JsonResponse
+    {
+        $shop = $request->attributes->get('staffDevice')->shop;
+        abort_unless($shop->hasFeature(Features::MENU), 404);
+
+        return response()->json([
+            'sections' => collect($menu->sections($shop))->map(fn (array $section) => [
+                'name' => $section['name'],
+                'items' => collect($section['items'])->map(fn (array $item) => collect($item)->only(['id', 'name', 'price', 'availability'])),
+            ]),
+        ]);
+    }
+
+    /** {item, availability} for one item of this device's shop, saved straight away. */
+    public function menuAvailability(Request $request, ShopMenu $menu): JsonResponse
+    {
+        $shop = $request->attributes->get('staffDevice')->shop;
+        abort_unless($shop->hasFeature(Features::MENU), 404);
+
+        return ShopMenuController::saveAvailability($request, $shop, $menu);
     }
 
     public function signIn(StaffSignInRequest $request): JsonResponse

@@ -71,6 +71,11 @@ class OwnerMenuController extends Controller
         return ShopMenuController::confirmPhoto($request, $request->user()->shop, $images);
     }
 
+    public function availability(Request $request, ShopMenu $menu): JsonResponse
+    {
+        return ShopMenuController::saveAvailability($request, $request->user()->shop, $menu);
+    }
+
     public function uploadPhoto(Request $request, MenuItemImages $images): JsonResponse
     {
         return ShopMenuController::storeUpload($request, $request->user()->shop, $images);

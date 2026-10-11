@@ -36,9 +36,9 @@ let nextKey = 0;
 const key = () => `k${++nextKey}`;
 const blankItem = () => ({ key: key(), name: "", description: "", price: "", tags: [] });
 
-const PHOTO_FIELDS = ["id", "image_path", "image_url", "image_status", "image_reason"];
+const PHOTO_FIELDS = ["id", "availability", "image_path", "image_url", "image_status", "image_reason"];
 
-/** React keys for every section and item (stripped again before saving). Photo fields ride along when known. */
+/** React keys for every section and item (stripped again before saving). Saved-item fields (id, availability, photo) ride along when known. */
 function withKeys(sections) {
     return sections.map((section) => ({
         key: key(),
@@ -63,13 +63,17 @@ function withKeys(sections) {
 function withoutKeys(sections) {
     return sections.map(({ name, items }) => ({
         name,
-        items: items.map(({ name, description, price, tags, image_path, image_url }) => ({
+        items: items.map(({ id, name, description, price, tags, availability, image_path, image_url }) => ({
+            // id: the server keeps each item's availability across the save (it never takes it from here).
+            ...(id && { id }),
             name,
             description,
             price,
             tags,
             ...(image_path !== undefined && { image_path }),
             ...(image_url !== undefined && { image_url }),
+            // For the preview only (hidden items drop out, unavailable ones grey out).
+            ...(availability && { availability }),
         })),
     }));
 }
@@ -659,7 +663,7 @@ function PhotoThumb({ item, searching, canFind, canSearch, onClick }) {
     );
 }
 
-function PhotoActions({ item, asking, setAsking, canFind, canSearch, onFind, onUpload, onRemovePhoto }) {
+function PhotoActions({ item, asking, setAsking, canFind, canSearch, onFind, onUpload, onRemovePhoto, onAvailability }) {
     const [query, setQuery] = useState(item.name);
     const note = { not_found: "No photo found", rejected: "No matching photo", removed: "Photo taken off" }[item.image_status];
     const link = "font-medium text-brand-accent hover:underline disabled:cursor-not-allowed disabled:text-brand-muted disabled:no-underline";
@@ -699,6 +703,7 @@ function PhotoActions({ item, asking, setAsking, canFind, canSearch, onFind, onU
 
     return (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 pt-1.5 text-xs">
+            <AvailabilitySelect item={item} onSet={onAvailability} />
             {note && (
                 <span className="text-brand-muted" title={item.image_reason ?? undefined}>
                     {note}
@@ -719,6 +724,43 @@ function PhotoActions({ item, asking, setAsking, canFind, canSearch, onFind, onU
                 </button>
             )}
         </div>
+    );
+}
+
+const AVAILABILITY = [
+    ["available", "Available", "bg-emerald-500"],
+    ["unavailable", "Not available", "bg-amber-500"],
+    ["hidden", "Hidden", "bg-slate-400"],
+];
+
+/**
+ * Available / Not available (greyed on the menu) / Hidden (not on the menu).
+ * Saved straight away - not part of Save, so it never marks the menu unsaved,
+ * and staff can change it from their app at the same time. New items: after saving.
+ */
+function AvailabilitySelect({ item, onSet }) {
+    if (!item.id) return null;
+    const value = item.availability ?? "available";
+    const dot = AVAILABILITY.find(([key]) => key === value)?.[2];
+
+    return (
+        <label className="relative inline-flex items-center">
+            <span className={`pointer-events-none absolute left-2 h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden="true" />
+            <select
+                value={value}
+                onChange={(e) => onSet(item, e.target.value)}
+                aria-label={`Availability of ${item.name}`}
+                className={`cursor-pointer appearance-none rounded-full border py-0.5 pl-5 pr-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-brand-accent/30 ${
+                    value === "available" ? "border-brand-border bg-brand-card text-brand-muted" : "border-amber-500/40 bg-amber-500/10 text-amber-800"
+                }`}
+            >
+                {AVAILABILITY.map(([key, label]) => (
+                    <option key={key} value={key}>
+                        {label}
+                    </option>
+                ))}
+            </select>
+        </label>
     );
 }
 
@@ -808,6 +850,7 @@ function ItemRow({ item, path, errors, first, last, suggestions, photos, unsaved
                     onFind={(query) => photos.findAgain(item, query)}
                     onUpload={() => photos.upload(item)}
                     onRemovePhoto={() => onChange({ image_path: null, image_url: null, image_status: "removed", image_reason: null })}
+                    onAvailability={photos.setAvailability}
                 />
                 <FieldError
                     message={
@@ -1297,8 +1340,25 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
         }
     }
 
+    // ---- Available / not available / hidden: saved straight away, like photos (not part of Save) ----
+    function patchSaved(id, patch) {
+        setSections((current) => current.map((s) => ({ ...s, items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) })));
+    }
+
+    async function setAvailability(item, availability) {
+        const before = item.availability ?? "available";
+        patchSaved(item.id, { availability });
+        try {
+            await axios.put(`${urls.base}/availability`, { item: item.id, availability });
+        } catch {
+            patchSaved(item.id, { availability: before });
+            setNotice(`Couldn't change ${item.name} - check the connection and try again.`);
+        }
+    }
+
     const photos = {
         enabled: imagesEnabled,
+        setAvailability,
         upload: pickPhoto,
         busy: finderRunning || review !== null,
         searching: (item) => finderRunning && !finder.outcome && finder.current?.name === item.name,

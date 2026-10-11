@@ -203,6 +203,23 @@ class ShopMenuController extends Controller
         return response()->json(['items' => [['id' => $item->id] + MenuItemImages::summary($item->fresh('section'), $outcome)]]);
     }
 
+    public function availability(Request $request, Shop $shop, ShopMenu $menu): JsonResponse
+    {
+        return self::saveAvailability($request, $shop, $menu);
+    }
+
+    /** {item, availability}: saved straight away, not part of the menu's Save. */
+    public static function saveAvailability(Request $request, Shop $shop, ShopMenu $menu): JsonResponse
+    {
+        $validated = $request->validate([
+            'item' => ['required', 'integer'],
+            'availability' => ['required', Rule::in(MenuItem::AVAILABILITY)],
+        ]);
+        $item = $menu->setAvailability($shop, $validated['item'], $validated['availability']);
+
+        return response()->json(['id' => $item->id, 'availability' => $item->availability]);
+    }
+
     /** One item of this shop's menu (404 for anyone else's). */
     private static function shopItem(Shop $shop, int $id): MenuItem
     {

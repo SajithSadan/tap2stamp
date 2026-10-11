@@ -18,6 +18,19 @@ class MenuItem extends Model
     public const TAG_LENGTH = 24;
 
     /**
+     * Whether customers can order it today: `unavailable` stays on the menu,
+     * greyed out as "Not available"; `hidden` isn't on the public menu at all.
+     * Set by the owner, admin or staff (ShopMenu::setAvailability), straight away.
+     */
+    public const AVAILABLE = 'available';
+
+    public const UNAVAILABLE = 'unavailable';
+
+    public const HIDDEN = 'hidden';
+
+    public const AVAILABILITY = [self::AVAILABLE, self::UNAVAILABLE, self::HIDDEN];
+
+    /**
      * Trimmed, single-spaced, empty and same-word duplicates (any case)
      * dropped, capped at MAX_TAGS. Keeps the first spelling of each.
      *
@@ -36,7 +49,7 @@ class MenuItem extends Model
     }
 
     protected $fillable = [
-        'menu_section_id', 'name', 'description', 'price', 'tags', 'position',
+        'menu_section_id', 'name', 'description', 'price', 'tags', 'availability', 'position',
         'image_path', 'image_status', 'image_confidence', 'image_reason',
     ];
 

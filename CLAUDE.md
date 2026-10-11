@@ -658,6 +658,21 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
   deleted. The catalog (imgapi.techsasolutions.com) is a grocery/retail catalog: branded drinks
   and snacks are found, made-to-order dishes mostly aren't. `MenuView` shows the photo in every
   layout; no photo = the layout as before. Off (`imagesEnabled` false, 404) without catalog keys.
+- **Availability** (`menu_items.availability`, `MenuItem::AVAILABILITY`): `available` (the
+  default) / `unavailable` (still on the menu, greyed out with "Not available") / `hidden` (not
+  on the public menu; `ShopMenu::publicSections()` doesn't send it, and drops sections left
+  empty). It's **saved straight away and isn't part of the menu's Save**, through
+  `ShopMenu::setAvailability()`, which logs `menu.availability`:
+  - owner / admin: the editor's `AvailabilitySelect` on each saved item →
+    `PUT {base}/availability {item, availability}`;
+  - staff: the staff app's **Menu** tab → `GET /api/staff/menu` +
+    `PUT /api/staff/menu/availability` (signed in, own shop only). The tab shows only when `/me`
+    sends `menu_enabled` (Menu feature on + a menu exists).
+
+  `ShopMenu::replace()` **never takes availability from the editor**: staff may have changed it
+  since the editor opened. Each item keeps its own (by the `id` the editor sends, else by
+  name), and new items start available. `MenuView` greys out unavailable items and skips
+  hidden ones (so the editor's preview matches).
 - **QR stickers**: `QrDestinationField` has a **Menu** tab (fills `/menu/{menu_slug}`);
   `QrCodeController::shopIdForDestination()` assigns those stickers (and old `/menu/{id}`
   ones) to the shop too.

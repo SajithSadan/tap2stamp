@@ -13,6 +13,7 @@ import {
     LuStamp,
     LuStore,
     LuUsers,
+    LuUtensils,
 } from "react-icons/lu";
 import CardScanner from "@/Components/CardScanner";
 import OfflineBanner from "@/Components/OfflineBanner";
@@ -434,11 +435,151 @@ function TodayTab({ summary, staffName, onRefresh }) {
     );
 }
 
+const AVAILABILITY = [
+    ["available", "Available"],
+    ["unavailable", "Not available"],
+    ["hidden", "Hidden"],
+];
+
+/**
+ * Mark menu items not available today (still listed on the menu, greyed out)
+ * or hidden (off the menu), saved straight away. Shows only with Menu on.
+ */
+function MenuTab({ api, onApiError }) {
+    const [sections, setSections] = useState(null);
+    const [failed, setFailed] = useState(false);
+    const [query, setQuery] = useState("");
+    const [error, setError] = useState(null);
+
+    function load() {
+        setFailed(false);
+        api.get("/api/staff/menu")
+            .then(({ data }) => setSections(data.sections))
+            .catch((err) => {
+                if (!onApiError(err)) setFailed(true);
+            });
+    }
+
+    useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    function patch(id, availability) {
+        setSections((current) =>
+            current.map((s) => ({
+                ...s,
+                items: s.items.map((i) => (i.id === id ? { ...i, availability } : i)),
+            })),
+        );
+    }
+
+    function set(item, availability) {
+        if (item.availability === availability) return;
+        const before = item.availability;
+        patch(item.id, availability);
+        setError(null);
+        api.put("/api/staff/menu/availability", { item: item.id, availability }).catch((err) => {
+            patch(item.id, before);
+            if (!onApiError(err)) setError(`Couldn't change ${item.name}. Check the connection.`);
+        });
+    }
+
+    const q = query.trim().toLowerCase();
+    const shown = (sections ?? [])
+        .map((s) => ({ ...s, items: s.items.filter((i) => !q || i.name.toLowerCase().includes(q)) }))
+        .filter((s) => s.items.length > 0);
+    const off = (sections ?? []).flatMap((s) => s.items).filter((i) => i.availability !== "available").length;
+
+    return (
+        <div className="flex-1 overflow-y-auto px-4 py-5">
+            <div className="relative">
+                <LuSearch className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-brand-muted" />
+                <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Find an item"
+                    aria-label="Find a menu item"
+                    className="h-12 w-full rounded-xl border border-brand-border bg-brand-card pl-11 pr-4 text-base text-brand-text outline-none focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/10"
+                />
+            </div>
+            <p className="mt-2 text-xs text-brand-muted">
+                Sold out? Mark it not available - customers still see it, greyed
+                out. Hidden takes it off the menu.
+                {off > 0 && ` ${off} not available or hidden.`}
+            </p>
+            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+
+            {sections === null && !failed && (
+                <p className="mt-4 text-sm text-brand-muted">Loading the menu…</p>
+            )}
+            {failed && (
+                <button type="button" onClick={load} className="mt-4 text-sm font-semibold text-red-600">
+                    Couldn't load the menu. Tap to try again.
+                </button>
+            )}
+            {sections && shown.length === 0 && (
+                <p className="mt-4 text-sm text-brand-muted">
+                    {q ? `Nothing matches "${query.trim()}".` : "The menu is empty."}
+                </p>
+            )}
+
+            {shown.map((section) => (
+                <section key={section.name} className="mt-5">
+                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-muted">
+                        {section.name}
+                    </h2>
+                    <ul className="space-y-2">
+                        {section.items.map((item) => (
+                            <li
+                                key={item.id}
+                                className={`rounded-2xl border border-brand-border bg-brand-card p-3 shadow-sm ${item.availability === "available" ? "" : "bg-brand-bg"}`}
+                            >
+                                <div className="flex items-baseline justify-between gap-3">
+                                    <p className={`min-w-0 font-medium ${item.availability === "available" ? "text-brand-text" : "text-brand-muted line-through"}`}>
+                                        {item.name}
+                                    </p>
+                                    {item.price && (
+                                        <p className="shrink-0 text-sm tabular-nums text-brand-muted">{item.price}</p>
+                                    )}
+                                </div>
+                                <div
+                                    role="radiogroup"
+                                    aria-label={`Availability of ${item.name}`}
+                                    className="mt-2 grid grid-cols-3 gap-1 rounded-xl bg-brand-bg p-1"
+                                >
+                                    {AVAILABILITY.map(([key, label]) => (
+                                        <button
+                                            key={key}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={item.availability === key}
+                                            onClick={() => set(item, key)}
+                                            className={`rounded-lg px-1 py-2 text-xs font-semibold transition-colors ${
+                                                item.availability === key
+                                                    ? key === "available"
+                                                        ? "bg-brand-accent text-brand-accent-text"
+                                                        : "bg-amber-500 text-white"
+                                                    : "text-brand-muted"
+                                            }`}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            ))}
+        </div>
+    );
+}
+
 /* ---------- Page ---------- */
 
 const TABS = [
     { id: "scan", label: "Scan", icon: LuScanLine },
     { id: "lookup", label: "Customers", icon: LuUsers },
+    { id: "menu", label: "Menu", icon: LuUtensils },
     { id: "today", label: "Today", icon: LuChartColumn },
 ];
 
@@ -702,6 +843,9 @@ export default function Dashboard() {
                     {tab === "lookup" && (
                         <LookupTab api={api} onApiError={handleApiError} />
                     )}
+                    {tab === "menu" && me.menu_enabled && (
+                        <MenuTab api={api} onApiError={handleApiError} />
+                    )}
                     {tab === "today" && (
                         <TodayTab
                             summary={summary}
@@ -711,8 +855,10 @@ export default function Dashboard() {
                     )}
                 </main>
 
-                <nav className="grid grid-cols-3 border-t border-brand-border bg-brand-card pb-[env(safe-area-inset-bottom)]">
-                    {TABS.map(({ id, label, icon: Icon }) => (
+                <nav
+                    className={`grid ${me.menu_enabled ? "grid-cols-4" : "grid-cols-3"} border-t border-brand-border bg-brand-card pb-[env(safe-area-inset-bottom)]`}
+                >
+                    {TABS.filter((t) => t.id !== "menu" || me.menu_enabled).map(({ id, label, icon: Icon }) => (
                         <button
                             key={id}
                             type="button"

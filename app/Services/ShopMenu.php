@@ -32,6 +32,7 @@ class ShopMenu
                     'description' => $item->description,
                     'price' => $item->price,
                     'tags' => $item->tags ?? [],
+                    'availability' => $item->availability,
                     'image_path' => $item->image_path,
                     'image_url' => $item->imageUrl(),
                     'image_status' => $item->image_status,
@@ -42,11 +43,59 @@ class ShopMenu
     }
 
     /**
+     * The menu as customers see it: hidden items left out, and sections with
+     * nothing left to show.
+     *
+     * @return list<array{name: string, items: list<array<string, mixed>>}>
+     */
+    public function publicSections(Shop $shop): array
+    {
+        return collect($this->sections($shop))
+            ->map(fn (array $section) => [
+                ...$section,
+                'items' => array_values(array_filter($section['items'], fn ($item) => $item['availability'] !== MenuItem::HIDDEN)),
+            ])
+            ->filter(fn (array $section) => $section['items'] !== [])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Available / unavailable / hidden for one item, saved straight away (the
+     * owner's or admin's editor, or the staff app's Menu tab) and logged.
+     */
+    public function setAvailability(Shop $shop, int $itemId, string $availability): MenuItem
+    {
+        $item = $shop->menuItems()->where('menu_items.id', $itemId)->select('menu_items.*')->firstOrFail();
+        $before = $item->availability;
+
+        if ($before !== $availability) {
+            $item->update(['availability' => $availability]);
+            ActivityLogger::record(
+                'menu.availability',
+                match ($availability) {
+                    MenuItem::UNAVAILABLE => "Marked {$item->name} as not available",
+                    MenuItem::HIDDEN => "Hid {$item->name} from the menu",
+                    default => "Marked {$item->name} as available",
+                },
+                $shop->id,
+                $shop,
+                ["{$item->name} · availability" => [$before, $availability]],
+            );
+        }
+
+        return $item;
+    }
+
+    /**
      * Saves the whole menu. Photos survive the delete + recreate: an item
      * keeps a photo only if the editor sent back a path this shop's items
      * already had (never a path made up in the browser); sending null for an
      * item that had one takes it off ("removed", so it isn't fetched again).
      * Items sent without an image_path at all keep the same-named item's photo.
+     * Availability is never taken from the editor (staff may have changed it
+     * since the editor opened): each item keeps its own (by id, else by name);
+     * new items start available.
      *
      * @param  list<array<string, mixed>>  $sections  already validated
      */
@@ -56,10 +105,11 @@ class ShopMenu
         $oldItems = collect($before)->flatMap(fn ($section) => $section['items']);
         $byPath = $oldItems->filter(fn ($item) => $item['image_path'])->keyBy('image_path');
         $byName = $oldItems->keyBy(fn ($item) => mb_strtolower($item['name']));
+        $byId = $oldItems->keyBy('id');
         $confidence = MenuItem::whereIn('id', $oldItems->pluck('id'))->pluck('image_confidence', 'id');
         $used = [];
 
-        DB::transaction(function () use ($shop, $sections, $byPath, $byName, $confidence, &$used) {
+        DB::transaction(function () use ($shop, $sections, $byPath, $byName, $byId, $confidence, &$used) {
             // Items go with their sections (cascadeOnDelete).
             $shop->menuSections()->delete();
 
@@ -77,6 +127,7 @@ class ShopMenu
                         'description' => filled($item['description'] ?? null) ? trim($item['description']) : null,
                         'price' => filled($item['price'] ?? null) ? trim($item['price']) : null,
                         'tags' => MenuItem::tidyTags($item['tags'] ?? []) ?: null,
+                        'availability' => ($byId->get($item['id'] ?? null) ?? $byName->get(mb_strtolower(trim($item['name']))))['availability'] ?? MenuItem::AVAILABLE,
                         'position' => $itemPosition,
                         ...$photo,
                     ]);

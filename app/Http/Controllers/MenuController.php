@@ -41,7 +41,8 @@ class MenuController extends Controller
 
         return Inertia::render('Menu', [
             'shop' => self::header($shop),
-            'sections' => $menu->sections($shop),
+            // Hidden items aren't sent at all; unavailable ones are, greyed out.
+            'sections' => $menu->publicSections($shop),
             // The menu theme the admin chose (colours, fonts and layout).
             'theme' => $shop->menuTheme(),
         ]);
