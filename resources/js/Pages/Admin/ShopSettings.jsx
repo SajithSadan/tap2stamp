@@ -245,6 +245,18 @@ function MenuTab({ shop, menuItemsCount, menuUrl }) {
                     </Link>
                 </div>
             </Row>
+            <Row
+                label='"View menu" on the loyalty card'
+                hint={shop.menu_enabled ? "A button on customers' stamp cards. Only shows when the menu has items." : "Available once Menu is switched on (Features tab)."}
+            >
+                <Switch
+                    checked={shop.menu_enabled && shop.show_menu_on_card}
+                    disabled={!shop.menu_enabled}
+                    onChange={(on) =>
+                        router.put(`/admin/shops/${shop.id}/menu/card-button`, { enabled: on }, { preserveScroll: true, preserveState: true })
+                    }
+                />
+            </Row>
             {menuItemsCount > 0 && (
                 <Row label="Menu link" hint="Map a QR sticker to it (QR codes → Menu).">
                     <div className="flex items-center gap-1">

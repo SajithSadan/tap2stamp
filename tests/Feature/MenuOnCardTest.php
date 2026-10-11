@@ -41,10 +41,10 @@ test('no View menu without Menu on, without items customers can see, or with the
     $menuOff();
 });
 
-test('the owner switches it from their menu editor', function () {
+test('the owner switches it from Settings (only shown while Menu is on)', function () {
     [$shop, $owner] = menuCardShop();
 
-    $this->actingAs($owner)->get('/dashboard/menu')->assertInertia(fn ($page) => $page->where('showOnCard', true));
+    $this->actingAs($owner)->get('/dashboard/settings')->assertInertia(fn ($page) => $page->component('Dashboard/Settings')->where('menuOnCard', true));
     $this->put('/dashboard/menu/card-button', ['enabled' => false])->assertSessionHasNoErrors();
 
     expect($shop->fresh()->show_menu_on_card)->toBeFalse();
@@ -53,6 +53,11 @@ test('the owner switches it from their menu editor', function () {
 test('the admin switches it for any shop; an owner only for their own', function () {
     [$shop, $owner] = menuCardShop();
     [$otherShop, $otherOwner] = menuCardShop();
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($admin)->get("/admin/shops/{$shop->id}/settings")->assertInertia(fn ($page) => $page
+        ->where('shop.show_menu_on_card', true)
+        ->where('shop.menu_enabled', true));
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Admin]))
         ->put("/admin/shops/{$shop->id}/menu/card-button", ['enabled' => false])
@@ -69,6 +74,7 @@ test('with Menu off for the shop the owner cannot switch it', function () {
     [$shop, $owner] = menuCardShop();
     $shop->forceFill(['features' => ['menu' => false]])->save();
 
-    $this->actingAs($owner)->put('/dashboard/menu/card-button', ['enabled' => false])->assertNotFound();
+    $this->actingAs($owner)->get('/dashboard/settings')->assertInertia(fn ($page) => $page->where('menuOnCard', null));
+    $this->put('/dashboard/menu/card-button', ['enabled' => false])->assertNotFound();
     expect($shop->fresh()->show_menu_on_card)->toBeTrue();
 });

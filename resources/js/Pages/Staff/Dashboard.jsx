@@ -8,6 +8,7 @@ import {
     LuDelete,
     LuGift,
     LuLogOut,
+    LuRotateCcw,
     LuScanLine,
     LuSearch,
     LuStamp,
@@ -16,6 +17,7 @@ import {
     LuUtensils,
 } from "react-icons/lu";
 import CardScanner from "@/Components/CardScanner";
+import { useConfirm } from "@/Components/ConfirmDialog";
 import AiStockCommand from "@/Components/Menu/AiStockCommand";
 import OfflineBanner from "@/Components/OfflineBanner";
 import TechsaFooter from "@/Components/TechsaFooter";
@@ -451,6 +453,8 @@ function MenuTab({ api, onApiError, ai = false }) {
     const [failed, setFailed] = useState(false);
     const [query, setQuery] = useState("");
     const [error, setError] = useState(null);
+    const [confirm, confirmDialog] = useConfirm();
+    const [allBusy, setAllBusy] = useState(false);
 
     function load() {
         setFailed(false);
@@ -509,6 +513,28 @@ function MenuTab({ api, onApiError, ai = false }) {
         );
     }
 
+    // Start of the day / the delivery came: everything "not available" back on (hidden stays hidden).
+    async function makeAllAvailable() {
+        const ids = (sections ?? []).flatMap((s) => s.items).filter((i) => i.availability === "unavailable").map((i) => i.id);
+        if (!ids.length) return;
+        const ok = await confirm({
+            title: `Make ${ids.length} ${ids.length === 1 ? "item" : "items"} available?`,
+            message: "Everything marked not available goes back on the menu. Hidden items stay hidden.",
+            confirmLabel: "Make available",
+        });
+        if (!ok) return;
+        setAllBusy(true);
+        setError(null);
+        try {
+            await applyCommand(ids, "available");
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setAllBusy(false);
+        }
+    }
+
+    const unavailableCount = (sections ?? []).flatMap((s) => s.items).filter((i) => i.availability === "unavailable").length;
     const q = query.trim().toLowerCase();
     const shown = (sections ?? [])
         .map((s) => ({ ...s, items: s.items.filter((i) => !q || i.name.toLowerCase().includes(q)) }))
@@ -536,7 +562,18 @@ function MenuTab({ api, onApiError, ai = false }) {
                 out. Hidden takes it off the menu.
                 {off > 0 && ` ${off} not available or hidden.`}
             </p>
+            {unavailableCount > 0 && (
+                <button
+                    type="button"
+                    onClick={makeAllAvailable}
+                    disabled={allBusy}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-600/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-800 disabled:opacity-50"
+                >
+                    <LuRotateCcw className="h-4 w-4" /> Make all available ({unavailableCount})
+                </button>
+            )}
             {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+            {confirmDialog}
 
             {sections === null && !failed && (
                 <p className="mt-4 text-sm text-brand-muted">Loading the menu…</p>

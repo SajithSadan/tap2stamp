@@ -60,8 +60,6 @@ class ShopMenuController extends Controller
             'maxFiles' => MenuReader::MAX_FILES,
             'themes' => collect(MenuThemes::all())->map(fn ($theme, $key) => ['key' => $key, ...$theme])->values(),
             'currentTheme' => $shop->menuTheme()['key'],
-            // The "View menu" button on the customer card page (owner and admin can switch it).
-            'showOnCard' => (bool) $shop->show_menu_on_card,
         ];
     }
 

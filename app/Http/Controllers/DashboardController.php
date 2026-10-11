@@ -25,6 +25,7 @@ use App\Services\QrCodeGenerator;
 use App\Services\ShopInsights;
 use App\Services\StripeGateway;
 use App\Support\Countries;
+use App\Support\Features;
 use App\Support\CuratedFonts;
 use App\Support\HeaderStyle;
 use App\Support\ShopContact;
@@ -283,6 +284,8 @@ class DashboardController extends Controller
             ],
             'contact' => $shop->contactDetails(),
             'countries' => Countries::options(),
+            // "View menu" on the loyalty card - only while Menu is on for the shop (null = not shown).
+            'menuOnCard' => $shop->hasFeature(Features::MENU) ? (bool) $shop->show_menu_on_card : null,
         ]);
     }
 

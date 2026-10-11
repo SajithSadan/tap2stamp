@@ -21,13 +21,15 @@ import {
     LuMinus,
     LuPalette,
     LuPlus,
+    LuRotateCcw,
+    LuSearch,
     LuSparkles,
     LuTag,
     LuTrash2,
     LuX,
 } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
-import { FieldError, primaryButton, secondaryButton, Switch } from "@/Components/Dashboard/Ui";
+import { FieldError, primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
 import AiStockCommand from "@/Components/Menu/AiStockCommand";
 import PhotoCropper from "@/Components/Menu/PhotoCropper";
 import PhotoFinder from "@/Components/Menu/PhotoFinder";
@@ -972,7 +974,76 @@ function ItemRow({ item, path, errors, first, last, suggestions, photos, unsaved
     );
 }
 
-function SectionBlock({ section, si, count, errors, suggestions, photos, unsaved, jump, onChange, onMove, onRemove }) {
+/** The editor's search + status filter: does this item show? */
+function matchesFilter(item, filter) {
+    if (filter.status !== "all" && (item.availability ?? "available") !== filter.status) return false;
+    const q = filter.q.trim().toLowerCase();
+
+    return !q || `${item.name} ${item.description ?? ""} ${(item.tags ?? []).join(" ")}`.toLowerCase().includes(q);
+}
+
+const filterActive = (filter) => filter.q.trim() !== "" || filter.status !== "all";
+
+/** Search box, All / Not available / Hidden, and "Make all available" when anything is off. */
+function MenuFilterBar({ filter, setFilter, counts, onAllAvailable, busy }) {
+    const chips = [
+        ["all", "All", counts.all],
+        ["unavailable", "Not available", counts.unavailable],
+        ["hidden", "Hidden", counts.hidden],
+    ];
+
+    return (
+        <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-48 flex-1">
+                    <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" />
+                    <input
+                        type="text"
+                        value={filter.q}
+                        onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))}
+                        placeholder="Search items"
+                        aria-label="Search menu items"
+                        className="h-10 w-full rounded-xl border border-brand-border bg-brand-card pl-9 pr-9 text-sm text-brand-text outline-none focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/10"
+                    />
+                    {filter.q && (
+                        <button
+                            type="button"
+                            onClick={() => setFilter((f) => ({ ...f, q: "" }))}
+                            aria-label="Clear search"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-brand-muted hover:text-brand-text"
+                        >
+                            <LuX className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
+                {counts.unavailable > 0 && (
+                    <button type="button" onClick={onAllAvailable} disabled={busy} className={`${secondaryButton} text-emerald-700`}>
+                        {busy ? <LuLoaderCircle className="h-4 w-4 animate-spin" /> : <LuRotateCcw className="h-4 w-4" />} Make all available
+                    </button>
+                )}
+            </div>
+            <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1" role="group" aria-label="Show items">
+                {chips.map(([key, label, n]) => (
+                    <button
+                        key={key}
+                        type="button"
+                        onClick={() => setFilter((f) => ({ ...f, status: key }))}
+                        aria-pressed={filter.status === key}
+                        disabled={key !== "all" && n === 0}
+                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40 ${
+                            filter.status === key ? "bg-brand-deep text-white" : "bg-brand-bg text-brand-muted ring-1 ring-inset ring-brand-border hover:text-brand-text"
+                        }`}
+                    >
+                        {label}
+                        <span className={`tabular-nums ${filter.status === key ? "text-white/70" : "text-brand-muted/80"}`}>{n}</span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function SectionBlock({ section, si, count, errors, suggestions, photos, unsaved, jump, filter, onChange, onMove, onRemove }) {
     const [open, setOpen] = useState(true);
     // "Show" / a save error points at an item in here: open the section so it can be scrolled to.
     useEffect(() => {
@@ -1027,10 +1098,10 @@ function SectionBlock({ section, si, count, errors, suggestions, photos, unsaved
                 <FieldError message={errors[`sections.${si}.name`]} />
             </div>
 
-            {open && (
+            {(open || filterActive(filter)) && (
                 <>
                     <ul className="divide-y divide-brand-border border-t border-brand-border">
-                        {section.items.map((item, ii) => (
+                        {section.items.map((item, ii) => !matchesFilter(item, filter) ? null : (
                             <ItemRow
                                 key={item.key}
                                 item={item}
@@ -1047,7 +1118,7 @@ function SectionBlock({ section, si, count, errors, suggestions, photos, unsaved
                             />
                         ))}
                     </ul>
-                    <div className="border-t border-brand-border px-2 py-1.5">
+                    <div className={`border-t border-brand-border px-2 py-1.5 ${filterActive(filter) ? "hidden" : ""}`}>
                         <button
                             type="button"
                             onClick={() => onChange({ items: [...section.items, blankItem()] })}
@@ -1159,7 +1230,7 @@ function writeDraft(shopId, sections) {
  * `urls.base` is where the menu is saved (+ /read, /theme), `urls.back` the
  * optional "Back to shop" link.
  */
-export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sections: saved, menuUrl, urls, aiEnabled, imagesEnabled = false, photoCheck = "ai", menuOff = false, maxFiles, themes, currentTheme, showOnCard = true }) {
+export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sections: saved, menuUrl, urls, aiEnabled, imagesEnabled = false, photoCheck = "ai", menuOff = false, maxFiles, themes, currentTheme }) {
     const [draft] = useState(() => readDraft(shop.id));
     const [sections, setSections] = useState(() => withKeys(draft ?? saved));
     const [dirty, setDirty] = useState(draft !== null);
@@ -1435,23 +1506,6 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
         }
     }
 
-    // ---- "View menu" on the loyalty card: saved straight away ----
-    const [cardButtonBusy, setCardButtonBusy] = useState(false);
-
-    function setCardButton(enabled) {
-        router.put(
-            `${urls.base}/card-button`,
-            { enabled },
-            {
-                preserveScroll: true,
-                preserveState: true,
-                only: ["showOnCard", "flash"],
-                onStart: () => setCardButtonBusy(true),
-                onFinish: () => setCardButtonBusy(false),
-            },
-        );
-    }
-
     // ---- Available / not available / hidden: saved straight away, like photos (not part of Save) ----
     function patchSaved(id, patch) {
         setSections((current) => current.map((s) => ({ ...s, items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) })));
@@ -1465,6 +1519,38 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
         } catch {
             patchSaved(item.id, { availability: before });
             setNotice(`Couldn't change ${item.name} - check the connection and try again.`);
+        }
+    }
+
+    // ---- Search / status filter, and "Make all available" ----
+    const [filter, setFilter] = useState({ q: "", status: "all" });
+    const [allBusy, setAllBusy] = useState(false);
+    const statusCounts = {
+        all: savedItems.length,
+        unavailable: savedItems.filter((i) => i.availability === "unavailable").length,
+        hidden: savedItems.filter((i) => i.availability === "hidden").length,
+    };
+    const shownSections = sections.filter((s) => !filterActive(filter) || s.items.some((i) => matchesFilter(i, filter)));
+
+    async function makeAllAvailable() {
+        const ids = savedItems.filter((i) => i.availability === "unavailable").map((i) => i.id);
+        if (!ids.length) return;
+        const ok = await confirm({
+            title: `Make ${ids.length} ${ids.length === 1 ? "item" : "items"} available?`,
+            message: "Everything marked not available goes back on the menu as available. Hidden items stay hidden.",
+            confirmLabel: "Make available",
+        });
+        if (!ok) return;
+        setAllBusy(true);
+        try {
+            await axios.put(`${urls.base}/availability`, { items: ids, availability: "available" });
+            setSections((current) => current.map((s) => ({ ...s, items: s.items.map((i) => (ids.includes(i.id) ? { ...i, availability: "available" } : i)) })));
+            setFilter((f) => (f.status === "unavailable" ? { ...f, status: "all" } : f));
+            setNotice(`${ids.length} ${ids.length === 1 ? "item is" : "items are"} available again.`);
+        } catch {
+            setNotice("Couldn't update - check the connection and try again.");
+        } finally {
+            setAllBusy(false);
         }
     }
 
@@ -1617,20 +1703,6 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                     </span>
                 </p>
             )}
-            {/* "View menu" on the customer's loyalty card - saved straight away, like the theme. */}
-            <div className="mb-4 rounded-xl border border-brand-border bg-brand-card px-4 py-3">
-                <Switch
-                    checked={showOnCard && !menuOff}
-                    disabled={menuOff || cardButtonBusy}
-                    onChange={setCardButton}
-                    label='Show "View menu" on the loyalty card'
-                    description={
-                        menuOff
-                            ? "Available once Menu is switched on for this shop."
-                            : "Customers see a View menu button on their stamp card. It only shows when the menu has items."
-                    }
-                />
-            </div>
             {/* Quick "what's sold out" by text or voice (needs Gemini and a saved menu). */}
             {aiEnabled && savedItems.length > 0 && <AiStockCommand parse={parseCommand} apply={applyCommand} className="mb-4" />}
             {confirmDialog}
@@ -1752,10 +1824,22 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                             </div>
                         )}
                         {finder && <PhotoFinder run={finder} onStop={stopFinder} onClose={() => setFinder(null)} />}
+                        {savedItems.length > 0 && (
+                            <MenuFilterBar filter={filter} setFilter={setFilter} counts={statusCounts} onAllAvailable={makeAllAvailable} busy={allBusy} />
+                        )}
+                        {filterActive(filter) && shownSections.length === 0 && (
+                            <p className="rounded-2xl border border-dashed border-brand-border px-4 py-6 text-center text-sm text-brand-muted">
+                                Nothing matches{filter.q.trim() && ` "${filter.q.trim()}"`}.{" "}
+                                <button type="button" onClick={() => setFilter({ q: "", status: "all" })} className="font-semibold text-brand-accent hover:underline">
+                                    Show everything
+                                </button>
+                            </p>
+                        )}
 
-                        {sections.map((section, si) => (
+                        {sections.map((section, si) => !shownSections.includes(section) ? null : (
                             <SectionBlock
                                 key={section.key}
+                                filter={filter}
                                 section={section}
                                 si={si}
                                 count={sections.length}

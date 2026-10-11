@@ -30,6 +30,9 @@ class ShopSettingsController extends Controller
                 ]),
                 'can_order' => $shop->canOrderProducts(),
                 'whatsapp' => $shop->whatsappNumber(),
+                // "View menu" on the loyalty card (Menu tab), switchable only while Menu is on.
+                'show_menu_on_card' => (bool) $shop->show_menu_on_card,
+                'menu_enabled' => $shop->hasFeature(Features::MENU),
                 'blocked_at' => $shop->blocked_at?->toIso8601String(),
                 'blocked_label' => $shop->blocked_at?->timezone('Europe/London')->format('j M Y, H:i'),
                 'blocked_reason' => $shop->blocked_reason,

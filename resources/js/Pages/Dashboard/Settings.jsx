@@ -1,4 +1,4 @@
-import { Link, useForm, usePage } from "@inertiajs/react";
+import { Link, router, useForm, usePage } from "@inertiajs/react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { LuDownload, LuExternalLink, LuNfc, LuQrCode } from "react-icons/lu";
@@ -293,7 +293,36 @@ function ContactPanel({ contact, countries }) {
     );
 }
 
-export default function Settings({ shop, contact, countries }) {
+/** "View menu" on the customer's loyalty card: set once, saved straight away. */
+function MenuOnCardPanel({ enabled }) {
+    const [busy, setBusy] = useState(false);
+
+    return (
+        <Panel title="Menu" description="Your menu on customers' loyalty cards.">
+            <Switch
+                checked={enabled}
+                disabled={busy}
+                onChange={(on) =>
+                    router.put(
+                        "/dashboard/menu/card-button",
+                        { enabled: on },
+                        {
+                            preserveScroll: true,
+                            preserveState: true,
+                            only: ["menuOnCard", "flash"],
+                            onStart: () => setBusy(true),
+                            onFinish: () => setBusy(false),
+                        },
+                    )
+                }
+                label='Show "View menu" on the loyalty card'
+                description="Customers see a View menu button on their stamp card. It only shows when your menu has items."
+            />
+        </Panel>
+    );
+}
+
+export default function Settings({ shop, contact, countries, menuOnCard = null }) {
     const [posterQr, setPosterQr] = useState(null);
     // Only sent when the admin lets this shop see its card link (show_card_link).
     const cardUrl = shop.slug ? `${window.location.origin}/s/${shop.slug}` : null;
@@ -557,6 +586,8 @@ export default function Settings({ shop, contact, countries }) {
 
                 {/* Below the shop settings (the QR sits beside them in the first row). */}
                 <ContactPanel contact={contact} countries={countries} />
+
+                {menuOnCard !== null && <MenuOnCardPanel enabled={menuOnCard} />}
             </div>
         </OwnerLayout>
     );

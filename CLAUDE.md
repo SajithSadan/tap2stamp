@@ -685,10 +685,21 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
   hidden ones (so the editor's preview matches). Editor row layout: the status switch, then one
   **Photo ▾** menu (`ActionMenu`: find / change / upload / remove). On phones, name and price
   sit on separate lines, and move / hide / remove are in a ⋯ menu.
+  Above the sections, `MenuFilterBar` has a search box (name / description / tags) and the
+  chips All / Not available / Hidden, with counts. While filtering, sections open and only
+  matching rows render; rows keep their real index, so edits still hit the right item.
+  **"Make all available"** (shown only when something is not available, in the editor and the
+  staff Menu tab) confirms, then sends every `unavailable` item to the batch
+  `{base}/availability`. Hidden items stay hidden.
 - **AI stock-out command** ("Chicken theernnu", "Disable fish items", "Meals available now"):
-  `Components/Menu/AiStockCommand.jsx` (text box + mic via the browser's Web Speech API, with a
-  voice language picker: English / English (India) / Malayalam; remembered) sits in the menu
-  editor and the staff app's Menu tab. `POST {base}/ai-toggle {command}` (owner
+  `Components/Menu/AiStockCommand.jsx` sits in the menu editor and the staff app's Menu tab.
+  It's a highlighted card (animated gradient border, bobbing robot) with a mic button.
+  Tapping the card opens a **full-screen assistant** — or the mic does, and starts listening
+  straight away (browser Web Speech API). The assistant has: a big mic with pulsing rings
+  while listening, a voice language picker (English / English (India) / Malayalam;
+  remembered), a **multi-line** text box that speech fills in (a second phrase goes on a new
+  line; nothing is auto-sent), example chips, an "Update menu" button, and a spinning-halo
+  robot + dots while the AI checks. Animations use framer-motion. `POST {base}/ai-toggle {command}` (owner
   `/dashboard/menu`, admin `/admin/shops/{shop}/menu`, staff `/api/staff/menu`; never a
   client-sent shop id; throttled 20/min) → `App\Services\MenuCommandParser`. Gemini gets
   **only id + name** per item, plus the command, with a system instruction (English /
@@ -703,10 +714,13 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
 - **"View menu" on the card page**: a tile (first of the quick actions in `Card.jsx`) linking
   to the public menu. It's sent as `shop.menu_url` = `Shop::cardMenuUrl()`, which is non-null
   only with Menu on for the shop **and** `shops.show_menu_on_card` (default true) **and** at
-  least one item that isn't hidden. Owner and admin switch it at the top of the menu editor
-  (`PUT {base}/card-button {enabled}`, `ShopMenuController::saveCardButton`; editor prop
-  `showOnCard`). It's disabled in the admin's editor while Menu is off; the owner's route is
-  behind `feature:menu`.
+  least one item that isn't hidden. It's set once, so it lives in **Settings**, not the editor:
+  - owner: Settings → "Menu" panel (`menuOnCard` prop; null = Menu off, so no panel);
+  - admin: shop settings → Menu tab (`shop.show_menu_on_card` / `menu_enabled`; disabled while
+    Menu is off).
+
+  Both call `PUT {base}/card-button {enabled}` (`ShopMenuController::saveCardButton`). The
+  owner's route is behind `feature:menu`.
 - **QR stickers**: `QrDestinationField` has a **Menu** tab (fills `/menu/{menu_slug}`);
   `QrCodeController::shopIdForDestination()` assigns those stickers (and old `/menu/{id}`
   ones) to the shop too.
