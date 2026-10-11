@@ -55,6 +55,7 @@ class Navigation
             ['route' => 'admin.qr-codes.index', 'label' => 'QR codes', 'icon' => 'qr', 'roles' => $admin, 'active' => ['admin.qr-codes.*']],
             // Desktop sidebar only, like Orders.
             ['route' => 'admin.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $admin, 'active' => ['admin.activity*'], 'mobile' => false],
+            ['route' => 'admin.ai-usage', 'label' => 'AI usage', 'icon' => 'ai', 'roles' => $admin, 'active' => ['admin.ai-usage*'], 'mobile' => false],
             ['route' => 'admin.logs', 'label' => 'Logs', 'icon' => 'logs', 'roles' => $admin, 'active' => ['admin.logs*'], 'mobile' => false],
             // The public page at "/" (title, video, pricing). Desktop sidebar only.
             ['route' => 'admin.landing-page', 'label' => 'Landing page', 'icon' => 'landing', 'roles' => $admin, 'active' => ['admin.landing-page*'], 'mobile' => false],

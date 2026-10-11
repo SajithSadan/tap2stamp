@@ -66,6 +66,7 @@ class MenuReader
             config('services.gemini.fallback_model'),
         ])));
 
+        $started = microtime(true);
         foreach ($models as $model) {
             try {
                 $response = Http::acceptJson()
@@ -82,6 +83,7 @@ class MenuReader
                     ]);
             } catch (ConnectionException $e) {
                 Log::warning('Menu reader unreachable', ['model' => $model, 'message' => $e->getMessage()]);
+                AiUsage::record('menu_import', null, $model, $started);
 
                 return ['status' => 'unavailable'];
             }
@@ -92,6 +94,8 @@ class MenuReader
 
             Log::warning('Menu reader model busy', ['model' => $model, 'status' => $response->status()]);
         }
+
+        AiUsage::record('menu_import', $response, $model, $started);
 
         if (! $response->successful()) {
             Log::warning('Menu reader failed', [

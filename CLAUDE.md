@@ -1052,6 +1052,32 @@ later maybe more (table stickers). Prices and copy live in our DB, not in Stripe
   Built for this app - not the MembersApp log viewer. Tests point the path at a temp file.
 - Both are desktop-sidebar only (`'mobile' => false` in `Navigation`), like the admin's Orders.
 
+## AI usage tracking (additive — admin)
+
+Every Gemini request is a row in `ai_usage_logs`, written only by `App\Services\AiUsage::record()`
+— once per request, after the last model attempt, whether it worked or not. The three callers
+are `MenuReader` (`menu_import`), `MenuImageVerifier` (`photo_check`) and `MenuCommandParser`
+(`stock_command`); labels are in `AiUsageLog::FEATURES`. **A new Gemini caller must call it
+too.** Each row has:
+- who: `ActivityLogger::actor()` — staff member / owner / admin, with a name snapshot;
+- the shop: passed in, else the page's `{shop}`, else the signed-in owner's / staff's;
+- the model and `status` (ok / busy / failed / unreachable);
+- the tokens from Gemini's `usageMetadata` (output includes thinking tokens);
+- `duration_ms`.
+
+A failure to record is logged, never thrown. **Plan limit meters** (top of the page, a lazy
+`limits` prop reloaded every 30 s): for each model (the configured ones plus any used),
+requests per minute, input tokens per minute and requests today, against
+`config('services.gemini.limits')` (`GEMINI_TIER`, `GEMINI_LIMIT_RPM` / `_TPM` / `_RPD`;
+Tier 1 = 1,000 / 2M / 10k). Each shows what's left and the period's peak. "Now" is the last
+60 s; a day runs **from midnight Pacific**, when Google resets RPD. Peaks are per clock
+minute / Pacific day over at most 90 days, and never below "now". It counts this app's
+requests, one per AI action (retries on a busy model aren't counted again), so it's close
+to, not identical with, AI Studio. Admin page: `/admin/ai-usage`
+(`Admin\AiUsageController`, `Pages/Admin/AiUsage.jsx`, nav "AI usage", desktop only) with a
+7 / 30 / 90 / all period, totals, by feature, who uses it most, by shop and the last 50
+requests.
+
 ## Navigation & page access (one registry)
 
 `App\Support\Navigation::items()` is the **single list of dashboard menu pages and which roles

@@ -59,6 +59,7 @@ TXT;
         $menu = $items->map(fn (MenuItem $item) => ['id' => $item->id, 'name' => $item->name])->values()->all();
 
         $response = $this->ask(
+            $shop->id,
             'Menu items (JSON): '.json_encode($menu, JSON_UNESCAPED_UNICODE)."\n\nCommand: ".Str::limit(trim($command), self::MAX_LENGTH, '')
         );
 
@@ -93,8 +94,12 @@ TXT;
      * The Gemini call, with MenuReader's busy handling: retry once, then the
      * fallback model. A Response on success, else 'busy' / 'unavailable'.
      */
-    private function ask(string $prompt): Response|string
+    private function ask(int $shopId, string $prompt): Response|string
     {
+        $started = microtime(true);
+        $response = null;
+        $model = null;
+
         $models = array_values(array_unique(array_filter([
             config('services.gemini.model'),
             config('services.gemini.fallback_model'),
@@ -117,11 +122,14 @@ TXT;
                     ]);
             } catch (ConnectionException $e) {
                 Log::warning('Menu command: Gemini unreachable', ['model' => $model, 'message' => $e->getMessage()]);
+                AiUsage::record('stock_command', null, $model, $started, $shopId);
 
                 return 'unavailable';
             }
 
             if ($response->successful()) {
+                AiUsage::record('stock_command', $response, $model, $started, $shopId);
+
                 return $response;
             }
 
@@ -133,6 +141,7 @@ TXT;
         }
 
         Log::warning('Menu command failed', ['model' => $model, 'status' => $response->status(), 'error' => $response->json('error.message')]);
+        AiUsage::record('stock_command', $response, $model, $started, $shopId);
 
         return self::overloaded($response->status()) ? 'busy' : 'unavailable';
     }

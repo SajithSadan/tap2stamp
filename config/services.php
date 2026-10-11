@@ -82,6 +82,15 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-3.8-flash'),
         // Tried when the main model is overloaded (503 "high demand" / 429).
         'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-2.5-flash'),
+        // Our plan's rate limits per model (Google AI Studio → Rate Limit), for the admin's
+        // AI usage meters. RPD resets at midnight Pacific time, like Google's.
+        'limits' => [
+            'tier' => env('GEMINI_TIER', 'Tier 1'),
+            'rpm' => (int) env('GEMINI_LIMIT_RPM', 1000),
+            'tpm' => (int) env('GEMINI_LIMIT_TPM', 2000000),
+            'rpd' => (int) env('GEMINI_LIMIT_RPD', 10000),
+            'reset_timezone' => 'America/Los_Angeles',
+        ],
     ],
 
     // WhatsApp Cloud API (Meta) for owners' marketing messages. One Tada Tap

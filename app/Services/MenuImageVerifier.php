@@ -44,6 +44,8 @@ class MenuImageVerifier
         ])));
 
         $response = null;
+        $model = null;
+        $started = microtime(true);
         foreach ($models as $model) {
             try {
                 $response = Http::acceptJson()
@@ -71,6 +73,7 @@ class MenuImageVerifier
                     ]);
             } catch (ConnectionException $e) {
                 Log::warning('Menu photo check unreachable', ['model' => $model, 'message' => $e->getMessage()]);
+                AiUsage::record('photo_check', null, $model, $started);
 
                 return null;
             }
@@ -80,6 +83,8 @@ class MenuImageVerifier
                 break;
             }
         }
+
+        AiUsage::record('photo_check', $response, $model, $started);
 
         if (! $response?->successful()) {
             Log::warning('Menu photo check failed', ['status' => $response?->status(), 'error' => $response?->json('error.message')]);

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AddressLookupController;
 use App\Http\Controllers\Admin\ActivityController as AdminActivityController;
+use App\Http\Controllers\Admin\AiUsageController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\LandingPageController;
@@ -220,6 +221,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
 
     // What happened across every shop (read from existing tables), and the Laravel log.
     Route::get('/activity', [AdminActivityController::class, 'index'])->name('activity');
+    Route::get('/ai-usage', [AiUsageController::class, 'index'])->name('ai-usage');
     Route::get('/logs', [LogController::class, 'index'])->name('logs');
     Route::get('/logs/lines', [LogController::class, 'lines'])->name('logs.lines');
     Route::get('/logs/download', [LogController::class, 'download'])->name('logs.download');

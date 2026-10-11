@@ -7,6 +7,7 @@ import {
     LuLayoutDashboard,
     LuLightbulb,
     LuLogs,
+    LuSparkles,
     LuPackage,
     LuPalette,
     LuPlus,
@@ -27,6 +28,7 @@ import { FaWhatsapp } from 'react-icons/fa6';
 const NAV_ICONS = {
     activity: LuActivity,
     add: LuPlus,
+    ai: LuSparkles,
     customers: LuUsers,
     external: LuExternalLink,
     insights: LuLightbulb,
