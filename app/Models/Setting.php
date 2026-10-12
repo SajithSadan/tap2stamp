@@ -33,6 +33,9 @@ class Setting extends Model
     /** How menu item photos from the catalog are checked: 'ai' (Gemini) or 'manual' (a person says yes / no). */
     public const MENU_PHOTO_CHECK = 'menu_photo_check';
 
+    /** The admin's WhatsApp welcome message to new shops ({message, video_url}); App\Support\WelcomeMessage. */
+    public const WHATSAPP_WELCOME = 'whatsapp_welcome';
+
     /** Platform defaults for owner features ({menu: bool, whatsapp: bool}); App\Support\Features. */
     public const FEATURES = 'features';
 

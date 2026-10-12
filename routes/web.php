@@ -240,6 +240,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::put('/settings/google', [SettingsController::class, 'updateGoogle'])->name('settings.google');
     Route::put('/settings/sidebar', [SettingsController::class, 'updateSidebar'])->name('settings.sidebar');
     Route::put('/settings/bank', [SettingsController::class, 'updateBank'])->name('settings.bank');
+    Route::put('/settings/welcome', [SettingsController::class, 'updateWelcome'])->name('settings.welcome');
     Route::put('/settings/menu-photos', [SettingsController::class, 'updateMenuPhotos'])->name('settings.menu-photos');
     Route::put('/settings/features', [SettingsController::class, 'updateFeature'])->name('settings.features');
 });

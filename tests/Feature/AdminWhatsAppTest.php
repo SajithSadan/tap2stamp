@@ -39,3 +39,44 @@ test('the admin shops grid, users page and shop settings carry the WhatsApp numb
         ->component('Admin/ShopSettings')
         ->where('shop.whatsapp', '447700900123'));
 });
+
+test('admins get the welcome message for the WhatsApp button, with the default video', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($admin)->get('/admin')->assertInertia(fn ($page) => $page
+        ->where('whatsappWelcome', "Thanks for signing up with Tada Tap.\nPlease check this video to get started.\nhttps://www.youtube.com/watch?v=xvprvHHwxyw"));
+});
+
+test('owners never get the welcome message', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    Shop::factory()->create(['user_id' => $owner->id, 'industry' => 'cafe']);
+
+    $this->actingAs($owner)->get('/dashboard')->assertInertia(fn ($page) => $page->where('whatsappWelcome', null));
+});
+
+test('the admin can change the welcome message and its video link', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($admin)->put('/admin/settings/welcome', [
+        'message' => "Welcome aboard!\r\nWatch this first.",
+        'video_url' => 'https://youtu.be/dQw4w9WgXcQ',
+    ])->assertSessionHasNoErrors();
+
+    $this->actingAs($admin)->get('/admin/settings')->assertInertia(fn ($page) => $page
+        ->where('welcome.message', "Welcome aboard!\nWatch this first.")
+        ->where('welcome.video_url', 'https://youtu.be/dQw4w9WgXcQ')
+        ->where('whatsappWelcome', "Welcome aboard!\nWatch this first.\nhttps://youtu.be/dQw4w9WgXcQ"));
+
+    // No link: just the text.
+    $this->actingAs($admin)->put('/admin/settings/welcome', ['message' => 'Hi!', 'video_url' => ''])->assertSessionHasNoErrors();
+    $this->actingAs($admin)->get('/admin')->assertInertia(fn ($page) => $page->where('whatsappWelcome', 'Hi!'));
+});
+
+test('the welcome message is validated and only the admin can change it', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $this->actingAs($admin)->put('/admin/settings/welcome', ['message' => '', 'video_url' => 'not a link'])
+        ->assertSessionHasErrors(['message', 'video_url']);
+
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $this->actingAs($owner)->put('/admin/settings/welcome', ['message' => 'Hijack'])->assertForbidden();
+});

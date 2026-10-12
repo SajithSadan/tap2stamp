@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { LuCircleAlert, LuHand, LuImage, LuKeyRound, LuLandmark, LuLayoutDashboard, LuMail, LuPalette, LuRotateCcw, LuSettings, LuSparkles, LuStamp, LuStore, LuToggleRight, LuTriangleAlert } from 'react-icons/lu';
 import { useConfirm } from '@/Components/ConfirmDialog';
+import { FaWhatsapp } from 'react-icons/fa6';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import { navIcon } from '@/lib/navIcons';
 import { CopyButton, FieldError, navSurface, Panel, primaryButton, secondaryButton, sideLinkClass, Switch } from '@/Components/Dashboard/Ui';
@@ -212,10 +213,68 @@ function BankDetails({ saved }) {
     );
 }
 
+/**
+ * The welcome message sent to new shops from the WhatsApp button (Shops /
+ * Users grids, shop settings): the text, then the video link on its own line.
+ */
+function WelcomeMessage({ saved }) {
+    const form = useForm({ message: saved.message ?? '', video_url: saved.video_url ?? '' });
+    const preview = [form.data.message.trim(), form.data.video_url.trim()].filter(Boolean).join('\n');
+    const inputClass =
+        'w-full min-w-0 rounded-xl border border-brand-border bg-brand-card px-3.5 py-2.5 text-sm text-brand-text outline-none transition focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/10';
+
+    return (
+        <Panel
+            title="Welcome message"
+            description="Sent from the WhatsApp button on the Shops and Users pages: WhatsApp opens with this typed in, ready for you to send."
+        >
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    form.put('/admin/settings/welcome', { preserveScroll: true });
+                }}
+                noValidate
+                className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]"
+            >
+                <div className="space-y-4">
+                    <label className="block">
+                        <span className="mb-1.5 block text-sm font-medium text-brand-text">Message</span>
+                        <textarea rows={4} maxLength={1000} value={form.data.message} onChange={(e) => form.setData('message', e.target.value)} className={`${inputClass} resize-y`} />
+                        <FieldError message={form.errors.message} />
+                    </label>
+                    <label className="block">
+                        <span className="mb-1.5 block text-sm font-medium text-brand-text">Getting-started video (YouTube link)</span>
+                        <input type="url" value={form.data.video_url} onChange={(e) => form.setData('video_url', e.target.value)} placeholder={saved.defaults.video_url} className={inputClass} />
+                        <span className="mt-1 block text-xs text-brand-muted">Added on its own line at the end. Leave empty for no link.</span>
+                        <FieldError message={form.errors.video_url} />
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                        <button type="submit" disabled={form.processing} className={primaryButton}>
+                            <FaWhatsapp className="h-4 w-4" /> {form.processing ? 'Saving…' : 'Save message'}
+                        </button>
+                        <button type="button" onClick={() => form.setData({ ...saved.defaults })} className={secondaryButton}>
+                            <LuRotateCcw className="h-4 w-4" /> Default text
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <p className="mb-1.5 text-sm font-medium text-brand-text">Preview</p>
+                    <div className="rounded-2xl bg-[#efeae2] p-3">
+                        <div className="ml-auto max-w-[85%] rounded-xl rounded-tr-sm bg-[#d9fdd3] px-3 py-2 shadow-sm">
+                            <p className="whitespace-pre-line break-words text-sm text-neutral-800">{preview || 'Your message'}</p>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </Panel>
+    );
+}
+
 /** One tab per kind of setting; the open one is kept in the URL hash (#payments). */
 const TABS = [
     { key: 'signin', label: 'Sign-in', icon: LuKeyRound, fields: ['enabled'] },
     { key: 'payments', label: 'Payments', icon: LuLandmark, fields: ['account_name', 'bank_name', 'sort_code', 'account_number'] },
+    { key: 'whatsapp', label: 'WhatsApp', icon: FaWhatsapp, fields: ['message', 'video_url'] },
     { key: 'appearance', label: 'Appearance', icon: LuPalette, fields: ['bg', 'text'] },
     { key: 'menu', label: 'Menu photos', icon: LuImage, fields: ['mode'] },
     { key: 'features', label: 'Features', icon: LuToggleRight, fields: ['feature', 'enabled'] },
@@ -352,7 +411,7 @@ function initialTab() {
     return TABS.some((t) => t.key === hash) ? hash : 'signin';
 }
 
-export default function Settings({ google, sidebar, bank, menuPhotos, features }) {
+export default function Settings({ google, sidebar, bank, menuPhotos, features, welcome }) {
     const { errors } = usePage().props;
     const [tab, setTab] = useState(initialTab);
     const [saving, setSaving] = useState(false);
@@ -457,6 +516,7 @@ export default function Settings({ google, sidebar, bank, menuPhotos, features }
                 </Panel>
             )}
             {tab === 'payments' && <BankDetails saved={bank} />}
+            {tab === 'whatsapp' && <WelcomeMessage saved={welcome} />}
             {tab === 'appearance' && <SidebarColors saved={sidebar} errors={errors} />}
             {tab === 'menu' && <MenuPhotos settings={menuPhotos} error={errors?.mode} />}
             {tab === 'features' && <FeatureDefaults features={features} errors={errors} />}

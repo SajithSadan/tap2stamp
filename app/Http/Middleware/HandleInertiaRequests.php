@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\Setting;
 use App\Support\Industries;
 use App\Support\Navigation;
+use App\Support\WelcomeMessage;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -70,6 +71,8 @@ class HandleInertiaRequests extends Middleware
                 && $shop->industry === null
                     ? ['industries' => Industries::options()]
                     : null,
+            // Admin: the WhatsApp button's "Welcome message" text (Admin → Settings → WhatsApp).
+            'whatsappWelcome' => fn () => $request->user()?->role === UserRole::Admin ? WelcomeMessage::text() : null,
             // Admin → Settings sidebar colours ({bg, text}, null = default look).
             'sidebarColors' => fn () => $request->user() ? Setting::get(Setting::SIDEBAR_COLORS) : null,
             // One-time reveal values (generated owner password, staff device

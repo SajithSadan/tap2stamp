@@ -187,8 +187,13 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   sign-up step 1), and labelled in the shop settings header. Links are `https://wa.me/{digits}`;
   `App\Support\WhatsApp::number()` builds the digits from `contact_phone_code` + `contact_phone`
   (also older shops' one-field numbers; null = no button), read via `Shop::whatsappNumber()`.
-  On a phone it opens WhatsApp. On a desktop (`hover: hover` + `pointer: fine`) it shows a QR
-  of the same link to scan with your phone, plus "Open on this computer".
+  It opens a dialog with **Chat** or **Welcome** (the welcome message typed in via `?text=`,
+  sent by the admin from their own WhatsApp - nothing is sent by us). The welcome text is
+  Admin → Settings → WhatsApp (`Setting::WHATSAPP_WELCOME` = {message, video_url},
+  `App\Support\WelcomeMessage`, the video link on its own last line), shared to admins only as
+  `whatsappWelcome`. On a phone: "Open WhatsApp" / "Send welcome message". On a desktop
+  (`hover: hover` + `pointer: fine`): a QR of the same link to scan with your phone, plus
+  "Open on this computer".
 - **Staff devices** (Stage 4's other task, doc-scoped): `staff_devices` table, only
   `token_hash` (sha256) is ever persisted — the plain 64-char token is flashed once via
   `session('staffToken')` when a device is added, same one-time-reveal pattern as the owner

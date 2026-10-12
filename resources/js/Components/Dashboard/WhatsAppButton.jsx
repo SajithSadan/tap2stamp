@@ -1,79 +1,95 @@
-import QRCode from 'qrcode';
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { FaWhatsapp } from 'react-icons/fa6';
-import { LuExternalLink, LuX } from 'react-icons/lu';
-import { CopyButton, secondaryButton } from '@/Components/Dashboard/Ui';
+import { usePage } from "@inertiajs/react";
+import QRCode from "qrcode";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { FaWhatsapp } from "react-icons/fa6";
+import { LuExternalLink, LuHandHeart, LuMessageCircle, LuX } from "react-icons/lu";
+import { CopyButton, secondaryButton } from "@/Components/Dashboard/Ui";
 
 /** A mouse and a big screen: show the QR to scan with the phone instead of opening WhatsApp here. */
-const isDesktop = () => typeof window !== 'undefined' && window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+const isDesktop = () => typeof window !== "undefined" && window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
 
 /** "+447700900123" from "447700900123" - for reading; the link uses the digits. */
 const pretty = (number) => `+${number}`;
 
+const OPTIONS = [
+    { key: "chat", label: "Chat", icon: LuMessageCircle },
+    { key: "welcome", label: "Welcome", icon: LuHandHeart },
+];
+
 /**
  * Admin: message a shop / owner on WhatsApp. `number` is the full
  * international number, digits only (`App\Support\WhatsApp::number()`).
- * On a phone it opens WhatsApp straight away; on a desktop it shows a QR of
- * the same wa.me link - scan it with the phone's camera to open the chat there
- * - plus "Open on this computer" for WhatsApp Web / Desktop.
+ * Opens a small dialog: a plain **Chat**, or the **Welcome message** (Admin →
+ * Settings → WhatsApp, shared as `whatsappWelcome`) typed in, ready to send -
+ * WhatsApp's own `?text=`, so it's sent by the admin, from their WhatsApp.
+ * On a phone: "Open WhatsApp". On a desktop: a QR of the same link to scan
+ * with the phone, plus "Open on this computer" (WhatsApp Web / Desktop).
  * `text`: a labelled button (page headers) instead of the grid's icon.
  */
 export default function WhatsAppButton({ number, name, text }) {
+    const welcome = usePage().props.whatsappWelcome;
     const [open, setOpen] = useState(false);
+    const [kind, setKind] = useState("chat");
     const [qr, setQr] = useState(null);
-    const link = `https://wa.me/${number}`;
+    const desktop = isDesktop();
+    const chatLink = `https://wa.me/${number}`;
+    const link = kind === "welcome" && welcome ? `${chatLink}?text=${encodeURIComponent(welcome)}` : chatLink;
 
     useEffect(() => {
-        if (!open) return;
+        if (!open || !desktop) return;
         QRCode.toDataURL(link, { margin: 1, width: 240 })
             .then(setQr)
             .catch(() => setQr(null));
-        const onKey = (e) => e.key === 'Escape' && setOpen(false);
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [open, link]);
+    }, [open, desktop, link]);
+
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e) => e.key === "Escape" && setOpen(false);
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open]);
 
     if (!number) return null;
 
     const label = `WhatsApp ${name ?? pretty(number)}`;
     const buttonClass = text
         ? secondaryButton
-        : 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#25D366] transition-colors hover:bg-[#25D366]/10';
+        : "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#25D366] transition-colors hover:bg-[#25D366]/10";
 
     return (
         <>
             <a
-                href={link}
+                href={chatLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={label}
                 title={label}
                 onClick={(e) => {
-                    if (!isDesktop()) return;
                     e.preventDefault();
+                    setKind("chat");
                     setOpen(true);
                 }}
                 className={buttonClass}
             >
-                <FaWhatsapp className={`h-4 w-4 ${text ? 'text-[#25D366]' : ''}`} /> {text}
+                <FaWhatsapp className={`h-4 w-4 ${text ? "text-[#25D366]" : ""}`} /> {text}
             </a>
 
             {open &&
                 createPortal(
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/50 p-4 backdrop-blur-sm" onClick={() => setOpen(false)}>
+                    <div className="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/50 p-4 backdrop-blur-sm sm:items-center" onClick={() => setOpen(false)}>
                         <div
                             role="dialog"
                             aria-modal="true"
                             aria-label={label}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full max-w-xs rounded-2xl bg-brand-card p-5 text-center shadow-xl"
+                            className="w-full max-w-sm rounded-2xl bg-brand-card p-5 shadow-xl"
                         >
-                            <div className="flex items-start justify-between gap-3 text-left">
+                            <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                     <h2 className="flex items-center gap-2 font-heading text-lg font-semibold text-brand-text">
                                         <FaWhatsapp className="h-5 w-5 shrink-0 text-[#25D366]" />
-                                        <span className="truncate">{name ?? 'WhatsApp'}</span>
+                                        <span className="truncate">{name ?? "WhatsApp"}</span>
                                     </h2>
                                     <p className="mt-0.5 flex items-center gap-1 text-sm tabular-nums text-brand-muted">
                                         {pretty(number)}
@@ -85,14 +101,58 @@ export default function WhatsAppButton({ number, name, text }) {
                                 </button>
                             </div>
 
-                            <div className="mx-auto mt-3 flex h-52 w-52 items-center justify-center rounded-xl bg-white p-2 ring-1 ring-brand-border">
-                                {qr && <img src={qr} alt={`QR code to open a WhatsApp chat with ${pretty(number)}`} className="h-full w-full" />}
-                            </div>
-                            <p className="mt-3 text-xs text-brand-muted">Scan with your phone's camera to open the chat in WhatsApp.</p>
+                            {welcome && (
+                                <div role="radiogroup" aria-label="What to send" className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-brand-bg p-1">
+                                    {OPTIONS.map(({ key, label: optionLabel, icon: Icon }) => (
+                                        <button
+                                            key={key}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={kind === key}
+                                            onClick={() => setKind(key)}
+                                            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
+                                                kind === key ? "bg-brand-card text-brand-text shadow-sm" : "text-brand-muted hover:text-brand-text"
+                                            }`}
+                                        >
+                                            <Icon className="h-4 w-4" /> {optionLabel}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
 
-                            <a href={link} target="_blank" rel="noopener noreferrer" className={`${secondaryButton} mt-4 w-full`}>
-                                <LuExternalLink className="h-4 w-4" /> Open on this computer
-                            </a>
+                            {kind === "welcome" && welcome && (
+                                // WhatsApp-style bubble: exactly what will be typed in.
+                                <div className="mt-3 rounded-xl bg-[#e7f8ee] p-3">
+                                    <p className="whitespace-pre-line break-words text-sm text-neutral-800">{welcome}</p>
+                                </div>
+                            )}
+
+                            {desktop ? (
+                                <>
+                                    <div className="mx-auto mt-4 flex h-48 w-48 items-center justify-center rounded-xl bg-white p-2 ring-1 ring-brand-border">
+                                        {qr && <img src={qr} alt={`QR code to open WhatsApp with ${pretty(number)}`} className="h-full w-full" />}
+                                    </div>
+                                    <p className="mt-3 text-center text-xs text-brand-muted">
+                                        {kind === "welcome"
+                                            ? "Scan with your phone's camera - WhatsApp opens with the message typed in, ready to send."
+                                            : "Scan with your phone's camera to open the chat in WhatsApp."}
+                                    </p>
+                                    <a href={link} target="_blank" rel="noopener noreferrer" className={`${secondaryButton} mt-4 w-full`}>
+                                        <LuExternalLink className="h-4 w-4" /> Open on this computer
+                                    </a>
+                                </>
+                            ) : (
+                                <a
+                                    href={link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => setOpen(false)}
+                                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-semibold text-white"
+                                >
+                                    <FaWhatsapp className="h-4 w-4" />
+                                    {kind === "welcome" ? "Send welcome message" : "Open WhatsApp"}
+                                </a>
+                            )}
                         </div>
                     </div>,
                     document.body,

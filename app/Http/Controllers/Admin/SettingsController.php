@@ -10,6 +10,7 @@ use App\Models\Shop;
 use App\Models\User;
 use App\Services\MenuItemImages;
 use App\Support\Features;
+use App\Support\WelcomeMessage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +41,7 @@ class SettingsController extends Controller
             ],
             'sidebar' => Setting::get(Setting::SIDEBAR_COLORS),
             'bank' => Setting::get(Setting::BANK_DETAILS),
+            'welcome' => [...WelcomeMessage::settings(), 'defaults' => ['message' => WelcomeMessage::DEFAULT_MESSAGE, 'video_url' => WelcomeMessage::DEFAULT_VIDEO]],
             // Owner features: the platform default, and how many shops the admin set otherwise.
             'features' => self::featureSummary(),
             'menuPhotos' => [
@@ -79,6 +81,25 @@ class SettingsController extends Controller
         Setting::set(Setting::BANK_DETAILS, $bank);
 
         return back()->with('status', 'Bank details saved.');
+    }
+
+    /** The WhatsApp welcome message for new shops (the WhatsApp button's "Welcome message"). */
+    public function updateWelcome(Request $request): RedirectResponse
+    {
+        $welcome = $request->validate([
+            'message' => ['required', 'string', 'max:1000'],
+            'video_url' => ['nullable', 'url:http,https', 'max:300'],
+        ], [
+            'message.required' => 'Write the message.',
+            'video_url.url' => 'Paste the full video link, starting with https://',
+        ]);
+
+        Setting::set(Setting::WHATSAPP_WELCOME, [
+            'message' => trim(str_replace("\r\n", "\n", $welcome['message'])),
+            'video_url' => filled($welcome['video_url'] ?? null) ? trim($welcome['video_url']) : null,
+        ]);
+
+        return back()->with('status', 'Welcome message saved.');
     }
 
     /** Sidebar + mobile tab bar colours for every dashboard (admin, and owners on the standard look). */
