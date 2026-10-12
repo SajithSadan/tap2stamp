@@ -12,4 +12,6 @@ return [
     // and how many messages one "send batch" request sends (no queue workers).
     'marketing_cooldown_hours' => (int) env('MARKETING_COOLDOWN_HOURS', 24),
     'marketing_batch_size' => 20,
+    // Free trial length for a new shop (shops.trial_ends_at; the admin can move it per shop).
+    'trial_days' => (int) env('TRIAL_DAYS', 30),
 ];

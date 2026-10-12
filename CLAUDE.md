@@ -1174,6 +1174,27 @@ to, not identical with, AI Studio. Admin page: `/admin/ai-usage`
 7 / 30 / 90 / all period, totals, by feature, who uses it most, by shop and the last 50
 requests.
 
+## Shop health & sales pipeline (MONETISATION-PLAN.md phase 1)
+
+Rules decide, AI explains (later). `App\Services\ShopHealth::forShops()` scores every shop in a
+fixed number of grouped queries (stamps, returning customers, cards, staff, devices, menu,
+reviews, owner sign-ins); `assess()` holds the rules on one shop's figures (tested without a DB):
+- **score** 0-100 = `ShopHealth::SCORE` parts (days stamping in 14, week trend, new customers,
+  return rate, rewards, staff, display/QR, owner login in 14 days, menu/reviews);
+- **segment**: never_started (no stamp) → declining (5+ active days in the 14 before, now ≤ half)
+  → stalled (none in 14 days) → trickling (< 10 customers or < 20% came back) → healthy;
+- **ladder** (`LADDER`, 8 steps, stops at the first not reached) and plain-English **reasons**.
+A visit = a day a customer was scanned (stamp or reward), as in Insights.
+
+`shops.trial_ends_at` (set on create: `loyalty.trial_days`, 30; existing shops backfilled from
+`created_at`), `crm_stage` (`App\Support\CrmStage`: trial / offered / paid / lost; "activated"
+is shown, never stored = trial + has stamped) and `lost_reason` (only kept while lost).
+Admin: Shops grid health tiles (also the segment filter), Stage dropdown, Health (→ the shop's
+Account tab) / Stage / Trial ends columns; shop settings → **Account** tab
+(`ShopAccountTab.jsx`: score parts, ladder, reasons, figures; stage, trial end (+14 days),
+lost reason → `PUT /admin/shops/{shop}/account`, logged by RecordsActivity). Nothing is
+charged, enforced or switched off by the trial yet (phase 3).
+
 ## Navigation & page access (one registry)
 
 `App\Support\Navigation::items()` is the **single list of dashboard menu pages and which roles
@@ -1214,6 +1235,7 @@ Plus `menu_sections` / `menu_items`, `shops.menu_theme` and `shops.menu_slug` (s
 Plus `activity_logs` (see "Admin activity & logs").
 Plus `shops.industry` / `industry_other` (see "Shop industry").
 Plus `users.welcome_sent_at` (the admin's first WhatsApp welcome; see "WhatsApp contact").
+Plus `shops.trial_ends_at` / `crm_stage` / `lost_reason` (see "Shop health & sales pipeline").
 Plus `shops.qr_page_viewed_at` / `qr_downloaded_at` / `qr_downloads` / `qr_download_failures` (see "Overseas shops").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to **WhatsApp** offers from **that one shop**, unticked by

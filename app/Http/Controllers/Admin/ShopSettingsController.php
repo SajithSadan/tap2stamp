@@ -9,20 +9,32 @@ use App\Models\Product;
 use App\Models\QrDesign;
 use App\Models\Setting;
 use App\Models\Shop;
+use App\Services\ShopHealth;
 use App\Support\Countries;
+use App\Support\CrmStage;
 use App\Support\Features;
 use App\Support\Industries;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ShopSettingsController extends Controller
 {
-    public function edit(Shop $shop): Response
+    public function edit(Shop $shop, ShopHealth $health): Response
     {
         return Inertia::render('Admin/ShopSettings', [
+            // Account tab (MONETISATION-PLAN.md phase 1): usage health and the sales pipeline.
+            'health' => $health->forShop($shop),
+            'healthModel' => ['ladder' => ShopHealth::LADDER, 'score' => ShopHealth::SCORE],
+            'pipeline' => [
+                'crm_stage' => $shop->crm_stage,
+                'trial_ends_at' => $shop->trial_ends_at?->timezone('Europe/London')->format('Y-m-d'),
+                'lost_reason' => $shop->lost_reason,
+            ],
+            'crmStages' => CrmStage::STORED,
             'shop' => [
                 ...$shop->only([
                     'id', 'name', 'slug', 'max_stamps', 'reward_title',
@@ -68,6 +80,30 @@ class ShopSettingsController extends Controller
             // What "no design" falls back to for this shop's owner download.
             'defaultQrDesign' => QrDesign::defaultDesign()?->name,
         ]);
+    }
+
+    /**
+     * The shop's place in the sales pipeline: stage, trial end (e.g. extended
+     * for an active shop) and why it was lost. Logged by RecordsActivity.
+     */
+    public function updateAccount(Request $request, Shop $shop): RedirectResponse
+    {
+        $input = $request->validate([
+            'crm_stage' => ['required', Rule::in(array_keys(CrmStage::STORED))],
+            'trial_ends_at' => ['nullable', 'date'],
+            'lost_reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $shop->forceFill([
+            'crm_stage' => $input['crm_stage'],
+            // End of that day, UK time - "ends 30 Oct" means all of the 30th.
+            'trial_ends_at' => filled($input['trial_ends_at'] ?? null)
+                ? Carbon::parse($input['trial_ends_at'], 'Europe/London')->endOfDay()
+                : null,
+            'lost_reason' => $input['crm_stage'] === CrmStage::LOST ? (trim((string) ($input['lost_reason'] ?? '')) ?: null) : null,
+        ])->save();
+
+        return back()->with('status', "Account saved for {$shop->name}.");
     }
 
     /** Per-shop feature overrides: {features: {menu: 'default' | 'on' | 'off', ...}}. */

@@ -11,7 +11,9 @@ use App\Http\Requests\StoreShopOwnerRequest;
 use App\Models\Product;
 use App\Models\Shop;
 use App\Models\User;
+use App\Services\ShopHealth;
 use App\Support\Countries;
+use App\Support\CrmStage;
 use App\Support\Industries;
 use App\Support\StampIcons;
 use App\Support\ThemeCatalog;
@@ -34,7 +36,7 @@ class ShopOwnerController extends Controller
      * once - sorting, search, filters and paging happen in the browser, which
      * is instant at this platform's size (hundreds of shops, not millions).
      */
-    public function index(): Response
+    public function index(ShopHealth $health): Response
     {
         $monthAgo = now()->subDays(30);
         $quietSince = now()->subDays(self::QUIET_DAYS);
@@ -62,10 +64,15 @@ class ShopOwnerController extends Controller
             ->latest()
             ->get();
 
+        // Usage health for every shop at once (a fixed number of grouped queries).
+        $healthByShop = $health->forShops($shops);
+
         return Inertia::render('Admin/Index', [
             'quietDays' => self::QUIET_DAYS,
+            'segments' => ShopHealth::SEGMENTS,
+            'stages' => CrmStage::DISPLAY,
             'primaryProduct' => $primary?->name,
-            'shops' => $shops->map(function (Shop $shop) use ($quietSince) {
+            'shops' => $shops->map(function (Shop $shop) use ($quietSince, $healthByShop) {
                 $lastActivity = $shop->last_activity_at ? Carbon::parse($shop->last_activity_at) : null;
 
                 return [
@@ -136,6 +143,13 @@ class ShopOwnerController extends Controller
                     // ISO for sorting, plus a human label for display.
                     'last_activity_at' => $lastActivity?->toIso8601String(),
                     'last_activity' => $lastActivity?->diffForHumans(),
+                    // MONETISATION-PLAN.md phase 1: usage health, pipeline stage, trial.
+                    'health' => collect($healthByShop[$shop->id])->only(['score', 'segment', 'step', 'step_label', 'reasons'])->all(),
+                    'stage' => CrmStage::display($shop->crm_stage, $healthByShop[$shop->id]['metrics']['first_stamp_at'] !== null),
+                    'trial_ends_at' => $shop->trial_ends_at?->toIso8601String(),
+                    'trial_ends_label' => $shop->trial_ends_at?->timezone('Europe/London')->format('j M Y'),
+                    // Whole days left (negative = ended that many days ago).
+                    'trial_days_left' => $shop->trial_ends_at ? (int) now()->startOfDay()->diffInDays($shop->trial_ends_at->copy()->startOfDay(), false) : null,
                     'created_at' => $shop->created_at->toIso8601String(),
                     'created_label' => $shop->created_at->format('j M Y'),
                 ];

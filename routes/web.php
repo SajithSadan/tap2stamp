@@ -167,6 +167,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/shops/{shop}/settings', [ShopSettingsController::class, 'edit'])->name('shops.settings.edit');
     Route::put('/shops/{shop}/settings', [ShopSettingsController::class, 'update'])->name('shops.settings.update');
     Route::put('/shops/{shop}/features', [ShopSettingsController::class, 'updateFeatures'])->name('shops.features.update');
+    Route::put('/shops/{shop}/account', [ShopSettingsController::class, 'updateAccount'])->name('shops.account.update');
     Route::put('/shops/{shop}/block', [ShopBlockController::class, 'store'])->name('shops.block');
     Route::delete('/shops/{shop}/block', [ShopBlockController::class, 'destroy'])->name('shops.unblock');
     // "View as owner": the shop's owner dashboard, as the owner sees it (read-only until changes are allowed).

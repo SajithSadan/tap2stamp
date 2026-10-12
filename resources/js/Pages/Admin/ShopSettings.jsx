@@ -1,6 +1,7 @@
 import { Link, router, useForm } from "@inertiajs/react";
 import { useEffect, useState } from "react";
 import {
+    LuActivity,
     LuBuilding2,
     LuExternalLink,
     LuEye,
@@ -35,9 +36,11 @@ import WhatsAppButton from "@/Components/Dashboard/WhatsAppButton";
 import { BlockedBanner, BlockShopButton } from "@/Components/Dashboard/ShopBlockControls";
 import { formatPence } from "@/lib/money";
 import IndustryPicker from "@/Components/IndustryPicker";
+import ShopAccountTab from "@/Components/Dashboard/ShopAccountTab";
 
 /** The page's tabs, and which form fields live on each (to flag errors). */
 const TABS = [
+    { key: "account", label: "Account", icon: LuActivity, fields: ["crm_stage", "trial_ends_at", "lost_reason"] },
     { key: "card", label: "Loyalty card", icon: LuStamp, fields: ["name", "max_stamps", "reward_title", "show_card_link", "qr_design_id"] },
     {
         key: "customer",
@@ -291,6 +294,10 @@ export default function ShopSettings({
     qrDesigns,
     defaultQrDesign,
     industries = [],
+    health,
+    healthModel,
+    pipeline,
+    crmStages,
 }) {
     const [tab, setTab] = useState(initialTab);
     const form = useForm({
@@ -415,6 +422,7 @@ export default function ShopSettings({
 
             {tab === "menu" && <MenuTab shop={shop} menuItemsCount={menuItemsCount} menuUrl={menuUrl} />}
             {tab === "features" && <FeaturesTab shop={shop} features={features} />}
+            {tab === "account" && <ShopAccountTab shop={shop} health={health} healthModel={healthModel} pipeline={pipeline} crmStages={crmStages} />}
 
             {tab === "orders" && (
                 <OrdersTab

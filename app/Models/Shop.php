@@ -91,6 +91,8 @@ class Shop extends Model
     {
         static::creating(function (Shop $shop) {
             $shop->menu_slug ??= static::uniqueMenuSlug($shop->name ?? '');
+            // The free trial runs from the day the shop is set up.
+            $shop->trial_ends_at ??= now()->addDays((int) config('loyalty.trial_days', 30));
         });
 
         // Orders placed before the shop had an address (or arranged by the
@@ -167,6 +169,7 @@ class Shop extends Model
             'blocked_at' => 'datetime',
             'show_menu_on_card' => 'boolean',
             'qr_page_viewed_at' => 'datetime',
+            'trial_ends_at' => 'datetime',
             'qr_downloaded_at' => 'datetime',
             'qr_downloads' => 'integer',
             'qr_download_failures' => 'integer',

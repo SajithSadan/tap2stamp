@@ -4,6 +4,7 @@ import { FcGoogle } from "react-icons/fc";
 import {
     LuCheck,
     LuBriefcase,
+    LuFlag,
     LuChevronDown,
     LuCopy,
     LuDownload,
@@ -284,6 +285,63 @@ function qrSummary(qr) {
     return parts.filter(Boolean).join(" · ");
 }
 
+/* ---------- Health (ShopHealth) & pipeline ---------- */
+
+/** Segment look: worst first, as the tiles are ordered. */
+const SEGMENT = {
+    never_started: { tone: "bg-neutral-500/10 text-neutral-700", bar: "bg-neutral-400", ring: "ring-neutral-400", hint: "Signed up, no stamps yet" },
+    stalled: { tone: "bg-orange-500/10 text-orange-800", bar: "bg-orange-500", ring: "ring-orange-500", hint: "No stamps for 14+ days" },
+    declining: { tone: "bg-red-500/10 text-red-700", bar: "bg-red-500", ring: "ring-red-500", hint: "Was busy, now dropping" },
+    trickling: { tone: "bg-amber-500/10 text-amber-800", bar: "bg-amber-500", ring: "ring-amber-500", hint: "Stamping, few come back" },
+    healthy: { tone: "bg-emerald-500/10 text-emerald-700", bar: "bg-emerald-500", ring: "ring-emerald-500", hint: "Ready to convert" },
+};
+
+const STAGE_TONE = {
+    trial: "bg-brand-bg text-brand-muted ring-1 ring-inset ring-brand-border",
+    activated: "bg-sky-500/10 text-sky-700",
+    offered: "bg-violet-500/10 text-violet-700",
+    paid: "bg-emerald-500/10 text-emerald-700",
+    lost: "bg-red-500/10 text-red-700",
+};
+
+/** "in 5 days" / "today" / "ended 3 days ago". */
+function trialText(days) {
+    if (days === null || days === undefined) return null;
+    if (days === 0) return "ends today";
+    if (days > 0) return `${days} ${days === 1 ? "day" : "days"} left`;
+    return `ended ${-days} ${days === -1 ? "day" : "days"} ago`;
+}
+
+/**
+ * Where the shops stand: one tile per health segment with its count (within
+ * the other filters). A tile is also the filter - tap again to clear.
+ */
+function SegmentTiles({ segments, counts, value, onChange }) {
+    return (
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" role="group" aria-label="Filter by health">
+            {Object.entries(segments).map(([key, label]) => {
+                const look = SEGMENT[key];
+                const active = value === key;
+                return (
+                    <button
+                        key={key}
+                        type="button"
+                        onClick={() => onChange(active ? "all" : key)}
+                        aria-pressed={active}
+                        className={`rounded-2xl border bg-brand-card p-3 text-left transition-shadow ${active ? `border-transparent ring-2 ${look.ring}` : "border-brand-border hover:shadow-sm"}`}
+                    >
+                        <span className="flex items-center gap-2 text-sm font-semibold text-brand-text">
+                            <span className={`h-2.5 w-2.5 rounded-full ${look.bar}`} /> {label}
+                        </span>
+                        <span className="mt-1 block font-heading text-2xl font-bold tabular-nums text-brand-text">{counts[key] ?? 0}</span>
+                        <span className="block truncate text-xs text-brand-muted">{look.hint}</span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
 /** Has an owner who hasn't had the WhatsApp welcome yet. */
 const needsWelcome = (s) => s.owner_email && !s.welcome_sent_at;
 
@@ -323,6 +381,73 @@ function buildColumns(origin) {
                     </div>
                 </div>
             ),
+        },
+        {
+            // ShopHealth: score 0-100 + segment; the reasons on hover.
+            id: "health",
+            accessorFn: (s) => s.health.score,
+            header: "Health",
+            enableGlobalFilter: false,
+            sortDescFirst: true,
+            meta: {
+                label: "Health",
+                csv: (s) => `${s.health.score} ${s.health.segment} - ${s.health.reasons.join("; ")}`,
+            },
+            cell: ({ row: { original: s } }) => {
+                const look = SEGMENT[s.health.segment];
+                return (
+                    <Link
+                        href={`/admin/shops/${s.id}/settings#account`}
+                        className="block w-32 rounded-lg hover:opacity-80"
+                        title={[`${s.health.step_label} (step ${s.health.step} of 8)`, ...s.health.reasons].join("\n")}
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className="w-7 text-right text-sm font-semibold tabular-nums text-brand-text">{s.health.score}</span>
+                            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-bg">
+                                <span className={`block h-full rounded-full ${look.bar}`} style={{ width: `${s.health.score}%` }} />
+                            </span>
+                        </div>
+                        <span className={`mt-1 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ${look.tone}`}>
+                            {s.health.segment.replace("_", " ").replace(/^./, (c) => c.toUpperCase())}
+                        </span>
+                    </Link>
+                );
+            },
+        },
+        {
+            id: "stage",
+            accessorKey: "stage",
+            header: "Stage",
+            enableGlobalFilter: false,
+            meta: { label: "Stage", csv: (s) => s.stage },
+            cell: ({ row: { original: s } }) => (
+                <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STAGE_TONE[s.stage] ?? STAGE_TONE.trial}`}>
+                    {s.stage === "offered" ? "Upgrade offered" : s.stage}
+                </span>
+            ),
+        },
+        {
+            id: "trial",
+            accessorFn: (s) => orUndefined(s.trial_ends_at ?? null),
+            header: "Trial ends",
+            enableGlobalFilter: false,
+            sortUndefined: "last",
+            meta: { label: "Trial ends", csv: (s) => s.trial_ends_label ?? "" },
+            cell: ({ row: { original: s } }) =>
+                s.trial_ends_label ? (
+                    <div className="whitespace-nowrap">
+                        <span className="text-sm text-brand-text">{s.trial_ends_label}</span>
+                        <span
+                            className={`block text-xs ${
+                                s.trial_days_left < 0 ? "text-red-700" : s.trial_days_left <= 7 ? "font-medium text-amber-700" : "text-brand-muted"
+                            }`}
+                        >
+                            {trialText(s.trial_days_left)}
+                        </span>
+                    </div>
+                ) : (
+                    <span className="text-xs text-brand-muted">-</span>
+                ),
         },
         {
             id: "status",
@@ -739,21 +864,40 @@ function buildColumns(origin) {
 /** Not ordered the primary product, and not arranged with us either - the ones to call. */
 const needsDisplay = (s) => !s.product_ordered_at && !s.product_awaiting;
 
-export default function Index({ shops, quietDays, primaryProduct }) {
+export default function Index({ shops, quietDays, primaryProduct, segments = {}, stages = {} }) {
     const { flash } = usePage().props;
     const [status, setStatus] = useState("all");
     const [country, setCountry] = useState("all");
     const [industry, setIndustry] = useState("all");
+    const [segment, setSegment] = useState("all");
+    const [stage, setStage] = useState("all");
 
-    // The status chips count and filter within the chosen country and industry.
-    const inCountry = useMemo(
+    // Country, business type and stage narrow everything; the health tiles count within them.
+    const base = useMemo(
         () =>
             shops.filter(
                 (s) =>
                     (country === "all" || (s.country_code ?? "") === country) &&
-                    (industry === "all" || (s.industry ?? "") === industry),
+                    (industry === "all" || (s.industry ?? "") === industry) &&
+                    (stage === "all" || s.stage === stage),
             ),
-        [shops, country, industry],
+        [shops, country, industry, stage],
+    );
+    const segmentCounts = useMemo(
+        () => base.reduce((acc, s) => ({ ...acc, [s.health.segment]: (acc[s.health.segment] ?? 0) + 1 }), {}),
+        [base],
+    );
+    // The status chips count and filter within all of the above.
+    const inCountry = useMemo(
+        () => (segment === "all" ? base : base.filter((s) => s.health.segment === segment)),
+        [base, segment],
+    );
+    const stageOptions = useMemo(
+        () =>
+            Object.entries(stages)
+                .map(([value, label]) => ({ value, label, count: shops.filter((s) => s.stage === value).length }))
+                .filter((o) => o.count > 0),
+        [shops, stages],
     );
     // Each dropdown's counts follow the other's choice.
     const countries = useMemo(
@@ -831,6 +975,8 @@ export default function Index({ shops, quietDays, primaryProduct }) {
                     </EmptyState>
                 </div>
             ) : (
+                <>
+                <SegmentTiles segments={segments} counts={segmentCounts} value={segment} onChange={setSegment} />
                 <DataTable
                     data={rows}
                     columns={columns}
@@ -859,6 +1005,15 @@ export default function Index({ shops, quietDays, primaryProduct }) {
                                 options={industries}
                                 total={industries.reduce((n, o) => n + o.count, 0)}
                             />
+                            <SelectFilter
+                                label="Filter by pipeline stage"
+                                icon={LuFlag}
+                                allLabel="All stages"
+                                value={stage}
+                                onChange={setStage}
+                                options={stageOptions}
+                                total={shops.length}
+                            />
                         </>
                     }
                     toolbar={
@@ -868,14 +1023,17 @@ export default function Index({ shops, quietDays, primaryProduct }) {
                             counts={counts}
                         />
                     }
-                    filteredExternally={status !== "all" || country !== "all" || industry !== "all"}
+                    filteredExternally={status !== "all" || country !== "all" || industry !== "all" || segment !== "all" || stage !== "all"}
                     onClearAll={() => {
                         setStatus("all");
                         setCountry("all");
                         setIndustry("all");
+                        setSegment("all");
+                        setStage("all");
                     }}
                     empty={<EmptyState icon={LuStore} title="No shops match" />}
                 />
+                </>
             )}
         </AdminLayout>
     );
