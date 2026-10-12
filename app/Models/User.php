@@ -16,7 +16,7 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, RecordsActivity;
 
-    protected array $activityIgnore = ['onboarding_draft', 'email_verified_at'];
+    protected array $activityIgnore = ['onboarding_draft', 'email_verified_at', 'welcome_sent_at'];
 
     protected array $activitySecret = ['password'];
 
@@ -68,6 +68,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role' => UserRole::class,
             'onboarding_draft' => 'array',
+            'welcome_sent_at' => 'datetime',
         ];
     }
 

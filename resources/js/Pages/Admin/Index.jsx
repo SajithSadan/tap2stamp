@@ -162,6 +162,7 @@ function StatusChips({ value, onChange, counts }) {
         ["no_owner", "No owner"],
         ["no_display", "Display not ordered"],
         ["no_qr", "QR not downloaded"],
+        ["no_welcome", "Welcome not sent"],
     ];
 
     return (
@@ -282,6 +283,9 @@ function qrSummary(qr) {
     ];
     return parts.filter(Boolean).join(" · ");
 }
+
+/** Has an owner who hasn't had the WhatsApp welcome yet. */
+const needsWelcome = (s) => s.owner_email && !s.welcome_sent_at;
 
 /** Prints their own QR and hasn't managed to download it yet. */
 const needsQr = (s) => s.qr && s.qr.state !== "downloaded";
@@ -411,6 +415,24 @@ function buildColumns(origin) {
                     </span>
                 );
             },
+        },
+        {
+            // The admin's first WhatsApp welcome to the owner (the WhatsApp button reports it).
+            id: "welcome",
+            accessorFn: (r) => orUndefined(r.welcome_sent_at ?? null),
+            header: "Welcome",
+            enableGlobalFilter: false,
+            sortDescFirst: true,
+            sortUndefined: "last",
+            meta: { label: "Welcome sent", csv: (r) => r.welcome_sent_label ?? "" },
+            cell: ({ row: { original: r } }) =>
+                r.welcome_sent_label ? (
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        <LuCheck className="h-3.5 w-3.5" /> {r.welcome_sent_label}
+                    </span>
+                ) : (
+                    <span className="whitespace-nowrap text-xs text-brand-muted">Not sent</span>
+                ),
         },
         {
             id: "owner",
@@ -669,6 +691,8 @@ function buildColumns(origin) {
                     <WhatsAppButton
                         number={s.contact_whatsapp}
                         name={s.contact_name ? `${s.contact_name} · ${s.name}` : s.name}
+                        shopId={s.id}
+                        welcomeSentLabel={s.welcome_sent_label}
                     />
                     <Link
                         href={`/admin/shops/${s.id}/settings`}
@@ -753,6 +777,7 @@ export default function Index({ shops, quietDays, primaryProduct }) {
             no_owner: inCountry.filter((s) => !s.owner_email).length,
             no_display: inCountry.filter(needsDisplay).length,
             no_qr: inCountry.filter(needsQr).length,
+            no_welcome: inCountry.filter(needsWelcome).length,
         }),
         [inCountry],
     );
@@ -762,6 +787,7 @@ export default function Index({ shops, quietDays, primaryProduct }) {
         if (status === "no_owner") return inCountry.filter((s) => !s.owner_email);
         if (status === "no_display") return inCountry.filter(needsDisplay);
         if (status === "no_qr") return inCountry.filter(needsQr);
+        if (status === "no_welcome") return inCountry.filter(needsWelcome);
 
         return inCountry.filter((s) => s.status === status);
     }, [inCountry, status]);

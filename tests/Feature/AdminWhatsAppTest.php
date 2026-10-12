@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\ActivityLog;
 use App\Models\Shop;
 use App\Models\User;
 use App\Support\WhatsApp;
@@ -79,4 +80,67 @@ test('the welcome message is validated and only the admin can change it', functi
 
     $owner = User::factory()->create(['role' => UserRole::Owner]);
     $this->actingAs($owner)->put('/admin/settings/welcome', ['message' => 'Hijack'])->assertForbidden();
+});
+
+test('sending the welcome is logged and the owner keeps the date of the first one', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin, 'name' => 'Ada Admin']);
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id, 'name' => 'Bean There']);
+
+    $this->actingAs($admin)->postJson('/admin/whatsapp-contacts', ['kind' => 'welcome', 'shop_id' => $shop->id])
+        ->assertOk()->assertJsonPath('welcome_sent_label', now()->timezone('Europe/London')->format('j M Y'));
+    $first = $owner->fresh()->welcome_sent_at;
+
+    $this->travel(3)->days();
+    $this->actingAs($admin)->postJson('/admin/whatsapp-contacts', ['kind' => 'welcome', 'shop_id' => $shop->id])->assertOk();
+
+    $logs = ActivityLog::where('action', 'whatsapp.welcome_sent')->get();
+    expect($owner->fresh()->welcome_sent_at->equalTo($first))->toBeTrue()
+        ->and($logs)->toHaveCount(2)
+        ->and($logs->first()->shop_id)->toBe($shop->id)
+        ->and($logs->first()->actor_type)->toBe('admin')
+        ->and($logs->first()->user_id)->toBe($admin->id)
+        ->and($logs->first()->description)->toContain('Bean There');
+});
+
+test('opening a chat is logged but is not a welcome', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($admin)->postJson('/admin/whatsapp-contacts', ['kind' => 'chat', 'shop_id' => $shop->id])->assertOk();
+
+    expect(ActivityLog::where('action', 'whatsapp.chat_opened')->where('shop_id', $shop->id)->exists())->toBeTrue()
+        ->and($owner->fresh()->welcome_sent_at)->toBeNull();
+});
+
+test('an owner who has not set up a shop yet can be welcomed from the Users page', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+    $this->actingAs($admin)->postJson('/admin/whatsapp-contacts', ['kind' => 'welcome', 'user_id' => $owner->id])->assertOk();
+
+    expect($owner->fresh()->welcome_sent_at)->not->toBeNull();
+    $this->actingAs($admin)->get('/admin/users')->assertInertia(fn ($page) => $page
+        ->where('users', fn ($users) => collect($users)->firstWhere('id', $owner->id)['welcome_sent_label'] !== null));
+});
+
+test('the shops grid shows whether each owner was welcomed', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $owner = User::factory()->create(['role' => UserRole::Owner, 'welcome_sent_at' => now()]);
+    Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($admin)->get('/admin')->assertInertia(fn ($page) => $page
+        ->where('shops.0.welcome_sent_label', now()->timezone('Europe/London')->format('j M Y')));
+});
+
+test('contact reports are validated and admin only', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $this->actingAs($admin)->postJson('/admin/whatsapp-contacts', ['kind' => 'spam'])->assertJsonValidationErrors(['kind', 'shop_id']);
+    $this->actingAs($admin)->postJson('/admin/whatsapp-contacts', ['kind' => 'welcome', 'shop_id' => 99999])->assertJsonValidationErrors('shop_id');
+
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+    $this->actingAs($owner)->postJson('/admin/whatsapp-contacts', ['kind' => 'welcome', 'shop_id' => $shop->id])->assertForbidden();
+    expect($owner->fresh()->welcome_sent_at)->toBeNull();
 });

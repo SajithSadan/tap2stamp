@@ -31,6 +31,7 @@ class ShopSettingsController extends Controller
                 ]),
                 'can_order' => $shop->canOrderProducts(),
                 'whatsapp' => $shop->whatsappNumber(),
+                'welcome_sent_label' => $shop->owner?->welcome_sent_at?->timezone('Europe/London')->format('j M Y'),
                 // "View menu" on the loyalty card (Menu tab), switchable only while Menu is on.
                 'show_menu_on_card' => (bool) $shop->show_menu_on_card,
                 'menu_enabled' => $shop->hasFeature(Features::MENU),

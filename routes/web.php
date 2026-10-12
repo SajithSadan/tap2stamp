@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\ShopOwnerController;
 use App\Http\Controllers\Admin\ShopSettingsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ViewAsOwnerController;
+use App\Http\Controllers\Admin\WhatsAppContactController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -241,6 +242,8 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::put('/settings/sidebar', [SettingsController::class, 'updateSidebar'])->name('settings.sidebar');
     Route::put('/settings/bank', [SettingsController::class, 'updateBank'])->name('settings.bank');
     Route::put('/settings/welcome', [SettingsController::class, 'updateWelcome'])->name('settings.welcome');
+    // The WhatsApp button reports a chat opened / welcome sent (activity log + users.welcome_sent_at).
+    Route::post('/whatsapp-contacts', [WhatsAppContactController::class, 'store'])->middleware('throttle:60,1')->name('whatsapp-contacts.store');
     Route::put('/settings/menu-photos', [SettingsController::class, 'updateMenuPhotos'])->name('settings.menu-photos');
     Route::put('/settings/features', [SettingsController::class, 'updateFeature'])->name('settings.features');
 });

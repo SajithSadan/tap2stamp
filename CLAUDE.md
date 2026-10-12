@@ -191,7 +191,12 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   sent by the admin from their own WhatsApp - nothing is sent by us). The welcome text is
   Admin → Settings → WhatsApp (`Setting::WHATSAPP_WELCOME` = {message, video_url},
   `App\Support\WelcomeMessage`, the video link on its own last line), shared to admins only as
-  `whatsappWelcome`. On a phone: "Open WhatsApp" / "Send welcome message". On a desktop
+  `whatsappWelcome`. **Tracked**: the button reports each open to `POST /admin/whatsapp-contacts`
+  (`Admin\WhatsAppContactController` → `App\Services\WhatsAppContacts`): activity log
+  `whatsapp.chat_opened` / `whatsapp.welcome_sent` (shop + owner), and the owner's **first**
+  welcome in `users.welcome_sent_at` (Welcome column on the Shops / Users grids, "Welcome not
+  sent" chip on Shops). Automatic for "Open WhatsApp" / "Open here"; after scanning the desktop
+  QR, the admin presses "Mark as sent" (we can't see the scan). On a phone: "Open WhatsApp" / "Send welcome message". On a desktop
   (`hover: hover` + `pointer: fine`): a QR of the same link to scan with your phone, plus
   "Open on this computer".
 - **Staff devices** (Stage 4's other task, doc-scoped): `staff_devices` table, only
@@ -1208,6 +1213,7 @@ Plus `products`, `orders`, `shops.product_ordered_at`, `coupons` and `orders.cou
 Plus `menu_sections` / `menu_items`, `shops.menu_theme` and `shops.menu_slug` (see "Shop menus").
 Plus `activity_logs` (see "Admin activity & logs").
 Plus `shops.industry` / `industry_other` (see "Shop industry").
+Plus `users.welcome_sent_at` (the admin's first WhatsApp welcome; see "WhatsApp contact").
 Plus `shops.qr_page_viewed_at` / `qr_downloaded_at` / `qr_downloads` / `qr_download_failures` (see "Overseas shops").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to **WhatsApp** offers from **that one shop**, unticked by

@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { FaWhatsapp } from "react-icons/fa6";
-import { LuExternalLink, LuHandHeart, LuMessageCircle, LuX } from "react-icons/lu";
+import { LuCheck, LuExternalLink, LuHandHeart, LuMessageCircle, LuX } from "react-icons/lu";
 import { CopyButton, secondaryButton } from "@/Components/Dashboard/Ui";
 
 /** A mouse and a big screen: show the QR to scan with the phone instead of opening WhatsApp here. */
@@ -26,10 +26,18 @@ const OPTIONS = [
  * On a phone: "Open WhatsApp". On a desktop: a QR of the same link to scan
  * with the phone, plus "Open on this computer" (WhatsApp Web / Desktop).
  * `text`: a labelled button (page headers) instead of the grid's icon.
+ *
+ * What the admin opens is reported (POST /admin/whatsapp-contacts →
+ * activity log; the owner's first welcome → users.welcome_sent_at), for the
+ * grids and the AI analysis: automatically for "Open WhatsApp" / "Open on this
+ * computer"; after scanning the QR, with "Mark as sent". `shopId` / `userId`
+ * say who it was; `welcomeSentLabel` = when the welcome was first sent.
  */
-export default function WhatsAppButton({ number, name, text }) {
+export default function WhatsAppButton({ number, name, text, shopId = null, userId = null, welcomeSentLabel = null }) {
     const welcome = usePage().props.whatsappWelcome;
     const [open, setOpen] = useState(false);
+    const [sentLabel, setSentLabel] = useState(welcomeSentLabel);
+    const [marked, setMarked] = useState(false);
     const [kind, setKind] = useState("chat");
     const [qr, setQr] = useState(null);
     const desktop = isDesktop();
@@ -52,6 +60,15 @@ export default function WhatsAppButton({ number, name, text }) {
 
     if (!number) return null;
 
+    // Fire and forget: reporting must never get in the way of opening WhatsApp.
+    function report() {
+        if (!shopId && !userId) return;
+        window.axios
+            ?.post("/admin/whatsapp-contacts", { kind, shop_id: shopId, user_id: userId })
+            .then(({ data }) => data.welcome_sent_label && setSentLabel(data.welcome_sent_label))
+            .catch(() => {});
+    }
+
     const label = `WhatsApp ${name ?? pretty(number)}`;
     const buttonClass = text
         ? secondaryButton
@@ -68,6 +85,7 @@ export default function WhatsAppButton({ number, name, text }) {
                 onClick={(e) => {
                     e.preventDefault();
                     setKind("chat");
+                    setMarked(false);
                     setOpen(true);
                 }}
                 className={buttonClass}
@@ -109,7 +127,10 @@ export default function WhatsAppButton({ number, name, text }) {
                                             type="button"
                                             role="radio"
                                             aria-checked={kind === key}
-                                            onClick={() => setKind(key)}
+                                            onClick={() => {
+                                                setKind(key);
+                                                setMarked(false);
+                                            }}
                                             className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
                                                 kind === key ? "bg-brand-card text-brand-text shadow-sm" : "text-brand-muted hover:text-brand-text"
                                             }`}
@@ -126,6 +147,11 @@ export default function WhatsAppButton({ number, name, text }) {
                                     <p className="whitespace-pre-line break-words text-sm text-neutral-800">{welcome}</p>
                                 </div>
                             )}
+                            {kind === "welcome" && welcome && sentLabel && (
+                                <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700">
+                                    <LuCheck className="h-3.5 w-3.5" /> Welcome first sent {sentLabel}
+                                </p>
+                            )}
 
                             {desktop ? (
                                 <>
@@ -137,16 +163,35 @@ export default function WhatsAppButton({ number, name, text }) {
                                             ? "Scan with your phone's camera - WhatsApp opens with the message typed in, ready to send."
                                             : "Scan with your phone's camera to open the chat in WhatsApp."}
                                     </p>
-                                    <a href={link} target="_blank" rel="noopener noreferrer" className={`${secondaryButton} mt-4 w-full`}>
-                                        <LuExternalLink className="h-4 w-4" /> Open on this computer
-                                    </a>
+                                    <div className={`mt-4 grid gap-2 ${kind === "welcome" ? "grid-cols-2" : ""}`}>
+                                        {kind === "welcome" && (
+                                            // Scanned with the phone: the app can't see that, so the admin says so.
+                                            <button
+                                                type="button"
+                                                disabled={marked}
+                                                onClick={() => {
+                                                    report();
+                                                    setMarked(true);
+                                                }}
+                                                className={`${secondaryButton} w-full`}
+                                            >
+                                                <LuCheck className="h-4 w-4" /> {marked ? "Recorded" : "Mark as sent"}
+                                            </button>
+                                        )}
+                                        <a href={link} target="_blank" rel="noopener noreferrer" onClick={report} className={`${secondaryButton} w-full`}>
+                                            <LuExternalLink className="h-4 w-4" /> {kind === "welcome" ? "Open here" : "Open on this computer"}
+                                        </a>
+                                    </div>
                                 </>
                             ) : (
                                 <a
                                     href={link}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    onClick={() => setOpen(false)}
+                                    onClick={() => {
+                                        report();
+                                        setOpen(false);
+                                    }}
                                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-semibold text-white"
                                 >
                                     <FaWhatsapp className="h-4 w-4" />

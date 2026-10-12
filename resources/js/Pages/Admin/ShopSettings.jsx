@@ -374,7 +374,7 @@ export default function ShopSettings({
             description={ownerEmail ? `Owner: ${ownerEmail}` : "No owner account"}
             actions={
                 <div className="flex flex-wrap gap-2">
-                    <WhatsAppButton number={shop.whatsapp} name={shop.contact_name ? `${shop.contact_name} · ${shop.name}` : shop.name} text="WhatsApp" />
+                    <WhatsAppButton number={shop.whatsapp} name={shop.contact_name ? `${shop.contact_name} · ${shop.name}` : shop.name} text="WhatsApp" shopId={shop.id} welcomeSentLabel={shop.welcome_sent_label} />
                     <a href={previewUrl} target="_blank" rel="noreferrer" className={secondaryButton}>
                         <LuExternalLink className="h-4 w-4" /> Customer page
                     </a>

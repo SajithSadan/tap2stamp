@@ -44,7 +44,7 @@ class ShopOwnerController extends Controller
         $primary = Product::where('is_featured', true)->first();
         $primaryOrders = fn ($q) => $q->where('product_id', $primary?->id ?? 0);
 
-        $shops = Shop::with('owner:id,name,email,google_id')
+        $shops = Shop::with('owner:id,name,email,google_id,welcome_sent_at')
             ->withMax(['orders as primary_paid_at' => fn ($q) => $primaryOrders($q)->where('status', OrderStatus::Paid)], 'paid_at')
             ->withExists(['orders as primary_awaiting' => fn ($q) => $primaryOrders($q)
                 ->where('status', OrderStatus::Pending)
@@ -75,6 +75,9 @@ class ShopOwnerController extends Controller
                     'owner_name' => $shop->owner?->name,
                     'owner_email' => $shop->owner?->email,
                     'owner_via_google' => $shop->owner?->google_id !== null,
+                    // The admin's first WhatsApp welcome to this owner (null = not sent yet).
+                    'welcome_sent_at' => $shop->owner?->welcome_sent_at?->toIso8601String(),
+                    'welcome_sent_label' => $shop->owner?->welcome_sent_at?->timezone('Europe/London')->format('j M Y'),
                     'max_stamps' => $shop->max_stamps,
                     'reward_title' => $shop->reward_title,
                     // Business contact + location from shop setup (null for older shops).

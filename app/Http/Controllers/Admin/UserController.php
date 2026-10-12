@@ -42,6 +42,8 @@ class UserController extends Controller
             'role' => $user->role->value,
             'via_google' => $user->google_id !== null,
             'has_password' => $user->password !== null,
+            'welcome_sent_at' => $user->welcome_sent_at?->toIso8601String(),
+            'welcome_sent_label' => $user->welcome_sent_at?->timezone('Europe/London')->format('j M Y'),
             'created_at' => $user->created_at->toIso8601String(),
             'created_label' => $user->created_at->timezone('Europe/London')->format('j M Y, H:i'),
             'shop' => $user->shop ? [

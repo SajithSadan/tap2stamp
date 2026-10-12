@@ -1,7 +1,7 @@
 import { Link } from "@inertiajs/react";
 import { useMemo, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
-import { LuEye, LuSettings, LuUserRound } from "react-icons/lu";
+import { LuCheck, LuEye, LuSettings, LuUserRound } from "react-icons/lu";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import DataTable from "@/Components/Dashboard/DataTable";
 import WhatsAppButton from "@/Components/Dashboard/WhatsAppButton";
@@ -102,6 +102,26 @@ const columns = [
         cell: ({ getValue }) => <span className="whitespace-nowrap text-brand-muted">{getValue()}</span>,
     },
     {
+        // The admin's first WhatsApp welcome (owners only; the WhatsApp button reports it).
+        id: "welcome",
+        accessorFn: (u) => u.welcome_sent_at ?? undefined,
+        header: "Welcome",
+        enableGlobalFilter: false,
+        sortDescFirst: true,
+        sortUndefined: "last",
+        meta: { label: "Welcome sent", csv: (u) => u.welcome_sent_label ?? "" },
+        cell: ({ row: { original: u } }) =>
+            u.role !== "owner" ? (
+                <span className="text-xs text-brand-muted">-</span>
+            ) : u.welcome_sent_label ? (
+                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    <LuCheck className="h-3.5 w-3.5" /> {u.welcome_sent_label}
+                </span>
+            ) : (
+                <span className="whitespace-nowrap text-xs text-brand-muted">Not sent</span>
+            ),
+    },
+    {
         id: "created",
         accessorKey: "created_at",
         header: "Signed up",
@@ -123,6 +143,9 @@ const columns = [
                 <WhatsAppButton
                     number={u.shop?.whatsapp ?? u.draft?.whatsapp}
                     name={[u.shop?.contact_name ?? u.draft?.contact_name ?? u.name, u.shop?.name ?? u.draft?.business_name].filter(Boolean).join(" · ")}
+                    shopId={u.shop?.id ?? null}
+                    userId={u.id}
+                    welcomeSentLabel={u.welcome_sent_label}
                 />
                 {u.shop && (
                     <>

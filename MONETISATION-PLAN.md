@@ -35,6 +35,8 @@ on data we already have. AI (Gemini) only writes the summaries, suggestions and 
 - Staff set up (`staff_members`, `staff_devices`)
 - Counter display / QR in place (`orders`, `qr_codes.shop_id`)
 - Extras used: menu, reviews, WhatsApp campaigns
+- Welcomed on WhatsApp: `users.welcome_sent_at` + `whatsapp.welcome_sent` / `whatsapp.chat_opened`
+  activity log entries (built 2026-10-12) - did a welcome / chat lead to a first stamp?
 - Type of business: `shops.industry` (built 2026-10-12) - compare health and conversion
   by industry, and tailor offers / messages per industry.
 - QR found / downloaded: `shops.qr_page_viewed_at`, `qr_downloaded_at`, `qr_downloads`,
