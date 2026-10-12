@@ -22,6 +22,7 @@ import AiStockCommand from "@/Components/Menu/AiStockCommand";
 import OfflineBanner from "@/Components/OfflineBanner";
 import TechsaFooter from "@/Components/TechsaFooter";
 import { STAFF_TOKEN_KEY } from "@/lib/storage";
+import { redeemAppLink, staffManifestHref, StaffInstallPrompt, appLinkCode } from "@/Components/StaffApp";
 
 
 function CenteredMessage({ icon: Icon, title, children }) {
@@ -45,7 +46,7 @@ function CenteredMessage({ icon: Icon, title, children }) {
 
 /* ---------- PIN sign-in ---------- */
 
-function PinSignIn({ shopName, members, api, onSignedIn, onApiError }) {
+function PinSignIn({ shopName, members, api, onSignedIn, onApiError, install = null }) {
     const [member, setMember] = useState(null);
     const [pin, setPin] = useState("");
     const [error, setError] = useState(null);
@@ -118,6 +119,8 @@ function PinSignIn({ shopName, members, api, onSignedIn, onApiError }) {
                             ))}
                         </div>
                     )}
+
+                    {install && <div className="mt-8">{install}</div>}
                 </div>
                 <TechsaFooter theme="light" className="pb-4" />
             </div>
@@ -393,7 +396,7 @@ function Tile({ icon: Icon, label, value, accent }) {
     );
 }
 
-function TodayTab({ summary, staffName, onRefresh }) {
+function TodayTab({ summary, staffName, onRefresh, install = null }) {
     useEffect(() => {
         onRefresh();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -434,6 +437,8 @@ function TodayTab({ summary, staffName, onRefresh }) {
                     value={summary?.redeemed_today}
                 />
             </div>
+
+            {install}
         </div>
     );
 }
@@ -659,6 +664,8 @@ export default function Dashboard() {
         }
     });
 
+    // The installed iPhone app's first launch: swap the one-time ?link= code for the token first.
+    const [linkState, setLinkState] = useState(() => (!token && appLinkCode() ? "redeeming" : "none")); // none | redeeming | expired | error
     const [authState, setAuthState] = useState("loading"); // loading | ready | unauthenticated | blocked | error
     const [retryKey, setRetryKey] = useState(0);
     const [me, setMe] = useState(null);
@@ -677,6 +684,15 @@ export default function Dashboard() {
             navigator.serviceWorker.register("/sw.js").catch(() => {});
         }
     }, []);
+
+    useEffect(() => {
+        if (linkState !== "redeeming") return;
+        redeemAppLink().then((result) => {
+            // Stored: start again, now with the token (this page reads it once).
+            if (result === "stored") window.location.reload();
+            else setLinkState(result === "none" ? "none" : result);
+        });
+    }, [linkState]);
 
     /**
      * Shared handling for the two "you've lost access" answers. Returns true
@@ -710,6 +726,7 @@ export default function Dashboard() {
     }
 
     useEffect(() => {
+        if (linkState !== "none") return;
         if (!token) {
             setAuthState("unauthenticated");
             return;
@@ -726,7 +743,7 @@ export default function Dashboard() {
                 if (!handleApiError(error)) setAuthState("error");
             });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [token, retryKey]);
+    }, [token, retryKey, linkState]);
 
     function refreshSummary() {
         api.get("/api/staff/summary")
@@ -753,7 +770,7 @@ export default function Dashboard() {
 
     const headTags = (
         <Head title="Staff">
-            <link rel="manifest" href="/manifest.webmanifest" />
+            <link rel="manifest" href={staffManifestHref()} />
             <meta name="theme-color" content="#0f2a46" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
             <meta
@@ -764,6 +781,32 @@ export default function Dashboard() {
             <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         </Head>
     );
+
+    if (linkState === "expired" || linkState === "error") {
+        return (
+            <>
+                {headTags}
+                <CenteredMessage
+                    icon={LuStore}
+                    title={linkState === "expired" ? "This app link has expired" : "Couldn't connect"}
+                >
+                    <p className="mt-2 text-sm text-brand-muted">
+                        {linkState === "expired"
+                            ? "Open the staff app in Safari on this phone, tap Add on the sign-in screen and add it to your home screen again."
+                            : "Check the connection and try again."}
+                    </p>
+                    {linkState === "error" && (
+                        <button
+                            onClick={() => setLinkState("redeeming")}
+                            className="mt-4 rounded-xl bg-brand-accent px-4 py-2 text-sm font-semibold text-brand-accent-text"
+                        >
+                            Try again
+                        </button>
+                    )}
+                </CenteredMessage>
+            </>
+        );
+    }
 
     if (authState === "unauthenticated") {
         return (
@@ -853,6 +896,7 @@ export default function Dashboard() {
                     api={api}
                     onSignedIn={(staff) => setMe((m) => ({ ...m, staff }))}
                     onApiError={handleApiError}
+                    install={<StaffInstallPrompt api={api} />}
                 />
             </>
         );
@@ -918,6 +962,7 @@ export default function Dashboard() {
                             summary={summary}
                             staffName={me.staff.name}
                             onRefresh={refreshSummary}
+                            install={<StaffInstallPrompt api={api} variant="row" />}
                         />
                     )}
                 </main>

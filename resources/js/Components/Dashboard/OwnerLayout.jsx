@@ -22,6 +22,7 @@ import {
 import TechsaFooter from "@/Components/TechsaFooter";
 import OwnerScanner from "@/Components/Dashboard/OwnerScanner";
 import IndustryPrompt from "@/Components/Dashboard/IndustryPrompt";
+import { OwnerAppHead } from "@/Components/OwnerApp";
 import { navIcon } from "@/lib/navIcons";
 import { useDocumentTheme } from "@/lib/theme";
 
@@ -119,6 +120,7 @@ export default function OwnerLayout({
     return (
         <>
             <Head title={`${title} · ${shop.name}`} />
+            <OwnerAppHead />
 
             <div className="flex min-h-dvh flex-col bg-brand-bg">
                 {/* Desktop sidebar - soft navy (the theme's deep colour), same surface as the mobile tab bar. */}

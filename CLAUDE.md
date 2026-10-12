@@ -249,6 +249,36 @@ body]` tuples, not exceptions — the controller just does
   `lockForUpdate()` protection is real and correctly placed; only the _test_ of true concurrency
   is the gap.
 
+- **Staff app on the home screen** (`Components/StaffApp.jsx`): an "Add the staff app to your
+  home screen" banner on the PIN screen ("Not now" = 14 days) and a row in the Today tab. Install
+  (Chrome's prompt) / the ⋮ steps on Android, where the installed app shares Chrome's storage. On
+  **iPhone** the home-screen app gets **empty storage**, so "Add" calls
+  `POST /api/staff/app-link` (`StaffAppController`, `App\Services\StaffAppLinks`) for a
+  **one-time code** (40 chars, 24 h, single use, only while the device is approved; the token
+  sits Crypt-encrypted in the cache, never in a URL) and moves to `/staff?link={code}&add=1`
+  (the address Safari saves; `<link rel=manifest>` becomes `/staff/app/{code}.webmanifest`,
+  same manifest with that `start_url`). The installed app's first launch (no token stored)
+  swaps it via `POST /staff/app/redeem` (web route, CSRF, 10/min; 404 `link_expired`) and
+  reloads. See "Home-screen apps" below.
+
+## Home-screen apps (three, one per kind of user)
+
+Each is its own installable app (separate manifest `id`), opening on what that user needs:
+
+| App | Manifest | Opens at | Shows |
+|---|---|---|---|
+| Customer "My Cards" | `/my-cards/app/{uuid}.webmanifest` (`id` `/my-cards`) | `/my-cards?c={uuid}` | their cards list |
+| Staff | `public/manifest.webmanifest` (`id` `/staff`), or `/staff/app/{code}.webmanifest` | `/staff` | PIN screen if nobody's signed in (12 h), else the scanner |
+| Owner "Tada Tap Business" | `public/owner.webmanifest` (`id` `/business`) | `/login` | signed in → `/` → `homeUrl()` (dashboard / admin), else the login form |
+
+- Owner app: `Components/OwnerApp.jsx` (`OwnerAppHead` in `OwnerLayout`, `AdminLayout` and the
+  login page; `OwnerInstallPrompt` on Overview, "Not now" = 14 days). The login form's **"Keep me
+  signed in"** is **on by default** (`LoginRequest` → `Auth::attempt(…, remember)`), and Google
+  sign-in always remembers, so the app doesn't ask every 2 hours. iPhone home-screen apps keep
+  their own cookies: the owner logs in once inside the app.
+- Shared: `lib/pwa.js` (Chrome's install prompt, platform checks, snooze),
+  `Components/InstallAppPrompt.jsx` (staff + owner banner), `AddToHomeScreenSteps.jsx`.
+
 ## Real-time customer updates (Stage 7)
 
 - **`App\Events\CardUpdated implements ShouldBroadcastNow`** — broadcasts on the PUBLIC channel

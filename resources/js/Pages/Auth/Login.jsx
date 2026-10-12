@@ -1,4 +1,5 @@
 import { Link, useForm } from "@inertiajs/react";
+import { OwnerAppHead } from "@/Components/OwnerApp";
 import AuthShell, {
     AuthField,
     GoogleButton,
@@ -12,6 +13,8 @@ export default function Login({ googleEnabled }) {
     const { data, setData, post, processing, errors } = useForm({
         email: "",
         password: "",
+        // On by default: the owner's home-screen app shouldn't ask every couple of hours.
+        remember: true,
     });
 
     function handleSubmit(e) {
@@ -20,71 +23,83 @@ export default function Login({ googleEnabled }) {
     }
 
     return (
-        <AuthShell
-            title="Log in"
-            heading="Welcome back"
-            subheading="Log in to your shop dashboard."
-            footer={
-                <>
-                    New to TaDa Tap?{" "}
-                    <Link
-                        href="/register"
-                        className="font-semibold text-brand-accent hover:underline"
-                    >
-                        Start free
-                    </Link>
-                </>
-            }
-        >
-            {googleEnabled && (
-                <div className="space-y-6">
-                    <GoogleButton label="Continue with Google" />
-                    <OrDivider />
-                </div>
-            )}
-
-            <form
-                onSubmit={handleSubmit}
-                noValidate
-                className={`space-y-4 ${googleEnabled ? "mt-6" : ""}`}
-            >
-                <AuthField id="email" label="Email" error={errors.email}>
-                    <input
-                        id="email"
-                        type="email"
-                        value={data.email}
-                        onChange={(e) => setData("email", e.target.value)}
-                        autoComplete="email"
-                        className={authInputClass}
-                    />
-                </AuthField>
-
-                <AuthField
-                    id="password"
-                    label="Password"
-                    error={errors.password}
-                >
-                    <PasswordInput
-                        id="password"
-                        value={data.password}
-                        onChange={(v) => setData("password", v)}
-                        autoComplete="current-password"
-                    />
-                    <div className="mt-1.5 text-right">
-                        <Link href="/forgot-password" className="text-sm font-medium text-brand-accent hover:underline">
-                            Forgot password?
+        <>
+            <OwnerAppHead />
+            <AuthShell
+                title="Log in"
+                heading="Welcome back"
+                subheading="Log in to your shop dashboard."
+                footer={
+                    <>
+                        New to TaDa Tap?{" "}
+                        <Link
+                            href="/register"
+                            className="font-semibold text-brand-accent hover:underline"
+                        >
+                            Start free
                         </Link>
+                    </>
+                }
+            >
+                {googleEnabled && (
+                    <div className="space-y-6">
+                        <GoogleButton label="Continue with Google" />
+                        <OrDivider />
                     </div>
-                </AuthField>
+                )}
 
-                <button
-                    type="submit"
-                    disabled={processing}
-                    className={`${authButtonClass} mt-2`}
+                <form
+                    onSubmit={handleSubmit}
+                    noValidate
+                    className={`space-y-4 ${googleEnabled ? "mt-6" : ""}`}
                 >
-                    {processing ? "Logging in…" : "Log in"}
-                </button>
-            </form>
-        </AuthShell>
+                    <AuthField id="email" label="Email" error={errors.email}>
+                        <input
+                            id="email"
+                            type="email"
+                            value={data.email}
+                            onChange={(e) => setData("email", e.target.value)}
+                            autoComplete="email"
+                            className={authInputClass}
+                        />
+                    </AuthField>
+
+                    <AuthField
+                        id="password"
+                        label="Password"
+                        error={errors.password}
+                    >
+                        <PasswordInput
+                            id="password"
+                            value={data.password}
+                            onChange={(v) => setData("password", v)}
+                            autoComplete="current-password"
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                            <label className="flex cursor-pointer items-center gap-2 text-sm text-brand-text">
+                                <input
+                                    type="checkbox"
+                                    checked={data.remember}
+                                    onChange={(e) => setData("remember", e.target.checked)}
+                                    className="h-4 w-4 rounded border-brand-border accent-[var(--color-brand-accent)]"
+                                />
+                                Keep me signed in
+                            </label>
+                            <Link href="/forgot-password" className="text-sm font-medium text-brand-accent hover:underline">
+                                Forgot password?
+                            </Link>
+                        </div>
+                    </AuthField>
+
+                    <button
+                        type="submit"
+                        disabled={processing}
+                        className={`${authButtonClass} mt-2`}
+                    >
+                        {processing ? "Logging in…" : "Log in"}
+                    </button>
+                </form>
+            </AuthShell>
+        </>
     );
 }

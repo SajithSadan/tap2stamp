@@ -3,6 +3,7 @@ import { useState } from "react";
 import { LuLogOut, LuScanLine } from "react-icons/lu";
 import { Wordmark } from "@/Components/AuthShell";
 import QrStickerScanner from "@/Components/QrStickerScanner";
+import { OwnerAppHead } from "@/Components/OwnerApp";
 import {
     SidebarLinks,
     TabLinks,
@@ -33,6 +34,8 @@ export default function AdminLayout({ title, description, actions, children }) {
     return (
         <>
             <Head title={`${title} · Admin`} />
+            {/* The same home-screen app: it opens on the signed-in user's own home. */}
+            <OwnerAppHead />
 
             <div className="flex min-h-dvh flex-col bg-brand-bg">
                 {/* Desktop sidebar - soft navy, same surface as the mobile tab bar. */}

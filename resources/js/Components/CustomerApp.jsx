@@ -1,6 +1,8 @@
 import { Head } from "@inertiajs/react";
 import { useEffect, useState } from "react";
-import { LuDownload, LuEllipsisVertical, LuShare, LuSquarePlus, LuX } from "react-icons/lu";
+import { LuDownload } from "react-icons/lu";
+import AddToHomeScreenSteps from "@/Components/AddToHomeScreenSteps";
+import { isAndroid, isInstalledApp, isIos, snooze, snoozedSince, useBrowserInstall } from "@/lib/pwa";
 import { CUSTOMER_UUID_KEY } from "@/lib/storage";
 
 /**
@@ -21,16 +23,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DISMISSED_KEY = "my_cards_install_dismissed_at";
 const SNOOZE_DAYS = 14;
 
-/** Running as the installed home-screen app (Android or iPhone). */
-export const isInstalledApp = () =>
-    typeof window !== "undefined" && (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true);
-
-const isIos = () =>
-    typeof navigator !== "undefined" &&
-    (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
-
-const isAndroid = () => typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
-
 /**
  * /my-cards?c={uuid} - the installed app's first launch (its storage starts
  * empty on iPhone). Only adopted when nothing is stored, so opening someone
@@ -45,17 +37,6 @@ export function adoptLinkedCustomer() {
     } catch {
         // Storage blocked - the page just shows its empty state.
     }
-}
-
-// Chrome / Android fire this once, possibly before any React component mounts - keep it.
-let deferredInstall = null;
-const installListeners = new Set();
-if (typeof window !== "undefined") {
-    window.addEventListener("beforeinstallprompt", (event) => {
-        event.preventDefault();
-        deferredInstall = event;
-        installListeners.forEach((fn) => fn());
-    });
 }
 
 /** The head tags that make the page installable as this customer's My Cards app. */
@@ -76,93 +57,6 @@ export function CustomerAppHead({ uuid }) {
     );
 }
 
-function snoozed() {
-    try {
-        const at = Number(window.localStorage.getItem(DISMISSED_KEY));
-        return at && Date.now() - at < SNOOZE_DAYS * 86400000;
-    } catch {
-        return false;
-    }
-}
-
-/**
- * The taps to add it by hand: iPhone (Safari's Share icon) or Android when
- * Chrome hasn't offered its own Install yet (the ⋮ browser menu).
- */
-function IosSteps({ onClose, android = false }) {
-    return (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={onClose}>
-            <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="Add My Cards to your home screen"
-                onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-sm rounded-3xl bg-brand-card p-6 shadow-2xl"
-            >
-                <div className="flex items-start justify-between gap-3">
-                    <h2 className="font-heading text-xl font-bold text-brand-text">Add My Cards to your home screen</h2>
-                    <button type="button" onClick={onClose} aria-label="Close" className="-m-1 rounded-lg p-1 text-brand-muted hover:text-brand-text">
-                        <LuX className="h-5 w-5" />
-                    </button>
-                </div>
-                <ol className="mt-5 space-y-4 text-sm text-brand-text">
-                    <li className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-bg">
-                            {android ? <LuEllipsisVertical className="h-5 w-5 text-brand-text" /> : <LuShare className="h-5 w-5 text-[#007aff]" />}
-                        </span>
-                        <span>
-                            {android ? (
-                                <>
-                                    Tap the <strong>⋮ menu</strong> at the top right of your browser.
-                                </>
-                            ) : (
-                                <>
-                                    Tap <strong>Share</strong> in your browser's toolbar.
-                                </>
-                            )}
-                        </span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-bg">
-                            <LuSquarePlus className="h-5 w-5 text-brand-text" />
-                        </span>
-                        <span>
-                            {android ? (
-                                <>
-                                    Tap <strong>Add to Home screen</strong> (or <strong>Install app</strong>).
-                                </>
-                            ) : (
-                                <>
-                                    Scroll down and tap <strong>Add to Home Screen</strong>.
-                                </>
-                            )}
-                        </span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-bg text-sm font-bold ${android ? "text-brand-accent" : "text-[#007aff]"}`}>
-                            {android ? "OK" : "Add"}
-                        </span>
-                        <span>
-                            {android ? (
-                                <>
-                                    Confirm with <strong>Add</strong> or <strong>Install</strong>. Your cards are then one tap away.
-                                </>
-                            ) : (
-                                <>
-                                    Tap <strong>Add</strong>. Your cards are then one tap away.
-                                </>
-                            )}
-                        </span>
-                    </li>
-                </ol>
-                <button type="button" onClick={onClose} className="mt-6 w-full rounded-brand bg-brand-accent px-5 py-3 font-semibold text-brand-accent-text">
-                    Got it
-                </button>
-            </div>
-        </div>
-    );
-}
-
 /**
  * "Add My Cards to your home screen", from the customer's first visit (right
  * under their QR on the card page, and on My Cards): Install where the browser
@@ -173,41 +67,30 @@ function IosSteps({ onClose, android = false }) {
  * for 14 days. `autoOpenSteps`: open the iPhone steps straight away (?add=1).
  */
 export function InstallPrompt({ uuid, autoOpenSteps = false }) {
-    const [canInstall, setCanInstall] = useState(Boolean(deferredInstall));
-    const [hidden, setHidden] = useState(() => isInstalledApp() || snoozed());
+    const { canInstall, promptInstall } = useBrowserInstall();
+    const [hidden, setHidden] = useState(() => isInstalledApp() || snoozedSince(DISMISSED_KEY, SNOOZE_DAYS));
     const [steps, setSteps] = useState(false);
     const ios = isIos();
     // Android before Chrome offers its own Install (it decides when): show the ⋮ menu steps instead.
     const android = !ios && isAndroid();
 
     useEffect(() => {
-        const update = () => setCanInstall(Boolean(deferredInstall));
-        installListeners.add(update);
-        return () => installListeners.delete(update);
-    }, []);
-
-    useEffect(() => {
         if (autoOpenSteps && ios && !isInstalledApp()) setSteps(true);
     }, [autoOpenSteps, ios]);
 
-    const stepsDialog = steps ? <IosSteps android={!ios} onClose={() => setSteps(false)} /> : null;
+    const stepsDialog = steps ? (
+        <AddToHomeScreenSteps title="Add My Cards to your home screen" done="Your cards are then one tap away." android={!ios} onClose={() => setSteps(false)} />
+    ) : null;
     if (!uuid || hidden || (!ios && !android && !canInstall)) return stepsDialog;
 
     function notNow() {
-        try {
-            window.localStorage.setItem(DISMISSED_KEY, String(Date.now()));
-        } catch {
-            // ignore
-        }
+        snooze(DISMISSED_KEY);
         setHidden(true);
     }
 
     async function install() {
         if (canInstall) {
-            const prompt = deferredInstall;
-            deferredInstall = null;
-            setCanInstall(false);
-            await prompt?.prompt();
+            await promptInstall();
             return;
         }
         if (android) {

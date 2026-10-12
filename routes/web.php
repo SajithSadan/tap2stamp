@@ -41,12 +41,14 @@ use App\Http\Controllers\SeoController;
 use App\Http\Controllers\ShopBannerController;
 use App\Http\Controllers\ShopLogoController;
 use App\Http\Controllers\ShopOnboardingController;
+use App\Http\Controllers\StaffAppController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\StaffDeviceController;
 use App\Http\Controllers\StaffMemberController;
 use App\Http\Controllers\StaffSetupController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\UnsubscribeController;
+use App\Services\StaffAppLinks;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -345,6 +347,15 @@ Route::get('/staff/setup/{token}', [StaffSetupController::class, 'show'])
 // calling the API below - no server-side auth needed for the page itself.
 Route::get('/staff', fn () => Inertia::render('Staff/Dashboard'))->name('staff.dashboard');
 
+// The staff app on an iPhone's home screen (StaffAppLinks): the install manifest carrying a
+// one-time code, and the installed app's swap of that code for the device token.
+Route::get('/staff/app/{code}.webmanifest', [StaffAppController::class, 'manifest'])
+    ->where('code', StaffAppLinks::CODE_PATTERN)
+    ->name('staff.app.manifest');
+Route::post('/staff/app/redeem', [StaffAppController::class, 'redeem'])
+    ->middleware('throttle:10,1')
+    ->name('staff.app.redeem');
+
 // Staff API: bearer-token authenticated (AuthenticateStaffDevice), not
 // session/CSRF based - see the CSRF-exempt list in bootstrap/app.php. The
 // device is owner-approved; stamping/lookup also need a staff member signed
@@ -353,6 +364,7 @@ Route::middleware('staff.auth')->prefix('api/staff')->name('staff.')->group(func
     Route::get('/me', [StaffController::class, 'me'])->name('me');
     Route::post('/sign-in', [StaffController::class, 'signIn'])->middleware('throttle:staff-pin')->name('sign-in');
     Route::post('/sign-out', [StaffController::class, 'signOut'])->name('sign-out');
+    Route::post('/app-link', [StaffAppController::class, 'link'])->middleware('throttle:10,1')->name('app-link');
 
     Route::middleware('staff.signed-in')->group(function () {
         Route::post('/scan', [StaffController::class, 'scan'])->middleware('throttle:staff-scan')->name('scan');

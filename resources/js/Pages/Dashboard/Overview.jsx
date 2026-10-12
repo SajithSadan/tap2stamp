@@ -5,6 +5,7 @@ import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
 import { EmptyState, Panel, StatTile } from '@/Components/Dashboard/Ui';
 import ActivityRow from '@/Components/Dashboard/ActivityRow';
 import OrderOffer from '@/Components/Dashboard/OrderOffer';
+import { OwnerInstallPrompt } from '@/Components/OwnerApp';
 
 /** After ordering: one slim line about the order still on its way, until it's delivered. */
 function ActiveOrder({ order }) {
@@ -40,6 +41,7 @@ export default function Overview({ shop, orderOffer, activeOrder, stats, chart, 
 
     return (
         <OwnerLayout shop={shop} title="Overview" description="How your loyalty card is doing.">
+            <OwnerInstallPrompt className="mb-4" />
             {orderOffer && <OrderOffer offer={orderOffer} />}
             {!orderOffer && activeOrder && <ActiveOrder order={activeOrder} />}
 

@@ -88,7 +88,8 @@ class GoogleAuthController extends Controller
             ActivityLogger::record('auth.signed_up', 'Signed up with Google', null, $user, null, ActivityLogger::user($user));
         }
 
-        Auth::login($user);
+        // Kept signed in, like the login form's default (the home-screen app).
+        Auth::login($user, remember: true);
         $request->session()->regenerate();
 
         return redirect()->intended($user->homeUrl());
