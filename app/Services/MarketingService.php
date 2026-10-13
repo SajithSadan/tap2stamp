@@ -128,11 +128,19 @@ class MarketingService
         });
 
         $shop = $campaign->shop;
+        $from = $shop->whatsappAccount;
         $posterUrl = $campaign->posterUrl();
         $claimed->load('card.customer');
 
         foreach ($claimed as $message) {
             $card = $message->card;
+
+            // The owner removed their number mid-campaign: nothing goes out.
+            if (! $from) {
+                $message->update(['status' => 'failed', 'error' => 'WhatsApp number removed']);
+
+                continue;
+            }
 
             // Unsubscribed since the campaign started: skip, never send.
             if (! $card->marketing_consent) {
@@ -142,6 +150,7 @@ class MarketingService
             }
 
             $result = $this->whatsApp->sendTemplate(
+                $from,
                 $card->customer->phone,
                 [self::firstName($card->customer->name), $shop->name, $campaign->message],
                 $card->unsubscribeToken(),

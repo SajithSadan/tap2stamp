@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -199,6 +200,12 @@ class Shop extends Model
     public function staffDevices(): HasMany
     {
         return $this->hasMany(StaffDevice::class);
+    }
+
+    /** The shop's own WhatsApp number for offers (null = not connected, nothing can be sent). */
+    public function whatsappAccount(): HasOne
+    {
+        return $this->hasOne(ShopWhatsAppAccount::class);
     }
 
     public function staffMembers(): HasMany

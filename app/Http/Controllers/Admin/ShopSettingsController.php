@@ -30,6 +30,8 @@ class ShopSettingsController extends Controller
     public function edit(Shop $shop, ShopHealth $health, ShopTimeline $timeline, CrmAssistant $assistant): Response
     {
         return Inertia::render('Admin/ShopSettings', [
+            // WhatsApp tab: the shop's own number for offers (null = not connected).
+            'whatsappAccount' => $shop->whatsappAccount?->summary(),
             // Account tab (MONETISATION-PLAN.md phase 1): usage health and the sales pipeline.
             'health' => $health->forShop($shop),
             'healthModel' => ['ladder' => ShopHealth::LADDER, 'score' => ShopHealth::SCORE],

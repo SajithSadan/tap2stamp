@@ -835,9 +835,38 @@ Owners send offers to customers who ticked "send me offers from {shop} on WhatsA
 - **Page**: `/dashboard/marketing` (`MarketingController`, `Dashboard/Marketing.jsx`, nav
   "WhatsApp"): audience (everyone / regulars = stamp in 30 days / win back), message (one
   paragraph, ≤ 500), live WhatsApp preview, history (counts only, never phone numbers).
-- **Delivery**: WhatsApp Cloud API via `App\Services\WhatsAppGateway` (thin, mockable). One
-  Tada Tap business number sends for every shop with **one Meta-approved marketing template**
-  (`WHATSAPP_TEMPLATE`): body = `WhatsAppGateway::TEMPLATE_BODY` ({{1}} first name, {{2}} shop,
+- **The shop's own number** (stage 1 of the per-shop WhatsApp plan, built): offers go out
+  from a number **each shop connects** - `shop_whatsapp_accounts` (one per shop: `mode`
+  new / existing / keys, `waba_id`, `phone_number_id`, display number, verified name,
+  `access_token` **encrypted cast, hidden**), `Shop::whatsappAccount()`,
+  `App\Services\WhatsAppConnect`. **No Tada Tap fallback**: Send is disabled ("Connect your
+  WhatsApp number first.") until connected; a campaign whose number is removed mid-way fails
+  its remaining messages ("WhatsApp number removed").
+  - **Owner** (`Components/Dashboard/WhatsAppConnectPanel.jsx` on the WhatsApp page): Meta's
+    **Embedded Signup** popup (FB JS SDK, loaded on click) - **Create a new WhatsApp Business
+    account** (`new`, the number is then `register`ed for the Cloud API) or **Use my WhatsApp
+    Business app** (`existing`, `featureType: whatsapp_business_app_onboarding` = coexistence).
+    The popup's code → `POST /dashboard/whatsapp/connection` → swapped for a token **server-side**
+    with `META_APP_SECRET`. Connected = the number + **Remove** (`DELETE …/connection`); the
+    connect options only come back after Remove. Both routes are `OWNER_ONLY` in ViewAsOwner.
+    Needs `META_APP_ID`, `META_APP_SECRET`, `WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID`
+    (`config('services.meta')`).
+  - **Owner's own keys** (`keys` mode, `POST /dashboard/whatsapp/connection/keys`, OWNER_ONLY):
+    account id, number id and a permanent System User token from their own Meta app, with the
+    steps on the page. Behind "Already set up in Meta? Enter your keys" when the popup is
+    available; **the only option** while our Meta app isn't set up. Works without
+    `META_APP_*`. **Only the owner connects** (user's rule: they fill in Meta's forms).
+  - **Admin** (shop settings → **WhatsApp** tab, `ShopWhatsAppTab.jsx`,
+    `Admin\ShopWhatsAppController`): **sees** the number (how it was connected, ids) and can
+    **Remove** it - never connects one.
+  - Either way the browser-sent ids are **checked against the token** (`GET {waba}/phone_numbers`
+    must list the number) before saving; Meta errors are logged without tokens.
+  - Not built yet: creating / checking each shop's templates on its own account (stage 2) and
+    the admin Shops-grid column (stage 4). Until stage 2, a connected account needs the
+    `WHATSAPP_TEMPLATE(_IMAGE)` templates approved on it by hand.
+- **Delivery**: WhatsApp Cloud API via `App\Services\WhatsAppGateway` (thin, mockable),
+  `sendTemplate($shopAccount, …)` with that shop's number id + token, and a
+  **Meta-approved marketing template** (`WHATSAPP_TEMPLATE`): body = `WhatsAppGateway::TEMPLATE_BODY` ({{1}} first name, {{2}} shop,
   {{3}} message — parameters can't contain line breaks, so `tidyMessage()` flattens them) +
   a URL button "Unsubscribe" → `{APP_URL}/u/{{1}}`. The owner's preview renders the same constant.
 - **Poster** (optional, JPG/PNG ≤ 5 MB, big photos shrunk client-side): stored on the `uploads`
@@ -1298,7 +1327,7 @@ Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketin
 default, and customers can register without it. `CustomerRegistrar` only ever turns it on: an
 unticked box on a repeat registration is not a withdrawal. Withdrawal is the unsubscribe link
 (see "WhatsApp marketing"). Plus `marketing_unsubscribe_token`, `marketing_opted_out_at`,
-`marketing_campaigns`, `marketing_messages`.
+`marketing_campaigns`, `marketing_messages`. Plus `shop_whatsapp_accounts` (see "WhatsApp marketing").
 
 ## Working rules
 

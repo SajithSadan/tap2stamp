@@ -96,14 +96,23 @@ return [
     // WhatsApp Cloud API (Meta) for owners' marketing messages. One Tada Tap
     // business number sends for every shop, using one approved template -
     // its exact wording is App\Services\WhatsAppGateway::TEMPLATE_BODY.
+    // Each shop sends from its own connected number (shop_whatsapp_accounts);
+    // these are the template names / language created on every shop's account.
     'whatsapp' => [
-        'token' => env('WHATSAPP_TOKEN'),
-        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
         'template' => env('WHATSAPP_TEMPLATE', 'shop_offer'),
         // Same body + button with an Image header, for messages with a poster.
         'template_image' => env('WHATSAPP_TEMPLATE_IMAGE', 'shop_offer_image'),
         'template_language' => env('WHATSAPP_TEMPLATE_LANGUAGE', 'en_GB'),
         'api_version' => env('WHATSAPP_API_VERSION', 'v21.0'),
+    ],
+
+    // Our Meta app, for owners connecting their own WhatsApp Business number
+    // (Embedded Signup). The app id and configuration id go to the browser;
+    // the secret never does. All three blank = only the admin's "connect with keys".
+    'meta' => [
+        'app_id' => env('META_APP_ID'),
+        'app_secret' => env('META_APP_SECRET'),
+        'embedded_signup_config_id' => env('WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID'),
     ],
 
     'slack' => [

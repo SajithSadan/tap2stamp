@@ -40,6 +40,10 @@ class ViewAsOwner
         'dashboard.scan',
         'dashboard.marketing.store',
         'dashboard.marketing.send',
+        // The owner connects their own number (they fill in Meta's forms).
+        'dashboard.whatsapp.connect',
+        'dashboard.whatsapp.connect-keys',
+        'dashboard.whatsapp.disconnect',
     ];
 
     public function handle(Request $request, Closure $next): Response
@@ -63,7 +67,7 @@ class ViewAsOwner
         if (! $request->isMethodSafe()) {
             $refusal = match (true) {
                 ! $request->session()->get(self::EDIT_KEY) => "You're viewing as the owner (read-only), so nothing was changed. Switch on \"Allow changes\" to edit.",
-                $request->routeIs(self::OWNER_ONLY) => 'Only the owner can pay for orders, give stamps or send WhatsApp offers. Use Admin → Record order for an order.',
+                $request->routeIs(self::OWNER_ONLY) => 'Only the owner can pay for orders, give stamps, or connect WhatsApp and send offers. Use Admin → Record order for an order.',
                 default => null,
             };
 

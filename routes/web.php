@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\ShopCrmController;
 use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Controllers\Admin\ShopOwnerController;
 use App\Http\Controllers\Admin\ShopSettingsController;
+use App\Http\Controllers\Admin\ShopWhatsAppController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ViewAsOwnerController;
 use App\Http\Controllers\Admin\WhatsAppContactController;
@@ -52,6 +53,7 @@ use App\Http\Controllers\StaffMemberController;
 use App\Http\Controllers\StaffSetupController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\UnsubscribeController;
+use App\Http\Controllers\WhatsAppConnectionController;
 use App\Services\StaffAppLinks;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -189,6 +191,8 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::post('/follow-ups/briefing', [FollowUpController::class, 'briefing'])->middleware('throttle:5,1')->name('follow-ups.briefing');
     Route::put('/shops/{shop}/block', [ShopBlockController::class, 'store'])->name('shops.block');
     Route::delete('/shops/{shop}/block', [ShopBlockController::class, 'destroy'])->name('shops.unblock');
+    // The shop's own WhatsApp number: the owner connects it; the admin can only remove it.
+    Route::delete('/shops/{shop}/whatsapp', [ShopWhatsAppController::class, 'destroy'])->name('shops.whatsapp.disconnect');
     // "View as owner": the shop's owner dashboard, as the owner sees it (read-only until changes are allowed).
     Route::post('/shops/{shop}/view-as-owner', [ViewAsOwnerController::class, 'start'])->name('shops.view-as-owner');
     Route::put('/view-as-owner/editing', [ViewAsOwnerController::class, 'editing'])->name('view-as-owner.editing');
@@ -342,6 +346,10 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
         Route::get('/marketing', [MarketingController::class, 'index'])->name('marketing');
         Route::post('/marketing', [MarketingController::class, 'store'])->middleware('throttle:5,1')->name('marketing.store');
         Route::post('/marketing/{campaign}/send', [MarketingController::class, 'send'])->middleware('throttle:60,1')->name('marketing.send');
+        // The shop's own WhatsApp number (Meta's Embedded Signup), one at a time.
+        Route::post('/whatsapp/connection', [WhatsAppConnectionController::class, 'store'])->middleware('throttle:10,1')->name('whatsapp.connect');
+        Route::post('/whatsapp/connection/keys', [WhatsAppConnectionController::class, 'keys'])->middleware('throttle:10,1')->name('whatsapp.connect-keys');
+        Route::delete('/whatsapp/connection', [WhatsAppConnectionController::class, 'destroy'])->name('whatsapp.disconnect');
     });
 
     // Ordering products (any quantity) through Stripe Checkout, and tracking them.

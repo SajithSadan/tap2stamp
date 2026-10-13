@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StartCampaignRequest;
 use App\Models\MarketingCampaign;
 use App\Services\MarketingService;
+use App\Services\WhatsAppConnect;
 use App\Services\WhatsAppGateway;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -19,9 +20,10 @@ use Inertia\Response;
  */
 class MarketingController extends Controller
 {
-    public function index(Request $request, MarketingService $marketing, WhatsAppGateway $whatsApp): Response
+    public function index(Request $request, MarketingService $marketing, WhatsAppConnect $connect): Response
     {
         $shop = $request->user()->shop;
+        $account = $shop->whatsappAccount;
         $campaigns = MarketingCampaign::where('shop_id', $shop->id)->latest('id');
 
         return Inertia::render('Dashboard/Marketing', [
@@ -33,20 +35,24 @@ class MarketingController extends Controller
                 ->sum('sent_count'),
             'campaigns' => (clone $campaigns)->limit(20)->get()->map->summary(),
             'nextAllowedAt' => $marketing->nextAllowedAt($shop)?->timezone('Europe/London')->format('D j M, g:i A'),
-            'whatsappReady' => $whatsApp->configured(),
+            // Sending needs the shop's own number connected.
+            'whatsappReady' => $account !== null,
+            'whatsappAccount' => $account?->summary(),
+            // Null = our Meta app isn't set up: owners can't connect yet (the admin can, with keys).
+            'embeddedSignup' => $connect->embeddedSignupSettings(),
             'templateBody' => WhatsAppGateway::TEMPLATE_BODY,
             'maxMessage' => MarketingService::MAX_MESSAGE,
             'activeDays' => MarketingService::ACTIVE_DAYS,
         ]);
     }
 
-    public function store(StartCampaignRequest $request, MarketingService $marketing, WhatsAppGateway $whatsApp): RedirectResponse
+    public function store(StartCampaignRequest $request, MarketingService $marketing): RedirectResponse
     {
         $shop = $request->user()->shop;
         $audience = $request->string('audience')->value();
 
         $problem = match (true) {
-            ! $whatsApp->configured() => "WhatsApp sending isn't switched on yet.",
+            ! $shop->whatsappAccount()->exists() => 'Connect your WhatsApp number first.',
             $marketing->nextAllowedAt($shop) !== null => 'You can send one message a day. Try again after '
                 .$marketing->nextAllowedAt($shop)->timezone('Europe/London')->format('D j M, g:i A').'.',
             $marketing->audience($shop, $audience)->doesntExist() => 'Nobody in that group has opted in yet.',

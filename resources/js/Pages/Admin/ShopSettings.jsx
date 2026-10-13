@@ -1,5 +1,6 @@
 import { Link, router, useForm } from "@inertiajs/react";
 import { useEffect, useState } from "react";
+import { FaWhatsapp } from "react-icons/fa6";
 import {
     LuActivity,
     LuBuilding2,
@@ -37,6 +38,7 @@ import { BlockedBanner, BlockShopButton } from "@/Components/Dashboard/ShopBlock
 import { formatPence } from "@/lib/money";
 import IndustryPicker from "@/Components/IndustryPicker";
 import ShopAccountTab from "@/Components/Dashboard/ShopAccountTab";
+import ShopWhatsAppTab from "@/Components/Dashboard/ShopWhatsAppTab";
 
 /** The page's tabs, and which form fields live on each (to flag errors). */
 const TABS = [
@@ -50,6 +52,7 @@ const TABS = [
     },
     { key: "menu", label: "Menu", icon: LuUtensils, fields: [] },
     { key: "features", label: "Features", icon: LuToggleRight, fields: [] },
+    { key: "whatsapp", label: "WhatsApp", icon: FaWhatsapp, fields: [] },
     { key: "orders", label: "Orders", icon: LuPackage, fields: [] },
     {
         key: "business",
@@ -299,6 +302,7 @@ export default function ShopSettings({
     pipeline,
     crmStages,
     crm,
+    whatsappAccount = null,
 }) {
     const [tab, setTab] = useState(initialTab);
     const form = useForm({
@@ -423,6 +427,7 @@ export default function ShopSettings({
 
             {tab === "menu" && <MenuTab shop={shop} menuItemsCount={menuItemsCount} menuUrl={menuUrl} />}
             {tab === "features" && <FeaturesTab shop={shop} features={features} />}
+            {tab === "whatsapp" && <ShopWhatsAppTab shop={shop} account={whatsappAccount} />}
             {tab === "account" && <ShopAccountTab shop={shop} health={health} healthModel={healthModel} pipeline={pipeline} crmStages={crmStages} crm={crm} />}
 
             {tab === "orders" && (

@@ -6,6 +6,7 @@ use App\Models\CustomerShopCard;
 use App\Models\MarketingCampaign;
 use App\Models\MarketingMessage;
 use App\Models\Shop;
+use App\Models\ShopWhatsAppAccount;
 use App\Models\User;
 use App\Services\WhatsAppGateway;
 use Illuminate\Http\Client\Request;
@@ -15,8 +16,6 @@ use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     config([
-        'services.whatsapp.token' => 'wa_secret_token',
-        'services.whatsapp.phone_number_id' => '123456',
         'services.whatsapp.template' => 'shop_offer',
         'services.whatsapp.template_language' => 'en_GB',
         'services.whatsapp.api_version' => 'v21.0',
@@ -28,6 +27,11 @@ function marketingOwner(): array
 {
     $owner = User::factory()->create(['role' => UserRole::Owner]);
     $shop = Shop::factory()->create(['user_id' => $owner->id, 'name' => 'Bean There']);
+    // The shop's own WhatsApp number, which its offers go out from.
+    ShopWhatsAppAccount::create([
+        'shop_id' => $shop->id, 'mode' => 'keys', 'waba_id' => '99001', 'phone_number_id' => '123456',
+        'display_phone_number' => '+44 7700 900999', 'access_token' => 'wa_secret_token',
+    ]);
 
     return [$owner, $shop];
 }
@@ -63,7 +67,23 @@ test('the owner sees how many customers opted in, per audience', function () {
             ->where('audiences', ['all' => 2, 'active' => 1, 'lapsed' => 1])
             ->where('customersCount', 3)
             ->where('whatsappReady', true)
+            ->where('whatsappAccount.phone', '+44 7700 900999')
+            ->missing('whatsappAccount.access_token')
             ->where('templateBody', WhatsAppGateway::TEMPLATE_BODY));
+});
+
+test('a campaign whose number was removed mid-way sends nothing more', function () {
+    [$owner, $shop] = marketingOwner();
+    optedIn($shop);
+    whatsAppAccepts();
+
+    $this->actingAs($owner)->post('/dashboard/marketing', ['audience' => 'all', 'message' => 'Free cookie with any coffee.']);
+    $shop->whatsappAccount->delete();
+
+    $this->actingAs($owner)->postJson('/dashboard/marketing/'.MarketingCampaign::sole()->id.'/send')
+        ->assertJson(['sent' => 0, 'failed' => 1, 'done' => true]);
+    expect(MarketingMessage::sole()->error)->toBe('WhatsApp number removed');
+    Http::assertNothingSent();
 });
 
 // --- Sending ------------------------------------------------------------
@@ -205,9 +225,9 @@ test('one campaign a day, and nothing without WhatsApp set up or anyone to send 
         ->assertSessionHasErrors('message');
 
     $this->travel(25)->hours();
-    config(['services.whatsapp.token' => null]);
+    $shop->whatsappAccount->delete();
     $this->actingAs($owner)->post('/dashboard/marketing', ['audience' => 'all', 'message' => 'Free cookie with any coffee.'])
-        ->assertSessionHasErrors(['message' => "WhatsApp sending isn't switched on yet."]);
+        ->assertSessionHasErrors(['message' => 'Connect your WhatsApp number first.']);
 
     expect(MarketingCampaign::count())->toBe(1);
 });

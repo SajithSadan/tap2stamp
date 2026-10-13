@@ -2,16 +2,19 @@
 
 namespace App\Services;
 
+use App\Models\ShopWhatsAppAccount;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
 /**
  * Thin wrapper over the WhatsApp Cloud API (Meta), so tests can mock it.
+ * Every message goes out from the shop's own connected number
+ * (ShopWhatsAppAccount), with that account's token.
  *
- * Marketing messages must use a Meta-approved template. Register it in
- * WhatsApp Manager as category "Marketing", named WHATSAPP_TEMPLATE, with
- * exactly this body, and one "Visit website" button labelled "Unsubscribe"
- * with the dynamic URL {APP_URL}/u/{{1}}.
+ * Marketing messages must use a Meta-approved template on that account,
+ * category "Marketing", named WHATSAPP_TEMPLATE, with exactly this body, and
+ * one "Visit website" button labelled "Unsubscribe" with the dynamic URL
+ * {APP_URL}/u/{{1}}.
  */
 class WhatsAppGateway
 {
@@ -19,11 +22,6 @@ class WhatsAppGateway
     public const TEMPLATE_BODY = "Hi {{1}}, a message from {{2}}:\n\n{{3}}\n\nYou're getting this because you joined their loyalty card. Tap Unsubscribe to stop.";
 
     public const BUTTON_LABEL = 'Unsubscribe';
-
-    public function configured(): bool
-    {
-        return filled(config('services.whatsapp.token')) && filled(config('services.whatsapp.phone_number_id'));
-    }
 
     /**
      * With a poster, the second template is used (WHATSAPP_TEMPLATE_IMAGE):
@@ -34,7 +32,7 @@ class WhatsAppGateway
      * @param  string|null  $imageUrl  public https URL of the poster (Meta downloads it)
      * @return array{ok: bool, id?: string, error?: string}
      */
-    public function sendTemplate(string $phone, array $body, string $unsubscribeToken, ?string $imageUrl = null): array
+    public function sendTemplate(ShopWhatsAppAccount $from, string $phone, array $body, string $unsubscribeToken, ?string $imageUrl = null): array
     {
         $components = [
             [
@@ -59,13 +57,13 @@ class WhatsAppGateway
         $url = sprintf(
             'https://graph.facebook.com/%s/%s/messages',
             config('services.whatsapp.api_version'),
-            config('services.whatsapp.phone_number_id'),
+            $from->phone_number_id,
         );
 
         try {
             $response = Http::acceptJson()
                 ->timeout(15)
-                ->withToken((string) config('services.whatsapp.token'))
+                ->withToken($from->access_token)
                 ->post($url, [
                     'messaging_product' => 'whatsapp',
                     // International format without the "+".
