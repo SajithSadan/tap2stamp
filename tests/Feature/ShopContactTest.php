@@ -119,6 +119,17 @@ test('invalid phone numbers are rejected', function (string $typed) {
     $this->actingAs(ownerWithoutShop())->post('/onboarding', setupPayload(['contact_phone' => $typed]))->assertSessionHasErrors('contact_phone');
 })->with(['12345', 'not a number', '07700 9001', '+44 123']);
 
+test('a long free-form postcode outside the UK fits the column', function () {
+    $this->actingAs(ownerWithoutShop())->post('/onboarding', setupPayload([
+        'country' => 'AE',
+        'contact_phone_code' => '971',
+        'contact_phone' => '558714634',
+        'postcode' => '79XF+RG Sharjah 0000', // 20 chars, the rule's max
+    ]))->assertRedirect('/dashboard');
+
+    expect(Shop::sole()->postcode)->toBe('79XF+RG SHARJAH 0000');
+});
+
 test('postcodes are upper-cased with the space in the right place', function (string $typed, string $stored) {
     expect(ShopContact::postcode($typed))->toBe($stored);
 })->with([
