@@ -5,7 +5,6 @@ import { LuDownload, LuExternalLink, LuNfc, LuQrCode } from "react-icons/lu";
 import { reportQrDownload } from "@/lib/qrDownloads";
 import IndustryPicker from "@/Components/IndustryPicker";
 import AddressLookup from "@/Components/AddressLookup";
-import CountrySelect from "@/Components/CountrySelect";
 import PhoneField from "@/Components/PhoneField";
 import StateSelect from "@/Components/StateSelect";
 import { dialCodeOf, INDIA, phonePlaceholder, statesOf, UK } from "@/lib/validation";
@@ -153,23 +152,15 @@ function ContactPanel({ contact, countries }) {
                         Shop address
                     </h3>
                     <div className="mt-3 max-w-sm">
-                        <Field label="Country" error={form.errors.country}>
-                            <CountrySelect
-                                value={form.data.country}
-                                onChange={(code) =>
-                                    // The phone's country code follows, unless one was picked by hand.
-                                    form.setData((data) => ({
-                                        ...data,
-                                        country: code,
-                                        state: statesOf(code, countries)?.includes(data.state) ? data.state : "",
-                                        ...(data.contact_phone_code === dialCodeOf(data.country, countries) && {
-                                            contact_phone_code: dialCodeOf(code, countries),
-                                        }),
-                                    }))
-                                }
-                                countries={countries}
-                                className={inputClass}
-                            />
+                        {/* Read-only: prices depend on it, so only Tada Tap changes it (admin → shop settings). */}
+                        <Field
+                            label="Country"
+                            hint="Set when your shop was created. To change it, contact Tada Tap."
+                            error={form.errors.country}
+                        >
+                            <div className={`${inputClass} flex items-center bg-brand-bg text-brand-muted`} aria-readonly="true">
+                                {countries.find((c) => c.code === form.data.country)?.name ?? form.data.country}
+                            </div>
                         </Field>
                     </div>
                     {/* The address finder only knows UK addresses. */}

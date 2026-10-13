@@ -858,8 +858,10 @@ Enquiries come from all over the world, but we only ship hardware in the UK.
 - `shops.country` (ISO alpha-2, default `GB`; the migration backfilled `+91` / 6-digit-PIN shops
   to `IN`). The list is `App\Support\Countries` (name + dialling code), server-only, sent to
   forms as `countries` (`Countries::options()`, UK first) and drawn by `Components/CountrySelect.jsx`.
-  Collected at onboarding step 1, on owner Settings → Contact, admin shop settings → Business
-  and admin "Add shop" (`shop_country`).
+  Collected at onboarding step 1 and admin "Add shop" (`shop_country`). **After that only the
+  admin can change it** (shop settings → Business): prices will depend on it, so owner Settings
+  shows it read-only ("contact Tada Tap") and `UpdateShopContactRequest` always keeps the shop's
+  own country, whatever is sent.
 - **Contact number = two columns**: `shops.contact_phone_code` (dialling code, digits, e.g. `44`)
   + `contact_phone` (the number without it, e.g. `7700900123`), picked/typed in
   `Components/PhoneField.jsx` (code picker showing "+44" + number box) and **shown together**

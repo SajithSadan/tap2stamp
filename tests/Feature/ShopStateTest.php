@@ -72,16 +72,15 @@ test('the owner sets the state in Settings, and it is required for India', funct
     $this->get('/dashboard/settings')->assertInertia(fn ($page) => $page->where('contact.state', 'Tamil Nadu'));
 });
 
-test('moving a shop out of India drops its state', function () {
-    $owner = stateOwner();
-    $shop = Shop::factory()->create(['user_id' => $owner->id, 'country' => 'IN', 'state' => 'Kerala']);
-    $contact = collect(indiaSetup())->except(['name', 'max_stamps', 'reward_title'])->all();
+test('moving a shop out of India drops its state (the admin moves it; owners cannot)', function () {
+    $shop = Shop::factory()->create(['country' => 'IN', 'state' => 'Kerala']);
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
 
-    $this->actingAs($owner)->put('/dashboard/settings/contact', [
-        ...$contact, 'country' => 'US', 'contact_phone' => '+1 212 555 0147', 'postcode' => '',
+    $this->actingAs($admin)->put("/admin/shops/{$shop->id}/settings", [
+        'name' => $shop->name, 'max_stamps' => 8, 'reward_title' => 'Free chai', 'country' => 'US', 'state' => 'Kerala',
     ])->assertSessionHasNoErrors();
 
-    expect($shop->fresh()->state)->toBeNull();
+    expect($shop->fresh())->country->toBe('US')->state->toBeNull();
 });
 
 test('the admin can set an Indian shop\'s state, from the list only', function () {

@@ -91,14 +91,28 @@ test('a missing country means the UK', function () {
     expect(ShopContact::country(null))->toBe('GB')->and(ShopContact::country(' us '))->toBe('US');
 });
 
-test('the owner can change the country on Settings', function () {
-    [$owner, $shop] = countryOwner();
+test('the owner cannot change the country on Settings (prices depend on it), the rest still saves', function () {
+    [$owner, $shop] = countryOwner('US');
 
     $this->actingAs($owner)->put('/dashboard/settings/contact', [
-        ...overseasSetup(['country' => 'AE', 'contact_phone' => '00971 50 123 4567']),
+        ...overseasSetup(['country' => 'GB', 'town' => 'Austin', 'contact_phone' => '00971 50 123 4567']),
     ])->assertSessionHasNoErrors();
 
-    expect($shop->fresh())->country->toBe('AE')->contact_phone_code->toBe('971')->contact_phone->toBe('501234567');
+    expect($shop->fresh())
+        ->country->toBe('US')
+        ->town->toBe('Austin')
+        ->contact_phone_code->toBe('971')->contact_phone->toBe('501234567');
+});
+
+test('only the admin can move a shop to another country', function () {
+    [, $shop] = countryOwner('US');
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($admin)->put("/admin/shops/{$shop->id}/settings", [
+        'name' => $shop->name, 'max_stamps' => 8, 'reward_title' => 'Free coffee', 'country' => 'GB',
+    ])->assertSessionHasNoErrors();
+
+    expect($shop->fresh()->country)->toBe('GB');
 });
 
 // --- Ordering vs QR codes ------------------------------------------------------

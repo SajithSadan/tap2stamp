@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\Countries;
 use App\Support\ShopContact;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -15,6 +16,10 @@ class UpdateShopContactRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        // Owners can't change their shop's country (prices will depend on it): whatever is
+        // sent, the shop's own country is kept. Only the admin changes it (shop settings).
+        $this->merge(['country' => $this->user()?->shop?->country ?? Countries::UK]);
+
         $this->merge(ShopContact::normalise($this->all()));
     }
 
