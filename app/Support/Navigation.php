@@ -48,6 +48,7 @@ class Navigation
             ['route' => 'admin.dashboard', 'label' => 'Dashboard', 'icon' => 'overview', 'roles' => $admin],
             // "Add shop" is a button on this page, not its own menu item.
             ['route' => 'admin.index', 'label' => 'Shops', 'icon' => 'shops', 'roles' => $admin, 'active' => ['admin.index', 'admin.shops.*']],
+            ['route' => 'admin.follow-ups', 'label' => 'Follow-ups', 'icon' => 'follow-ups', 'roles' => $admin, 'active' => ['admin.follow-ups*'], 'mobile' => false],
             ['route' => 'admin.users.index', 'label' => 'Users', 'icon' => 'users', 'roles' => $admin, 'active' => ['admin.users.*'], 'mobile' => false],
             // "Products" and "Coupons" are buttons on this page, not their own menu items.
             // Not in the phone tab bar (keeps 2 + Scan + 2); on phones a shop's orders are on its page.

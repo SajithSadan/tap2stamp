@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\ActivityController as AdminActivityController;
 use App\Http\Controllers\Admin\AiUsageController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\FollowUpController;
 use App\Http\Controllers\Admin\LandingPageController;
 use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\Admin\QrCodeController;
 use App\Http\Controllers\Admin\QrDesignController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShopBlockController;
+use App\Http\Controllers\Admin\ShopCrmController;
 use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Controllers\Admin\ShopOwnerController;
 use App\Http\Controllers\Admin\ShopSettingsController;
@@ -168,6 +170,22 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::put('/shops/{shop}/settings', [ShopSettingsController::class, 'update'])->name('shops.settings.update');
     Route::put('/shops/{shop}/features', [ShopSettingsController::class, 'updateFeatures'])->name('shops.features.update');
     Route::put('/shops/{shop}/account', [ShopSettingsController::class, 'updateAccount'])->name('shops.account.update');
+
+    // CRM on a shop (Account tab): notes, tags, follow-ups, AI "Brief me".
+    // Scoped: a note / task is only found through its own shop.
+    Route::scopeBindings()->group(function () {
+        Route::post('/shops/{shop}/notes', [ShopCrmController::class, 'storeNote'])->name('shops.notes.store');
+        Route::delete('/shops/{shop}/notes/{note}', [ShopCrmController::class, 'destroyNote'])->name('shops.notes.destroy');
+        Route::put('/shops/{shop}/tags', [ShopCrmController::class, 'updateTags'])->name('shops.tags.update');
+        Route::post('/shops/{shop}/tasks', [ShopCrmController::class, 'storeTask'])->name('shops.tasks.store');
+        Route::put('/shops/{shop}/tasks/{task}', [ShopCrmController::class, 'updateTask'])->name('shops.tasks.update');
+        Route::delete('/shops/{shop}/tasks/{task}', [ShopCrmController::class, 'destroyTask'])->name('shops.tasks.destroy');
+        Route::post('/shops/{shop}/brief', [ShopCrmController::class, 'brief'])->middleware('throttle:10,1')->name('shops.brief');
+    });
+
+    // Follow-ups: today's tasks, trials ending, the AI weekly briefing.
+    Route::get('/follow-ups', [FollowUpController::class, 'index'])->name('follow-ups');
+    Route::post('/follow-ups/briefing', [FollowUpController::class, 'briefing'])->middleware('throttle:5,1')->name('follow-ups.briefing');
     Route::put('/shops/{shop}/block', [ShopBlockController::class, 'store'])->name('shops.block');
     Route::delete('/shops/{shop}/block', [ShopBlockController::class, 'destroy'])->name('shops.unblock');
     // "View as owner": the shop's owner dashboard, as the owner sees it (read-only until changes are allowed).

@@ -1151,9 +1151,9 @@ later maybe more (table stickers). Prices and copy live in our DB, not in Stripe
 ## AI usage tracking (additive — admin)
 
 Every Gemini request is a row in `ai_usage_logs`, written only by `App\Services\AiUsage::record()`
-— once per request, after the last model attempt, whether it worked or not. The three callers
-are `MenuReader` (`menu_import`), `MenuImageVerifier` (`photo_check`) and `MenuCommandParser`
-(`stock_command`); labels are in `AiUsageLog::FEATURES`. **A new Gemini caller must call it
+— once per request, after the last model attempt, whether it worked or not. The callers
+are `MenuReader` (`menu_import`), `MenuImageVerifier` (`photo_check`), `MenuCommandParser`
+(`stock_command`) and the CRM's `Gemini::json()` (`crm_briefing`, `call_prep`); labels are in `AiUsageLog::FEATURES`. **A new Gemini caller must call it
 too.** Each row has:
 - who: `ActivityLogger::actor()` — staff member / owner / admin, with a name snapshot;
 - the shop: passed in, else the page's `{shop}`, else the signed-in owner's / staff's;
@@ -1194,6 +1194,37 @@ Account tab) / Stage / Trial ends columns; shop settings → **Account** tab
 (`ShopAccountTab.jsx`: score parts, ladder, reasons, figures; stage, trial end (+14 days),
 lost reason → `PUT /admin/shops/{shop}/account`, logged by RecordsActivity). Nothing is
 charged, enforced or switched off by the trial yet (phase 3).
+
+## Admin CRM & AI briefing (MONETISATION-PLAN.md phase 2)
+
+- **Per shop** (shop settings → Account, `ShopCrmPanels.jsx`, `Admin\ShopCrmController`):
+  - **notes** (`shop_notes`, author, ≤ 2000);
+  - **tags** (`shops.crm_tags`, `Shop::tidyCrmTags()`: ≤ 8, ≤ 30 chars, deduped, with one-tap
+    suggestions; searchable on the Shops grid, plus a Tags column with "N to do");
+  - **follow-ups** (`shop_tasks`: title, `due_on`, `done_at` / `done_by`; `ShopTask::toRow()`
+    urgency overdue / today / soon / later / none);
+  - **timeline** (`App\Services\ShopTimeline`: milestones (signed up, set up, first stamp,
+    10th customer, first reward, trial ended) + notes + follow-ups + activity log, minus
+    `ShopTimeline::NOISE` (each stamp, staff PIN sign-ins));
+  - **"Brief me"** (`POST /admin/shops/{shop}/brief`, JSON, not stored).
+
+  Notes / tasks routes use `scopeBindings()`: they're only found through their own shop.
+- **Admin → Follow-ups** (`/admin/follow-ups`, `FollowUpController`, `Pages/Admin/FollowUps.jsx`,
+  desktop menu):
+  - overdue + today's follow-ups;
+  - trials ended ≤ 3 days ago or ending within 8 (not paid / lost);
+  - the other open follow-ups;
+  - **the weekly briefing** (`POST /admin/follow-ups/briefing`, stored in
+    `Setting::CRM_BRIEFING`, "Follow-up" turns an action into a task for tomorrow).
+- **AI** (`App\Services\CrmAssistant`, rules decide, AI explains):
+  - `candidates()` flags shops by rule (`FLAGS`, in priority order: declining, trial ending,
+    ready to convert (healthy), stalled, never started 3+ days); not paid / lost / blocked;
+  - `weeklyBriefing()` sends ≤ 20 of them and keeps only those ids;
+  - `callPrep()` writes one shop's call sheet.
+  - Both go through `App\Services\Gemini::json()` (same key / models / busy fallback;
+    `AiUsage` features `crm_briefing`, `call_prep`) and get only `facts()`: per-shop figures,
+    card, stage, trial, the admin's last 3 notes, open follow-ups - never customer names or
+    phones.
 
 ## Navigation & page access (one registry)
 
@@ -1236,6 +1267,7 @@ Plus `activity_logs` (see "Admin activity & logs").
 Plus `shops.industry` / `industry_other` (see "Shop industry").
 Plus `users.welcome_sent_at` (the admin's first WhatsApp welcome; see "WhatsApp contact").
 Plus `shops.trial_ends_at` / `crm_stage` / `lost_reason` (see "Shop health & sales pipeline").
+Plus `shop_notes`, `shop_tasks`, `shops.crm_tags` (see "Admin CRM & AI briefing").
 Plus `shops.qr_page_viewed_at` / `qr_downloaded_at` / `qr_downloads` / `qr_download_failures` (see "Overseas shops").
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to **WhatsApp** offers from **that one shop**, unticked by

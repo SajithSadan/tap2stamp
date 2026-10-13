@@ -1,6 +1,7 @@
 import { useForm } from "@inertiajs/react";
 import { LuCheck, LuCircleAlert, LuPlus } from "react-icons/lu";
 import { FieldError, inputClass, Panel, primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
+import { BriefMePanel, NotesPanel, TagsPanel, TasksPanel, TimelinePanel } from "@/Components/Dashboard/ShopCrmPanels";
 
 /**
  * Admin → shop settings → Account (MONETISATION-PLAN.md phase 1): how the
@@ -214,11 +215,22 @@ function PipelinePanel({ shop, pipeline, stages }) {
     );
 }
 
-export default function ShopAccountTab({ shop, health, healthModel, pipeline, crmStages }) {
+export default function ShopAccountTab({ shop, health, healthModel, pipeline, crmStages, crm }) {
     return (
         <div className="space-y-4">
             <HealthPanel health={health} model={healthModel} />
-            <PipelinePanel shop={shop} pipeline={pipeline} stages={crmStages} />
+            <div className="grid items-start gap-4 lg:grid-cols-2">
+                <div className="space-y-4">
+                    {crm.ai && <BriefMePanel shop={shop} />}
+                    <TasksPanel shop={shop} tasks={crm.tasks} />
+                    <NotesPanel shop={shop} notes={crm.notes} />
+                </div>
+                <div className="space-y-4">
+                    <PipelinePanel shop={shop} pipeline={pipeline} stages={crmStages} />
+                    <TagsPanel shop={shop} tags={crm.tags} suggestions={crm.tag_suggestions} />
+                </div>
+            </div>
+            <TimelinePanel timeline={crm.timeline} />
         </div>
     );
 }

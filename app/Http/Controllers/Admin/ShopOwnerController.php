@@ -57,6 +57,7 @@ class ShopOwnerController extends Controller
                 'stampLogs as stamps_30d' => fn ($q) => $q->where('action_type', ActionType::StampAdded)->where('created_at', '>=', $monthAgo),
                 'stampLogs as rewards_total' => fn ($q) => $q->where('action_type', ActionType::RewardRedeemed),
                 'staffMembers as staff' => fn ($q) => $q->whereNull('deactivated_at'),
+                'tasks as open_tasks' => fn ($q) => $q->whereNull('done_at'),
                 'reviews',
             ])
             ->withAvg('reviews as rating', 'rating')
@@ -146,6 +147,8 @@ class ShopOwnerController extends Controller
                     // MONETISATION-PLAN.md phase 1: usage health, pipeline stage, trial.
                     'health' => collect($healthByShop[$shop->id])->only(['score', 'segment', 'step', 'step_label', 'reasons'])->all(),
                     'stage' => CrmStage::display($shop->crm_stage, $healthByShop[$shop->id]['metrics']['first_stamp_at'] !== null),
+                    'tags' => $shop->crm_tags ?? [],
+                    'open_tasks' => $shop->open_tasks,
                     'trial_ends_at' => $shop->trial_ends_at?->toIso8601String(),
                     'trial_ends_label' => $shop->trial_ends_at?->timezone('Europe/London')->format('j M Y'),
                     // Whole days left (negative = ended that many days ago).

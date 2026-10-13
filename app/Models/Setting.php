@@ -36,6 +36,9 @@ class Setting extends Model
     /** The admin's WhatsApp welcome message to new shops ({message, video_url}); App\Support\WelcomeMessage. */
     public const WHATSAPP_WELCOME = 'whatsapp_welcome';
 
+    /** The last AI follow-up briefing (App\Services\CrmAssistant::weeklyBriefing()). */
+    public const CRM_BRIEFING = 'crm_briefing';
+
     /** Platform defaults for owner features ({menu: bool, whatsapp: bool}); App\Support\Features. */
     public const FEATURES = 'features';
 

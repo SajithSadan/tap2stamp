@@ -170,6 +170,7 @@ class Shop extends Model
             'show_menu_on_card' => 'boolean',
             'qr_page_viewed_at' => 'datetime',
             'trial_ends_at' => 'datetime',
+            'crm_tags' => 'array',
             'qr_downloaded_at' => 'datetime',
             'qr_downloads' => 'integer',
             'qr_download_failures' => 'integer',
@@ -225,6 +226,30 @@ class Shop extends Model
     public function canOrderProducts(): bool
     {
         return ($this->country ?? Countries::UK) === Countries::UK;
+    }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(ShopNote::class);
+    }
+
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(ShopTask::class);
+    }
+
+    public const MAX_CRM_TAGS = 8;
+
+    /** Admin CRM tags: trimmed, ≤ 30 chars, no duplicates (case-insensitive), at most MAX_CRM_TAGS. */
+    public static function tidyCrmTags(array $tags): array
+    {
+        return collect($tags)
+            ->map(fn ($tag) => mb_substr(trim(preg_replace('/\s+/', ' ', (string) $tag)), 0, 30))
+            ->filter()
+            ->unique(fn ($tag) => mb_strtolower($tag))
+            ->take(self::MAX_CRM_TAGS)
+            ->values()
+            ->all();
     }
 
     /** "Barber", or the owner's own words for "Something else"; null = not asked yet. */

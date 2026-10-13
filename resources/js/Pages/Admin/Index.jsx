@@ -361,7 +361,8 @@ function buildColumns(origin) {
     return [
         {
             id: "shop",
-            accessorFn: (s) => `${s.name} ${s.slug}`,
+            // Searchable by tags too ("price objection").
+            accessorFn: (s) => `${s.name} ${s.slug} ${(s.tags ?? []).join(" ")}`,
             header: "Shop",
             sortingFn: (a, b) => a.original.name.localeCompare(b.original.name),
             meta: { label: "Shop", csv: (s) => s.name },
@@ -413,6 +414,30 @@ function buildColumns(origin) {
                     </Link>
                 );
             },
+        },
+        {
+            // Admin CRM tags + open follow-ups (shop settings → Account).
+            id: "tags",
+            accessorFn: (s) => (s.tags ?? []).join(", "),
+            header: "Tags",
+            enableSorting: false,
+            meta: { label: "Tags", csv: (s) => (s.tags ?? []).join("; ") },
+            cell: ({ row: { original: s } }) => (
+                <div className="flex max-w-48 flex-wrap items-center gap-1">
+                    {(s.tags ?? []).slice(0, 3).map((tag) => (
+                        <span key={tag} className="whitespace-nowrap rounded-full bg-brand-accent/10 px-2 py-0.5 text-[11px] font-medium text-brand-text">
+                            {tag}
+                        </span>
+                    ))}
+                    {(s.tags ?? []).length > 3 && <span className="text-[11px] text-brand-muted">+{s.tags.length - 3}</span>}
+                    {s.open_tasks > 0 && (
+                        <Link href={`/admin/shops/${s.id}/settings#account`} className="whitespace-nowrap rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-medium text-violet-700" title="Open follow-ups">
+                            {s.open_tasks} to do
+                        </Link>
+                    )}
+                    {!(s.tags ?? []).length && !s.open_tasks && <span className="text-xs text-brand-muted">-</span>}
+                </div>
+            ),
         },
         {
             id: "stage",

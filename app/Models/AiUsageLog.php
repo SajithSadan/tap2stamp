@@ -15,6 +15,8 @@ class AiUsageLog extends Model
         'menu_import' => 'Menu photo import',
         'photo_check' => 'Menu photo check',
         'stock_command' => 'Stock-out command',
+        'crm_briefing' => 'Follow-up briefing',
+        'call_prep' => 'Call prep',
     ];
 
     protected $guarded = ['id'];

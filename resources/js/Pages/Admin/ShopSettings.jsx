@@ -298,6 +298,7 @@ export default function ShopSettings({
     healthModel,
     pipeline,
     crmStages,
+    crm,
 }) {
     const [tab, setTab] = useState(initialTab);
     const form = useForm({
@@ -422,7 +423,7 @@ export default function ShopSettings({
 
             {tab === "menu" && <MenuTab shop={shop} menuItemsCount={menuItemsCount} menuUrl={menuUrl} />}
             {tab === "features" && <FeaturesTab shop={shop} features={features} />}
-            {tab === "account" && <ShopAccountTab shop={shop} health={health} healthModel={healthModel} pipeline={pipeline} crmStages={crmStages} />}
+            {tab === "account" && <ShopAccountTab shop={shop} health={health} healthModel={healthModel} pipeline={pipeline} crmStages={crmStages} crm={crm} />}
 
             {tab === "orders" && (
                 <OrdersTab

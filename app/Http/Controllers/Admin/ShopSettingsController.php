@@ -9,7 +9,11 @@ use App\Models\Product;
 use App\Models\QrDesign;
 use App\Models\Setting;
 use App\Models\Shop;
+use App\Models\ShopNote;
+use App\Models\ShopTask;
+use App\Services\CrmAssistant;
 use App\Services\ShopHealth;
+use App\Services\ShopTimeline;
 use App\Support\Countries;
 use App\Support\CrmStage;
 use App\Support\Features;
@@ -23,7 +27,7 @@ use Inertia\Response;
 
 class ShopSettingsController extends Controller
 {
-    public function edit(Shop $shop, ShopHealth $health): Response
+    public function edit(Shop $shop, ShopHealth $health, ShopTimeline $timeline, CrmAssistant $assistant): Response
     {
         return Inertia::render('Admin/ShopSettings', [
             // Account tab (MONETISATION-PLAN.md phase 1): usage health and the sales pipeline.
@@ -35,6 +39,23 @@ class ShopSettingsController extends Controller
                 'lost_reason' => $shop->lost_reason,
             ],
             'crmStages' => CrmStage::STORED,
+            // Phase 2: notes, tags, follow-ups, the shop's timeline, AI "Brief me".
+            'crm' => [
+                'tags' => $shop->crm_tags ?? [],
+                'tag_suggestions' => self::TAG_SUGGESTIONS,
+                'notes' => $shop->notes()->with('author:id,name')->latest()->limit(50)->get()->map(fn (ShopNote $note) => [
+                    'id' => $note->id,
+                    'body' => $note->body,
+                    'author' => $note->author?->name,
+                    'at_label' => $note->created_at->timezone('Europe/London')->format('j M Y, H:i'),
+                ]),
+                // Open first (soonest due), then the last 10 done.
+                'tasks' => $shop->tasks()->open()->orderByRaw('due_on IS NULL, due_on')->get()
+                    ->concat($shop->tasks()->whereNotNull('done_at')->latest('done_at')->limit(10)->get())
+                    ->map(fn (ShopTask $task) => $task->toRow())->values(),
+                'timeline' => $timeline->for($shop),
+                'ai' => $assistant->enabled(),
+            ],
             'shop' => [
                 ...$shop->only([
                     'id', 'name', 'slug', 'max_stamps', 'reward_title',
@@ -81,6 +102,9 @@ class ShopSettingsController extends Controller
             'defaultQrDesign' => QrDesign::defaultDesign()?->name,
         ]);
     }
+
+    /** One-tap tags on the Account tab (any other text works too). */
+    public const TAG_SUGGESTIONS = ['Hot lead', 'Owner not techy', 'Needs display', 'Staff forget to scan', 'Price objection', 'Multiple branches', 'Wants a call back'];
 
     /**
      * The shop's place in the sales pipeline: stage, trial end (e.g. extended

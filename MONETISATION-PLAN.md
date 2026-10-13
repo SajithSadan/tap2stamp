@@ -1,7 +1,9 @@
 # Monetisation plan — trial → paid (to do later)
 
-Status: **phase 1 built** (2026-10-12): health score, segments, ladder, trial end, pipeline
-stage (see CLAUDE.md "Shop health & sales pipeline"). Phases 2-3 not built yet.
+Status: **phases 1-2 built**. Phase 1 (2026-10-12): health score, segments, ladder, trial end,
+pipeline stage. Phase 2 (2026-10-13): notes, tags, follow-ups, timeline, Follow-ups page, AI
+weekly briefing + "Brief me" (see CLAUDE.md). Phase 3 (billing, trial end) needs the decisions
+at the bottom.
 Context: ~150 shops registered on a 1-month free trial. Goal: see who is really using
 Tada Tap, help the ones who are stuck, and convert the healthy ones to paid plans.
 
@@ -151,7 +153,7 @@ Rules for AI:
    - Health / Stage / Trial ends columns and filters on the Shops grid
 
    This alone shows where the 150 stand.
-2. **Week 2**:
+2. **Week 2** ✅ built 2026-10-13:
    - CRM notes, follow-ups, timeline
    - AI weekly briefing + "Brief me" call prep
 3. **Week 3**:
