@@ -269,7 +269,28 @@ body]` tuples, not exceptions — the controller just does
   (the address Safari saves; `<link rel=manifest>` becomes `/staff/app/{code}.webmanifest`,
   same manifest with that `start_url`). The installed app's first launch (no token stored)
   swaps it via `POST /staff/app/redeem` (web route, CSRF, 10/min; 404 `link_expired`) and
-  reloads. See "Home-screen apps" below.
+  reloads. Back on `?add=1` the steps open by themselves from either place: signed in → the
+  page opens on the Today tab (not Scan); `add` is then dropped from the address (`link`
+  stays) so the steps don't reopen on every visit. See "Home-screen apps" below.
+
+- **Shop code** (`shops.shop_code`, 6 chars from `Shop::SHOP_CODE_ALPHABET`, unique per shop,
+  made in `Shop::booted()`; never fillable, `$activitySecret`): the staff app's no-token
+  screen ("Set up this device", `ShopCodeJoin` in `Staff/Dashboard.jsx`) asks for it, so a
+  phone joins without the owner's setup QR — also the fix for an iPhone home-screen app added
+  without its one-time link. `POST /staff/join {code, browser_id}` (web, CSRF, 10/min) →
+  `App\Services\ShopCodeJoin`: the right code (case / spaces ignored) **adds the device
+  straight away** (user's choice, no owner approval), named from its user agent
+  (`ShopCodeJoin::describe()`: "Safari on iPhone (shop code)"; DevTools device mode reports the
+  emulated phone), and returns
+  its token; blocked shop → 403 `shop_blocked`. **Locks**: wrong codes per day (since the last
+  unlock) — 3 per browser (`browser_id`, random, `localStorage.staff_browser_id`) or 10 per IP
+  → a `shop_code_locks` row, 423 `join_locked` + the short device ID shown on the phone. Locks
+  never expire: only the admin unlocks (Admin → Settings → **Locked phones**: why (wrong
+  codes, from how many phones for a network), device, IP, when;
+  `DELETE /admin/shop-code-locks/{lock}`, logged `shop_code.unlocked`). Owner: Staff page →
+  "Add a phone with a code" (3 numbered steps: open `/staff`, type the code, PIN; **New code**
+  = `POST /dashboard/shop-code`; the old code stops working, devices already set up are
+  unaffected).
 
 ## Home-screen apps (three, one per kind of user)
 
@@ -1271,6 +1292,7 @@ Plus `users.welcome_sent_at` (the admin's first WhatsApp welcome; see "WhatsApp 
 Plus `shops.trial_ends_at` / `crm_stage` / `lost_reason` (see "Shop health & sales pipeline").
 Plus `shop_notes`, `shop_tasks`, `shops.crm_tags` (see "Admin CRM & AI briefing").
 Plus `shops.qr_page_viewed_at` / `qr_downloaded_at` / `qr_downloads` / `qr_download_failures` (see "Overseas shops").
+Plus `shops.shop_code`, `shop_code_attempts`, `shop_code_locks` (see "Shop code" under the staff scanner).
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`
 (timestamp). This is an optional opt-in to **WhatsApp** offers from **that one shop**, unticked by
 default, and customers can register without it. `CustomerRegistrar` only ever turns it on: an

@@ -241,6 +241,8 @@ class DashboardController extends Controller
 
         return Inertia::render('Dashboard/Staff', [
             'shop' => $this->shopSummary($shop),
+            // Staff type it on a new phone at /staff to add it (ShopCodeJoin).
+            'shopCode' => $shop->shop_code,
             'staffMembers' => $shop->staffMembers()
                 ->active()
                 ->withCount([

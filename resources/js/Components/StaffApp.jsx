@@ -1,4 +1,5 @@
 import axios from "axios";
+import { useState } from "react";
 import InstallAppPrompt from "@/Components/InstallAppPrompt";
 import { STAFF_TOKEN_KEY } from "@/lib/storage";
 
@@ -53,6 +54,31 @@ export async function redeemAppLink() {
     }
 }
 
+/** Back from "Add" on iPhone (?add=1): the steps should open by themselves. */
+export function addingApp() {
+    try {
+        return new URLSearchParams(window.location.search).get("add") === "1";
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Read ?add=1 once and drop it from the address (keeping ?link=, the one
+ * Safari saves), so the steps don't reopen on every visit to the Today tab.
+ */
+function takeAddFlag() {
+    if (!addingApp()) return false;
+    try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("add");
+        window.history.replaceState(window.history.state, "", url);
+    } catch {
+        // ignore
+    }
+    return true;
+}
+
 /** The manifest to install from: one whose start address carries the code, when there is one. */
 export const staffManifestHref = () => {
     const code = appLinkCode();
@@ -66,6 +92,9 @@ export const staffManifestHref = () => {
  * /staff?link={code}&add=1 - the address Safari will save.
  */
 export function StaffInstallPrompt({ api, variant = "banner" }) {
+    // Either place may have sent us here: the PIN screen or the Today tab.
+    const [autoOpen] = useState(takeAddFlag);
+
     async function prepareIos() {
         if (appLinkCode()) return false; // already on the address to save
         const { data } = await api.post("/api/staff/app-link");
@@ -81,7 +110,7 @@ export function StaffInstallPrompt({ api, variant = "banner" }) {
             stepsDone="The scanner is then one tap away, already signed in to this shop."
             snoozeKey={variant === "banner" ? DISMISSED_KEY : null}
             prepareIos={prepareIos}
-            autoOpenSteps={variant === "banner" && new URLSearchParams(window.location.search).get("add") === "1"}
+            autoOpenSteps={autoOpen}
             className={variant === "row" ? "mt-6" : ""}
         />
     );

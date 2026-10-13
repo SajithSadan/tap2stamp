@@ -1,7 +1,7 @@
 import { router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
-import { LuCircleAlert, LuHand, LuImage, LuKeyRound, LuLandmark, LuLayoutDashboard, LuMail, LuPalette, LuRotateCcw, LuSettings, LuSparkles, LuStamp, LuStore, LuToggleRight, LuTriangleAlert } from 'react-icons/lu';
+import { LuCircleAlert, LuHand, LuImage, LuKeyRound, LuLandmark, LuLayoutDashboard, LuLock, LuLockOpen, LuSmartphone, LuWifi, LuMail, LuPalette, LuRotateCcw, LuSettings, LuSparkles, LuStamp, LuStore, LuToggleRight, LuTriangleAlert } from 'react-icons/lu';
 import { useConfirm } from '@/Components/ConfirmDialog';
 import { FaWhatsapp } from 'react-icons/fa6';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
@@ -278,7 +278,72 @@ const TABS = [
     { key: 'appearance', label: 'Appearance', icon: LuPalette, fields: ['bg', 'text'] },
     { key: 'menu', label: 'Menu photos', icon: LuImage, fields: ['mode'] },
     { key: 'features', label: 'Features', icon: LuToggleRight, fields: ['feature', 'enabled'] },
+    { key: 'shop-codes', label: 'Locked phones', icon: LuLock, fields: [] },
 ];
+
+/**
+ * Staff phones locked for typing 3 wrong shop codes in a day (or a whole
+ * network, 10). They stay locked until unlocked here. The phone shows its
+ * device ID so the owner can read it out.
+ */
+function ShopCodeLocks({ locks, confirm }) {
+    const [busy, setBusy] = useState(null);
+
+    async function unlock(lock) {
+        const ok = await confirm({
+            title: lock.kind === 'device' ? `Unlock device ${lock.device_id}?` : `Unlock network ${lock.ip}?`,
+            message: lock.kind === 'device' ? 'It gets 3 more tries at the shop code.' : 'Phones on it can try shop codes again.',
+            confirmLabel: 'Unlock',
+        });
+        if (!ok) return;
+
+        router.delete(`/admin/shop-code-locks/${lock.id}`, { preserveScroll: true, onStart: () => setBusy(lock.id), onFinish: () => setBusy(null) });
+    }
+
+    return (
+        <Panel
+            title="Locked staff phones"
+            description="Staff add a phone by typing their shop code on the staff app. To stop anyone guessing codes, a phone is locked after 3 wrong codes in a day, and a whole network after 10. Unlock it once you know it's the shop's staff: the locked phone shows its Device ID."
+        >
+            {locks.length === 0 ? (
+                <p className="flex items-center gap-2 text-sm text-brand-muted">
+                    <LuLockOpen className="h-4 w-4" /> Nothing is locked.
+                </p>
+            ) : (
+                <ul className="divide-y divide-brand-border">
+                    {locks.map((lock) => (
+                        <li key={lock.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-600">
+                                {lock.kind === 'device' ? <LuSmartphone className="h-4 w-4" /> : <LuWifi className="h-4 w-4" />}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-brand-text">
+                                    {lock.kind === 'device' ? (
+                                        <>
+                                            Device ID <span className="font-mono tracking-wider">{lock.device_id}</span>
+                                        </>
+                                    ) : (
+                                        <>Whole network</>
+                                    )}
+                                    <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-700">
+                                        {lock.wrong_codes} wrong {lock.wrong_codes === 1 ? 'code' : 'codes'}
+                                        {lock.kind === 'network' && lock.devices_tried ? ` from ${lock.devices_tried} ${lock.devices_tried === 1 ? 'phone' : 'phones'}` : ''}
+                                    </span>
+                                </p>
+                                <p className="mt-0.5 text-xs text-brand-muted" title={lock.user_agent ?? undefined}>
+                                    {[lock.kind === 'device' && lock.device, lock.ip && `IP ${lock.ip}`, `locked ${lock.locked_at} (${lock.locked_ago})`].filter(Boolean).join(' · ')}
+                                </p>
+                            </div>
+                            <button type="button" onClick={() => unlock(lock)} disabled={busy !== null} className={secondaryButton}>
+                                <LuLockOpen className="h-4 w-4" /> Unlock
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </Panel>
+    );
+}
 
 /**
  * Owner features' platform defaults. Each shop follows these unless the
@@ -411,7 +476,7 @@ function initialTab() {
     return TABS.some((t) => t.key === hash) ? hash : 'signin';
 }
 
-export default function Settings({ google, sidebar, bank, menuPhotos, features, welcome }) {
+export default function Settings({ google, sidebar, bank, menuPhotos, features, welcome, shopCodeLocks = [] }) {
     const { errors } = usePage().props;
     const [tab, setTab] = useState(initialTab);
     const [saving, setSaving] = useState(false);
@@ -520,6 +585,7 @@ export default function Settings({ google, sidebar, bank, menuPhotos, features, 
             {tab === 'appearance' && <SidebarColors saved={sidebar} errors={errors} />}
             {tab === 'menu' && <MenuPhotos settings={menuPhotos} error={errors?.mode} />}
             {tab === 'features' && <FeatureDefaults features={features} errors={errors} />}
+            {tab === 'shop-codes' && <ShopCodeLocks locks={shopCodeLocks} confirm={confirm} />}
             {confirmDialog}
         </AdminLayout>
     );

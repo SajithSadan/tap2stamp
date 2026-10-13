@@ -42,6 +42,7 @@ use App\Http\Controllers\QrRedirectController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\ShopBannerController;
+use App\Http\Controllers\ShopCodeController;
 use App\Http\Controllers\ShopLogoController;
 use App\Http\Controllers\ShopOnboardingController;
 use App\Http\Controllers\StaffAppController;
@@ -265,6 +266,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::post('/whatsapp-contacts', [WhatsAppContactController::class, 'store'])->middleware('throttle:60,1')->name('whatsapp-contacts.store');
     Route::put('/settings/menu-photos', [SettingsController::class, 'updateMenuPhotos'])->name('settings.menu-photos');
     Route::put('/settings/features', [SettingsController::class, 'updateFeature'])->name('settings.features');
+    Route::delete('/shop-code-locks/{shopCodeLock}', [ShopCodeController::class, 'unlock'])->name('shop-code-locks.unlock');
 });
 
 // Public landing link inside every printed QR sticker. Redirects to the
@@ -353,6 +355,8 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::put('/staff-members/{staffMember}/pin', [StaffMemberController::class, 'updatePin'])->name('staff-members.pin');
     Route::delete('/staff-members/{staffMember}', [StaffMemberController::class, 'destroy'])->name('staff-members.destroy');
 
+    Route::post('/shop-code', [ShopCodeController::class, 'regenerate'])->middleware('throttle:10,1')->name('shop-code.regenerate');
+
     Route::post('/staff-devices', [StaffDeviceController::class, 'store'])->name('staff-devices.store');
     Route::post('/staff-devices/{staffDevice}/setup-link', [StaffDeviceController::class, 'setupLink'])->name('staff-devices.setup-link');
     Route::delete('/staff-devices/{staffDevice}', [StaffDeviceController::class, 'destroy'])->name('staff-devices.destroy');
@@ -378,6 +382,15 @@ Route::get('/staff/app/{code}.webmanifest', [StaffAppController::class, 'manifes
 Route::post('/staff/app/redeem', [StaffAppController::class, 'redeem'])
     ->middleware('throttle:10,1')
     ->name('staff.app.redeem');
+
+// A phone that isn't set up joins its shop by typing the shop code (ShopCodeJoin:
+// 3 wrong a day lock the browser until an admin unlocks it).
+Route::post('/staff/join', [ShopCodeController::class, 'join'])
+    ->middleware('throttle:10,1')
+    ->name('staff.join');
+Route::get('/staff/join/status', [ShopCodeController::class, 'status'])
+    ->middleware('throttle:30,1')
+    ->name('staff.join.status');
 
 // Staff API: bearer-token authenticated (AuthenticateStaffDevice), not
 // session/CSRF based - see the CSRF-exempt list in bootstrap/app.php. The

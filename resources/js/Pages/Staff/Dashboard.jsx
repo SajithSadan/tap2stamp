@@ -7,6 +7,7 @@ import {
     LuChartColumn,
     LuDelete,
     LuGift,
+    LuLock,
     LuLogOut,
     LuRotateCcw,
     LuScanLine,
@@ -21,9 +22,8 @@ import { useConfirm } from "@/Components/ConfirmDialog";
 import AiStockCommand from "@/Components/Menu/AiStockCommand";
 import OfflineBanner from "@/Components/OfflineBanner";
 import TechsaFooter from "@/Components/TechsaFooter";
-import { STAFF_TOKEN_KEY } from "@/lib/storage";
-import { redeemAppLink, staffManifestHref, StaffInstallPrompt, appLinkCode } from "@/Components/StaffApp";
-
+import { STAFF_BROWSER_ID_KEY, STAFF_TOKEN_KEY } from "@/lib/storage";
+import { redeemAppLink, staffManifestHref, StaffInstallPrompt, appLinkCode, addingApp } from "@/Components/StaffApp";
 
 function CenteredMessage({ icon: Icon, title, children }) {
     return (
@@ -41,6 +41,130 @@ function CenteredMessage({ icon: Icon, title, children }) {
             </div>
             <TechsaFooter theme="light" className="pb-4" />
         </div>
+    );
+}
+
+/* ---------- Joining with the shop code ---------- */
+
+/** This browser's id for the shop-code lock: made once, kept in localStorage. */
+function browserId() {
+    try {
+        let id = window.localStorage.getItem(STAFF_BROWSER_ID_KEY);
+        if (!id || !/^[A-Za-z0-9-]{16,64}$/.test(id)) {
+            id = Array.from(window.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+            window.localStorage.setItem(STAFF_BROWSER_ID_KEY, id);
+        }
+        return id;
+    } catch {
+        // No storage (private mode): a fresh id each time; the network limit still applies.
+        return Array.from(window.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+    }
+}
+
+/**
+ * A phone with no device token: type the shop code (owner's Dashboard →
+ * Staff) to add it to the shop, instead of scanning the owner's setup QR.
+ * 3 wrong codes a day lock this browser until an admin unlocks it.
+ */
+function ShopCodeJoin() {
+    const [code, setCode] = useState("");
+    const [error, setError] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [lockedId, setLockedId] = useState(null);
+    const [checking, setChecking] = useState(true);
+
+    // A lock outlives a reload: ask before showing the form. Offline = show the form.
+    useEffect(() => {
+        axios
+            .get("/staff/join/status", { params: { browser_id: browserId() } })
+            .then(({ data }) => data.locked && setLockedId(data.device_id ?? ""))
+            .catch(() => {})
+            .finally(() => setChecking(false));
+    }, []);
+
+    if (checking) {
+        return (
+            <div className="flex min-h-dvh items-center justify-center bg-brand-bg">
+                <span className="h-8 w-8 animate-spin rounded-full border-2 border-brand-border border-t-brand-accent" aria-label="Loading" />
+            </div>
+        );
+    }
+
+    async function submit(e) {
+        e.preventDefault();
+        if (!code.trim()) {
+            setError("Enter the shop code.");
+            return;
+        }
+        setBusy(true);
+        setError(null);
+        try {
+            const { data } = await axios.post("/staff/join", { code, browser_id: browserId() });
+            window.localStorage.setItem(STAFF_TOKEN_KEY, data.token);
+            // Start again with the token (and without any old ?link= code).
+            window.location.replace("/staff");
+        } catch (err) {
+            const status = err.response?.status;
+            const body = err.response?.data;
+            if (status === 423) setLockedId(body?.device_id ?? "");
+            else if (status === 422) setError(body?.message ?? body?.errors?.code?.[0] ?? "That code isn't right.");
+            else if (status === 403) setError("This shop is paused. Please ask the shop owner.");
+            else if (status === 429) setError("Too many tries. Wait a minute and try again.");
+            else setError("Couldn't connect. Check the connection and try again.");
+            setBusy(false);
+        }
+    }
+
+    if (lockedId !== null) {
+        return (
+            <CenteredMessage icon={LuLock} title="This device is locked">
+                <p className="mt-2 text-sm text-brand-muted">
+                    Too many wrong shop codes. Ask Tada Tap support to unlock it.
+                </p>
+                {lockedId && (
+                    <p className="mt-3 text-sm text-brand-text">
+                        Device ID: <span className="font-mono font-semibold tracking-wider">{lockedId}</span>
+                    </p>
+                )}
+            </CenteredMessage>
+        );
+    }
+
+    return (
+        <CenteredMessage icon={LuStore} title="Set up this device">
+            <p className="mt-2 text-sm text-brand-muted">
+                Enter your shop code. The owner finds it in Dashboard → Staff.
+            </p>
+            <form onSubmit={submit} noValidate className="mt-5 text-left">
+                <input
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))}
+                    placeholder="Shop code"
+                    aria-label="Shop code"
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="w-full rounded-xl border border-brand-border bg-brand-card px-4 py-3 text-center font-mono text-xl font-bold tracking-[0.3em] text-brand-text placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:tracking-normal placeholder:text-brand-muted focus:border-brand-accent focus:outline-none"
+                />
+                {error && (
+                    <p role="alert" className="mt-2 text-center text-sm text-red-700">
+                        {error}
+                    </p>
+                )}
+                <button
+                    type="submit"
+                    disabled={busy}
+                    className="mt-3 w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-brand-accent-text disabled:opacity-60"
+                >
+                    {busy ? "Checking…" : "Continue"}
+                </button>
+            </form>
+            <p className="mt-4 text-xs text-brand-muted">
+                Or ask the owner to scan this device's setup QR.
+            </p>
+        </CenteredMessage>
     );
 }
 
@@ -248,7 +372,8 @@ function PinSignIn({ shopName, members, api, onSignedIn, onApiError, install = n
 // "Mark reward as given" first (Components/CardScanner).
 function ScanTab({ api, onScanned, onApiError }) {
     return (
-        <div className="flex flex-1 flex-col bg-black">
+        // min-h-0: stay inside the space above the tab bar (the camera shrinks, the code bar doesn't).
+        <div className="flex min-h-0 flex-1 flex-col bg-black">
             <CardScanner
                 request={(payload, redeem) => api.post("/api/staff/scan", { payload, ...(redeem && { redeem: true }) })}
                 onApiError={onApiError}
@@ -671,6 +796,8 @@ export default function Dashboard() {
     const [me, setMe] = useState(null);
     const [tab, setTab] = useState("scan");
     const [summary, setSummary] = useState(null);
+    // Back from "Add" on the Today tab (iPhone): open Today, where its steps are.
+    const startOnToday = useRef(addingApp());
 
     // One axios instance carrying the device's bearer token.
     const [api] = useState(() =>
@@ -734,6 +861,8 @@ export default function Dashboard() {
 
         api.get("/api/staff/me")
             .then(({ data }) => {
+                // Not signed in: the PIN screen's banner shows the steps instead.
+                if (!data.staff) startOnToday.current = false;
                 setMe(data);
                 setAuthState("ready");
             })
@@ -753,7 +882,8 @@ export default function Dashboard() {
 
     useEffect(() => {
         if (me?.staff) {
-            setTab("scan");
+            setTab(startOnToday.current ? "today" : "scan");
+            startOnToday.current = false;
             refreshSummary();
         } else {
             setSummary(null);
@@ -809,18 +939,12 @@ export default function Dashboard() {
     }
 
     if (authState === "unauthenticated") {
+        // No token: never set up, revoked, or an iPhone home-screen app added
+        // without its one-time link (it has its own, empty storage).
         return (
             <>
                 {headTags}
-                <CenteredMessage
-                    icon={LuStore}
-                    title="This device is not set up"
-                >
-                    <p className="mt-2 text-sm text-brand-muted">
-                        Ask the shop owner to add this device in Dashboard →
-                        Staff and scan the QR code it shows.
-                    </p>
-                </CenteredMessage>
+                <ShopCodeJoin />
             </>
         );
     }

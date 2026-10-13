@@ -7,12 +7,16 @@ use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Models\Shop;
+use App\Models\ShopCodeAttempt;
+use App\Models\ShopCodeLock;
 use App\Models\User;
 use App\Services\MenuItemImages;
+use App\Services\ShopCodeJoin;
 use App\Support\Features;
 use App\Support\WelcomeMessage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -51,7 +55,44 @@ class SettingsController extends Controller
                 'ai_available' => $images->aiAvailable(),
                 'catalog_configured' => $images->enabled(),
             ],
+            'shopCodeLocks' => self::shopCodeLocks(),
         ]);
+    }
+
+    /**
+     * Staff phones (or whole networks) locked for typing too many wrong shop
+     * codes (App\Services\ShopCodeJoin), newest first, to unlock.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function shopCodeLocks(): array
+    {
+        return ShopCodeLock::active()->latest()->limit(200)->get()
+            ->map(function (ShopCodeLock $lock) {
+                $column = $lock->browser_id ? 'browser_id' : 'ip';
+                $value = $lock->browser_id ?? $lock->ip;
+                // The wrong codes that led to it: that day (since any earlier unlock), up to the lock.
+                $from = collect([
+                    $lock->created_at->copy()->startOfDay(),
+                    ShopCodeLock::where($column, $value)->where('unlocked_at', '<', $lock->created_at)->max('unlocked_at'),
+                ])->filter()->map(fn ($t) => Carbon::parse($t))->max();
+                $wrong = ShopCodeAttempt::where($column, $value)->where('success', false)
+                    ->whereBetween('created_at', [$from, $lock->created_at]);
+
+                return [
+                    'id' => $lock->id,
+                    'kind' => $lock->browser_id ? 'device' : 'network',
+                    'device_id' => $lock->browser_id ? ShopCodeLock::shortId($lock->browser_id) : null,
+                    // A device lock's network: where its last try came from.
+                    'ip' => $lock->ip ?? ShopCodeAttempt::where('browser_id', $lock->browser_id)->latest('id')->value('ip'),
+                    'device' => ShopCodeJoin::describe($lock->user_agent),
+                    'user_agent' => $lock->user_agent,
+                    'wrong_codes' => (clone $wrong)->count(),
+                    'devices_tried' => $lock->browser_id ? null : (clone $wrong)->distinct()->count('browser_id'),
+                    'locked_at' => $lock->created_at->timezone(config('app.timezone'))->format('j M, H:i'),
+                    'locked_ago' => $lock->created_at->diffForHumans(),
+                ];
+            })->all();
     }
 
     /**

@@ -232,7 +232,7 @@ export default function CardScanner({ request, onApiError, onScanned, autoFocusI
             </div>
 
             {view !== "reward" && (
-                <div className="bg-brand-card px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+                <div className="shrink-0 bg-brand-card px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
                     <form onSubmit={submitManual} className="mx-auto flex w-full max-w-md gap-2">
                         <input
                             type="text"

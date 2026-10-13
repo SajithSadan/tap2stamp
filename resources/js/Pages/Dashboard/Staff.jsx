@@ -5,6 +5,7 @@ import {
     LuKeyRound,
     LuLink,
     LuPlus,
+    LuRefreshCw,
     LuSmartphone,
     LuTrash2,
     LuUserCog,
@@ -411,7 +412,82 @@ function StaffDevices({ devices, confirm }) {
     );
 }
 
-export default function Staff({ shop, staffMembers, staffDevices }) {
+/**
+ * The shop's own code: staff open /staff on a new phone and type it to add
+ * that phone (no setup QR needed). 3 wrong codes a day lock that phone.
+ */
+function ShopCode({ code, confirm }) {
+    const staffUrl = `${window.location.origin}/staff`;
+
+    async function regenerate() {
+        const ok = await confirm({
+            title: "Get a new shop code?",
+            message:
+                "The current code stops working straight away. Phones already set up keep working.",
+            confirmLabel: "New code",
+        });
+        if (!ok) return;
+
+        router.post("/dashboard/shop-code", {}, { preserveScroll: true });
+    }
+
+    const step = "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-accent/10 text-xs font-bold text-brand-accent";
+
+    return (
+        <Panel
+            title="Add a phone with a code"
+            description="No QR needed. Staff set up their own phone in three steps."
+        >
+            <ol className="space-y-4">
+                <li className="flex items-start gap-3">
+                    <span className={step}>1</span>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm text-brand-text">On the phone, open</p>
+                        <div className="mt-1 flex items-center gap-1">
+                            <p className="min-w-0 break-all font-mono text-sm font-medium text-brand-text">
+                                {staffUrl.replace(/^https?:\/\//, "")}
+                            </p>
+                            <CopyButton text={staffUrl} label="Copy staff link" />
+                        </div>
+                    </div>
+                </li>
+                <li className="flex items-start gap-3">
+                    <span className={step}>2</span>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm text-brand-text">Type your shop code</p>
+                        <div className="mt-1 flex items-center gap-1">
+                            <p className="font-mono text-2xl font-bold tracking-[0.25em] text-brand-text">
+                                {code}
+                            </p>
+                            <CopyButton text={code} label="Copy shop code" />
+                        </div>
+                    </div>
+                </li>
+                <li className="flex items-start gap-3">
+                    <span className={step}>3</span>
+                    <p className="text-sm text-brand-text">
+                        They pick their name and enter their PIN. The phone
+                        then shows in Shop devices below.
+                    </p>
+                </li>
+            </ol>
+            <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-brand-border pt-3">
+                <p className="min-w-0 flex-1 text-xs text-brand-muted">
+                    Keep the code within your team. 3 wrong tries lock a phone.
+                </p>
+                <button
+                    type="button"
+                    onClick={regenerate}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-text hover:bg-brand-bg"
+                >
+                    <LuRefreshCw className="h-3.5 w-3.5" /> New code
+                </button>
+            </div>
+        </Panel>
+    );
+}
+
+export default function Staff({ shop, shopCode, staffMembers, staffDevices }) {
     const [confirm, confirmDialog] = useConfirm();
 
     return (
@@ -422,7 +498,10 @@ export default function Staff({ shop, staffMembers, staffDevices }) {
         >
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <StaffMembers members={staffMembers} confirm={confirm} />
-                <StaffDevices devices={staffDevices} confirm={confirm} />
+                <div className="flex flex-col gap-4">
+                    {shopCode && <ShopCode code={shopCode} confirm={confirm} />}
+                    <StaffDevices devices={staffDevices} confirm={confirm} />
+                </div>
             </div>
             {confirmDialog}
         </OwnerLayout>

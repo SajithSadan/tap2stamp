@@ -28,6 +28,9 @@ class Shop extends Model
     /** Activity log: product_ordered_at is set by payment, logged as the order. */
     protected array $activityIgnore = ['product_ordered_at', 'qr_page_viewed_at', 'qr_downloaded_at', 'qr_downloads', 'qr_download_failures'];
 
+    /** Anyone with the shop code can add a device: log that it changed, never the code. */
+    protected array $activitySecret = ['shop_code'];
+
     public function activityShopId(): ?int
     {
         return $this->id;
@@ -91,6 +94,7 @@ class Shop extends Model
     {
         static::creating(function (Shop $shop) {
             $shop->menu_slug ??= static::uniqueMenuSlug($shop->name ?? '');
+            $shop->shop_code ??= static::uniqueShopCode();
             // The free trial runs from the day the shop is set up.
             $shop->trial_ends_at ??= now()->addDays((int) config('loyalty.trial_days', 30));
         });
@@ -357,6 +361,28 @@ class Shop extends Model
         } while (static::where('menu_slug', $slug)->exists());
 
         return $slug;
+    }
+
+    /** No 0/O/1/I, so a code read out loud or off a screen is typed right. */
+    public const SHOP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+    public const SHOP_CODE_LENGTH = 6;
+
+    /**
+     * The shop's own code (unique per shop): staff type it on a phone that
+     * isn't set up yet to add it to this shop (App\Services\ShopCodeJoin).
+     * Random, never derived from the name.
+     */
+    public static function uniqueShopCode(): string
+    {
+        do {
+            $code = '';
+            for ($i = 0; $i < self::SHOP_CODE_LENGTH; $i++) {
+                $code .= self::SHOP_CODE_ALPHABET[random_int(0, strlen(self::SHOP_CODE_ALPHABET) - 1)];
+            }
+        } while (static::where('shop_code', $code)->exists());
+
+        return $code;
     }
 
     /** The shop's public menu page. */
