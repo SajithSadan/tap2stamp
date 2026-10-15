@@ -14,6 +14,8 @@ import { STAFF_TOKEN_KEY } from "@/lib/storage";
  * and moves to /staff?link={code}&add=1 - the address Safari saves - then
  * shows the Share → Add to Home Screen steps. On its first launch the
  * installed app swaps the code for the device token (redeemAppLink()).
+ * Samsung Internet: the same kind of link opens the staff app in Chrome
+ * (Samsung's own Install is blocked by Play Protect), already signed in.
  */
 
 const DISMISSED_KEY = "staff_install_dismissed_at";
@@ -102,6 +104,13 @@ export function StaffInstallPrompt({ api, variant = "banner" }) {
         return true;
     }
 
+    // Samsung Internet → Chrome: Chrome has its own storage, so it gets a fresh
+    // one-time code too (any ?link= here was already used by this browser).
+    async function chromePath() {
+        const { data } = await api.post("/api/staff/app-link");
+        return `${data.url}&add=1`;
+    }
+
     return (
         <InstallAppPrompt
             title="Add the staff app to your home screen"
@@ -110,6 +119,7 @@ export function StaffInstallPrompt({ api, variant = "banner" }) {
             stepsDone="The scanner is then one tap away, already signed in to this shop."
             snoozeKey={variant === "banner" ? DISMISSED_KEY : null}
             prepareIos={prepareIos}
+            chromePath={chromePath}
             autoOpenSteps={autoOpen}
             className={variant === "row" ? "mt-6" : ""}
         />

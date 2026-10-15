@@ -1,8 +1,8 @@
 import { Head } from "@inertiajs/react";
 import { useEffect, useState } from "react";
 import { LuDownload } from "react-icons/lu";
-import AddToHomeScreenSteps from "@/Components/AddToHomeScreenSteps";
-import { isAndroid, isInstalledApp, isIos, snooze, snoozedSince, useBrowserInstall } from "@/lib/pwa";
+import AddToHomeScreenSteps, { useChromeInstall } from "@/Components/AddToHomeScreenSteps";
+import { isAndroid, isInstalledApp, isIos, isSamsungInternet, snooze, snoozedSince, useBrowserInstall } from "@/lib/pwa";
 import { CUSTOMER_UUID_KEY } from "@/lib/storage";
 
 /**
@@ -64,7 +64,9 @@ export function CustomerAppHead({ uuid }) {
  * (Share → Add to Home Screen, there's no prompt at all) or Android before
  * Chrome decides to offer Install (⋮ menu → Add to Home screen). Nothing on
  * desktop without a prompt, or when already installed. "Not now" snoozes it
- * for 14 days. `autoOpenSteps`: open the iPhone steps straight away (?add=1).
+ * for 14 days. `autoOpenSteps`: open the steps straight away (?add=1).
+ * Samsung Internet: "Open in Chrome" with the card id in the link, never
+ * Samsung's own Install (Play Protect blocks it as an "unsafe app").
  */
 export function InstallPrompt({ uuid, autoOpenSteps = false }) {
     const { canInstall, promptInstall } = useBrowserInstall();
@@ -73,15 +75,22 @@ export function InstallPrompt({ uuid, autoOpenSteps = false }) {
     const ios = isIos();
     // Android before Chrome offers its own Install (it decides when): show the ⋮ menu steps instead.
     const android = !ios && isAndroid();
+    const samsung = android && isSamsungInternet();
+    const title = "Add My Cards to your home screen";
+    const done = "Your cards are then one tap away.";
+    const chrome = useChromeInstall({ title, done, chromePath: () => `/my-cards?c=${uuid}&add=1` });
 
     useEffect(() => {
-        if (autoOpenSteps && ios && !isInstalledApp()) setSteps(true);
-    }, [autoOpenSteps, ios]);
+        if (autoOpenSteps && (ios || android) && !samsung && !isInstalledApp()) setSteps(true);
+    }, [autoOpenSteps, ios, android, samsung]);
 
-    const stepsDialog = steps ? (
-        <AddToHomeScreenSteps title="Add My Cards to your home screen" done="Your cards are then one tap away." android={!ios} onClose={() => setSteps(false)} />
-    ) : null;
-    if (!uuid || hidden || (!ios && !android && !canInstall)) return stepsDialog;
+    const dialogs = (
+        <>
+            {steps && <AddToHomeScreenSteps title={title} done={done} android={!ios} onClose={() => setSteps(false)} />}
+            {chrome.dialog}
+        </>
+    );
+    if (!uuid || hidden || (!ios && !android && !canInstall)) return dialogs;
 
     function notNow() {
         snooze(DISMISSED_KEY);
@@ -89,6 +98,10 @@ export function InstallPrompt({ uuid, autoOpenSteps = false }) {
     }
 
     async function install() {
+        if (samsung) {
+            chrome.show();
+            return;
+        }
         if (canInstall) {
             await promptInstall();
             return;
@@ -117,14 +130,14 @@ export function InstallPrompt({ uuid, autoOpenSteps = false }) {
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
                     <button type="button" onClick={install} className="inline-flex items-center gap-1.5 rounded-full bg-brand-accent px-3.5 py-1.5 text-xs font-semibold text-brand-accent-text">
-                        <LuDownload className="h-3.5 w-3.5" /> {canInstall ? "Install" : "Add"}
+                        <LuDownload className="h-3.5 w-3.5" /> {canInstall && !samsung ? "Install" : "Add"}
                     </button>
                     <button type="button" onClick={notNow} className="text-[11px] font-medium text-brand-muted hover:text-brand-text">
                         Not now
                     </button>
                 </div>
             </div>
-            {stepsDialog}
+            {dialogs}
         </>
     );
 }

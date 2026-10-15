@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
  * (Components/CustomerApp.jsx) and the staff app (Components/StaffApp.jsx).
  * iPhones never offer an install prompt (Share → Add to Home Screen by hand),
  * and an iPhone home-screen app gets its own, empty storage - so each app's
- * link has to carry whatever identifies it.
+ * link has to carry whatever identifies it. The same link carries the app
+ * over to Chrome from Samsung Internet (Chrome has its own storage too).
  */
 
 /** Running as the installed home-screen app (Android or iPhone). */
@@ -17,6 +18,19 @@ export const isIos = () =>
     (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 
 export const isAndroid = () => typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
+/**
+ * Samsung Internet. Its own Install wraps the site in an app built for an old
+ * Android, which Google Play Protect blocks as an "unsafe app" - so on Samsung
+ * Internet we send people to Chrome to install instead (chromeIntentUrl()).
+ */
+export const isSamsungInternet = () => typeof navigator !== "undefined" && /SamsungBrowser/i.test(navigator.userAgent);
+
+/** An Android link that opens `path` on this site in Chrome (the Play Store offers Chrome if it's missing). */
+export function chromeIntentUrl(path) {
+    const url = new URL(path, window.location.href);
+    return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=${url.protocol.replace(":", "")};package=com.android.chrome;end`;
+}
 
 // Chrome / Android fire this once, possibly before any React component mounts - keep it.
 let deferredInstall = null;

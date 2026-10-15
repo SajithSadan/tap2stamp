@@ -166,7 +166,7 @@ export default function MyCards() {
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(false);
 
-    // ?add=1: the card page's iPhone "Add" sent them here - show the Add to Home Screen steps.
+    // ?add=1: the card page's iPhone "Add" (or Samsung Internet's "Open in Chrome") sent them here - show the Add to Home Screen steps.
     const [autoSteps] = useState(() => {
         try {
             return new URLSearchParams(window.location.search).get("add") === "1";

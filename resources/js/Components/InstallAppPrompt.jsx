@@ -1,22 +1,38 @@
 import { useEffect, useState } from "react";
 import { LuDownload, LuLoaderCircle } from "react-icons/lu";
-import AddToHomeScreenSteps from "@/Components/AddToHomeScreenSteps";
-import { isAndroid, isInstalledApp, isIos, snooze, snoozedSince, useBrowserInstall } from "@/lib/pwa";
+import AddToHomeScreenSteps, { useChromeInstall } from "@/Components/AddToHomeScreenSteps";
+import { isAndroid, isInstalledApp, isIos, isSamsungInternet, snooze, snoozedSince, useBrowserInstall } from "@/lib/pwa";
+
+const currentPath = () => window.location.pathname + window.location.search;
 
 const SNOOZE_DAYS = 14;
 
 /**
  * "Add {app} to your home screen" for the staff and owner apps: Install
  * (Chrome's own prompt), the ⋮ menu steps on Android before Chrome offers it,
- * or the Share → Add to Home Screen steps on iPhone. Hidden once installed,
- * and on a desktop without Chrome's prompt.
+ * or the Share → Add to Home Screen steps on iPhone. On Samsung Internet it
+ * never uses Samsung's Install (Play Protect blocks it): "Open in Chrome".
+ * Hidden once installed, and on a desktop without Chrome's prompt.
  *
  * - `snoozeKey`: "Not now" hides it for 14 days (no key = always shown, no Not now).
  * - `prepareIos`: runs before the iPhone steps; may move to another address
  *   (the one Safari will save) and return true to stop here (see StaffApp).
- * - `autoOpenSteps`: open the iPhone steps straight away (back from prepareIos).
+ * - `autoOpenSteps`: open the steps straight away (back from prepareIos, or
+ *   arriving in Chrome from Samsung Internet).
+ * - `chromePath`: Samsung Internet only - the address Chrome opens to add the
+ *   app (may be async; default: this page).
  */
-export default function InstallAppPrompt({ title, subtitle, stepsTitle, stepsDone, snoozeKey = null, prepareIos = null, autoOpenSteps = false, className = "" }) {
+export default function InstallAppPrompt({
+    title,
+    subtitle,
+    stepsTitle,
+    stepsDone,
+    snoozeKey = null,
+    prepareIos = null,
+    autoOpenSteps = false,
+    chromePath = currentPath,
+    className = "",
+}) {
     const { canInstall, promptInstall } = useBrowserInstall();
     const [hidden, setHidden] = useState(() => isInstalledApp() || (snoozeKey !== null && snoozedSince(snoozeKey, SNOOZE_DAYS)));
     const [steps, setSteps] = useState(false);
@@ -24,17 +40,28 @@ export default function InstallAppPrompt({ title, subtitle, stepsTitle, stepsDon
     const [error, setError] = useState(null);
     const ios = isIos();
     const android = !ios && isAndroid();
+    const samsung = android && isSamsungInternet();
+    const chrome = useChromeInstall({ title: stepsTitle, done: stepsDone, chromePath });
 
     useEffect(() => {
-        if (autoOpenSteps && ios && !isInstalledApp()) setSteps(true);
-    }, [autoOpenSteps, ios]);
+        if (autoOpenSteps && (ios || android) && !samsung && !isInstalledApp()) setSteps(true);
+    }, [autoOpenSteps, ios, android, samsung]);
 
-    const stepsDialog = steps ? <AddToHomeScreenSteps title={stepsTitle} done={stepsDone} android={!ios} onClose={() => setSteps(false)} /> : null;
+    const dialogs = (
+        <>
+            {steps && <AddToHomeScreenSteps title={stepsTitle} done={stepsDone} android={!ios} onClose={() => setSteps(false)} />}
+            {chrome.dialog}
+        </>
+    );
 
-    if (hidden || (!ios && !android && !canInstall)) return stepsDialog;
+    if (hidden || (!ios && !android && !canInstall)) return dialogs;
 
     async function add() {
         setError(null);
+        if (samsung) {
+            chrome.show();
+            return;
+        }
         if (canInstall) {
             await promptInstall();
             return;
@@ -70,7 +97,7 @@ export default function InstallAppPrompt({ title, subtitle, stepsTitle, stepsDon
                             className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-accent px-3.5 py-1.5 text-xs font-semibold text-brand-accent-text disabled:opacity-60"
                         >
                             {busy ? <LuLoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <LuDownload className="h-3.5 w-3.5" />}
-                            {canInstall ? "Install" : "Add"}
+                            {canInstall && !samsung ? "Install" : "Add"}
                         </button>
                         {snoozeKey && (
                             <button
@@ -92,7 +119,7 @@ export default function InstallAppPrompt({ title, subtitle, stepsTitle, stepsDon
                     </p>
                 )}
             </div>
-            {stepsDialog}
+            {dialogs}
         </>
     );
 }

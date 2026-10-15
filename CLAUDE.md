@@ -309,6 +309,13 @@ Each is its own installable app (separate manifest `id`), opening on what that u
   their own cookies: the owner logs in once inside the app.
 - Shared: `lib/pwa.js` (Chrome's install prompt, platform checks, snooze),
   `Components/InstallAppPrompt.jsx` (staff + owner banner), `AddToHomeScreenSteps.jsx`.
+- **Samsung Internet**: its own Install wraps the site in an APK built for an old Android, which
+  Google Play Protect blocks as an "unsafe app". So on Samsung Internet every install banner
+  shows **Add → "Open in Chrome"** (`ChromeInstallSteps` / `useChromeInstall`, an Android
+  `intent://…;package=com.android.chrome` link from `chromeIntentUrl()`), never Samsung's
+  Install. Chrome has its own storage, so the link carries the identity like the iPhone one:
+  staff get a **fresh** one-time code (`/staff?link=…&add=1`), customers `/my-cards?c={uuid}&add=1`,
+  owners log in once. `?add=1` now opens the steps on Android too (not only iPhone).
 
 ## Real-time customer updates (Stage 7)
 
