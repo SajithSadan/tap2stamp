@@ -24,13 +24,35 @@ class ShopWhatsAppAccount extends Model
 
     protected array $activitySecret = ['access_token'];
 
-    protected $fillable = ['shop_id', 'mode', 'waba_id', 'phone_number_id', 'display_phone_number', 'verified_name', 'access_token', 'connected_by'];
+    /** Template checks are bookkeeping, not something anyone did. */
+    protected array $activityIgnore = ['templates', 'templates_checked_at'];
+
+    protected $fillable = [
+        'shop_id', 'mode', 'waba_id', 'phone_number_id', 'display_phone_number', 'verified_name', 'access_token', 'connected_by',
+        'templates', 'templates_checked_at',
+    ];
 
     protected $hidden = ['access_token'];
 
     protected function casts(): array
     {
-        return ['access_token' => 'encrypted'];
+        return ['access_token' => 'encrypted', 'templates' => 'array', 'templates_checked_at' => 'datetime'];
+    }
+
+    /** Meta's status of one of our templates on this account (WhatsAppTemplates), null = never checked. */
+    public function templateStatus(string $name): ?string
+    {
+        return $this->templates[$name] ?? null;
+    }
+
+    /**
+     * Meta sends this app's webhooks (delivery ticks, replies) only for numbers
+     * connected through our popup; a "keys" number's webhooks go to the
+     * owner's own Meta app.
+     */
+    public function receivesWebhooks(): bool
+    {
+        return $this->mode !== self::MODE_KEYS;
     }
 
     public function shop(): BelongsTo
@@ -58,6 +80,11 @@ class ShopWhatsAppAccount extends Model
             'waba_id' => $this->waba_id,
             'phone_number_id' => $this->phone_number_id,
             'connected_at' => $this->created_at?->timezone(config('app.timezone'))->format('j M Y'),
+            'templates' => [
+                'offer' => $this->templateStatus(config('services.whatsapp.template')),
+                'poster' => $this->templateStatus(config('services.whatsapp.template_image')),
+            ],
+            'webhooks' => $this->receivesWebhooks(),
         ];
     }
 }

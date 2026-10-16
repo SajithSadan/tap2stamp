@@ -10,6 +10,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Connecting a shop's own WhatsApp Business number, so its offers go out
@@ -32,6 +33,8 @@ use Illuminate\Support\Facades\Log;
 class WhatsAppConnect
 {
     public const MODES = [ShopWhatsAppAccount::MODE_NEW, ShopWhatsAppAccount::MODE_EXISTING];
+
+    public function __construct(private WhatsAppTemplates $templates) {}
 
     /** Our Meta app is set up for the owners' Connect popup. */
     public function embeddedSignupEnabled(): bool
@@ -114,7 +117,7 @@ class WhatsAppConnect
             $this->logFailure('subscribe app', $subscribed);
         }
 
-        return DB::transaction(function () use ($shop, $by, $mode, $wabaId, $phoneNumberId, $token, $number) {
+        $account = DB::transaction(function () use ($shop, $by, $mode, $wabaId, $phoneNumberId, $token, $number) {
             // Two tabs finishing at once: only one wins (shop_id is unique too).
             Shop::whereKey($shop->id)->lockForUpdate()->first();
             if ($shop->whatsappAccount()->exists()) {
@@ -131,6 +134,16 @@ class WhatsAppConnect
                 'connected_by' => $by->id,
             ]);
         });
+
+        // Our offer templates go onto the account straight away, so Meta starts reviewing them.
+        // Never fails the connection: the page checks again while they're missing.
+        try {
+            $this->templates->sync($account);
+        } catch (Throwable $e) {
+            Log::warning('WhatsApp connect: templates failed', ['shop_id' => $shop->id, 'error' => $e->getMessage()]);
+        }
+
+        return $account;
     }
 
     private function register(string $phoneNumberId, string $token): void

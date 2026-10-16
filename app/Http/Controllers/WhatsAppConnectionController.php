@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\WhatsAppConnect;
 use App\Services\WhatsAppConnectException;
+use App\Services\WhatsAppTemplates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -60,6 +61,20 @@ class WhatsAppConnectionController extends Controller
         }
 
         return back()->with('status', 'WhatsApp connected: '.($account->display_phone_number ?? 'your number').'.');
+    }
+
+    /** "Check again": creates any template Meta refused or that's missing, and reads Meta's review. */
+    public function templates(Request $request, WhatsAppTemplates $templates): RedirectResponse
+    {
+        $account = $request->user()->shop->whatsappAccount;
+        abort_unless($account, 404);
+
+        $statuses = $templates->sync($account);
+        $approved = collect($statuses)->filter(fn ($s) => $s === WhatsAppTemplates::APPROVED)->count();
+
+        return back()->with('status', $approved === count($templates->names())
+            ? 'Your message templates are approved.'
+            : 'Checked with Meta. Templates usually take a few minutes to a day to be approved.');
     }
 
     public function destroy(Request $request, WhatsAppConnect $connect): RedirectResponse

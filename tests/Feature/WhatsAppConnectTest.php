@@ -32,6 +32,8 @@ function metaAccepts(array $numbers = [['id' => '5550001', 'display_phone_number
         'graph.facebook.com/v21.0/98765/phone_numbers*' => Http::response(['data' => $numbers]),
         'graph.facebook.com/v21.0/5550001/register' => Http::response(['success' => true]),
         'graph.facebook.com/v21.0/98765/subscribed_apps' => Http::response(['success' => true]),
+        // Our offer templates, created on the account after connecting (WhatsAppTemplatesTest covers them).
+        'graph.facebook.com/*' => Http::response(['data' => []]),
     ]);
 }
 

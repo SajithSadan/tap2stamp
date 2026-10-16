@@ -850,9 +850,10 @@ Owners send offers to customers who ticked "send me offers from {shop} on WhatsA
   WhatsApp number first.") until connected; a campaign whose number is removed mid-way fails
   its remaining messages ("WhatsApp number removed").
   - **Owner** (`Components/Dashboard/WhatsAppConnectPanel.jsx` on the WhatsApp page): Meta's
-    **Embedded Signup** popup (FB JS SDK, loaded on click) - **Create a new WhatsApp Business
-    account** (`new`, the number is then `register`ed for the Cloud API) or **Use my WhatsApp
-    Business app** (`existing`, `featureType: whatsapp_business_app_onboarding` = coexistence).
+    **Embedded Signup** popup (FB JS SDK, loaded on click), shown as two rows with a Connect
+    button each - **My WhatsApp Business app** (`existing`, primary, `featureType:
+    whatsapp_business_app_onboarding` = coexistence) or **A new number** (`new`, the number is
+    then `register`ed for the Cloud API).
     The popup's code → `POST /dashboard/whatsapp/connection` → swapped for a token **server-side**
     with `META_APP_SECRET`. Connected = the number + **Remove** (`DELETE …/connection`); the
     connect options only come back after Remove. Both routes are `OWNER_ONLY` in ViewAsOwner.
@@ -860,17 +861,26 @@ Owners send offers to customers who ticked "send me offers from {shop} on WhatsA
     (`config('services.meta')`).
   - **Owner's own keys** (`keys` mode, `POST /dashboard/whatsapp/connection/keys`, OWNER_ONLY):
     account id, number id and a permanent System User token from their own Meta app, with the
-    steps on the page. Behind "Already set up in Meta? Enter your keys" when the popup is
-    available; **the only option** while our Meta app isn't set up. Works without
+    steps on the page. Behind the "Enter keys instead" link (footer) when the popup is
+    available; **the only working option** while our Meta app isn't set up - the two popup rows
+    then still show, greyed with **Coming soon**, and the footer's "Enter keys" opens the form. Works without
     `META_APP_*`. **Only the owner connects** (user's rule: they fill in Meta's forms).
   - **Admin** (shop settings → **WhatsApp** tab, `ShopWhatsAppTab.jsx`,
     `Admin\ShopWhatsAppController`): **sees** the number (how it was connected, ids) and can
     **Remove** it - never connects one.
   - Either way the browser-sent ids are **checked against the token** (`GET {waba}/phone_numbers`
     must list the number) before saving; Meta errors are logged without tokens.
-  - Not built yet: creating / checking each shop's templates on its own account (stage 2) and
-    the admin Shops-grid column (stage 4). Until stage 2, a connected account needs the
-    `WHATSAPP_TEMPLATE(_IMAGE)` templates approved on it by hand.
+  - **Templates on each account** (stage 2, `App\Services\WhatsAppTemplates`): right after
+    connecting, both `WHATSAPP_TEMPLATE(_IMAGE)` templates are looked up on the shop's account
+    and created if missing (category MARKETING, body `TEMPLATE_BODY`, Unsubscribe URL button
+    `{APP_URL}/u/{{1}}`; the image one gets a sample header uploaded through Meta's Resumable
+    Upload API to the token's own app, from `public/images/og-image.jpg`). Statuses live in
+    `shop_whatsapp_accounts.templates` ({name: Meta status | `NOT_CREATED`}) and are updated by
+    the webhook, by `refreshIfWaiting()` on the WhatsApp page / before a send (at most every
+    10 min, only while one isn't approved) and by **Check again** (`POST /dashboard/whatsapp/templates`).
+    **Sending needs the template approved** (a poster needs the image one); the number panel
+    lists both with their status. Never fails a connection.
+  - Not built yet: the admin Shops-grid column (stage 4).
 - **Delivery**: WhatsApp Cloud API via `App\Services\WhatsAppGateway` (thin, mockable),
   `sendTemplate($shopAccount, …)` with that shop's number id + token, and a
   **Meta-approved marketing template** (`WHATSAPP_TEMPLATE`): body = `WhatsAppGateway::TEMPLATE_BODY` ({{1}} first name, {{2}} shop,
@@ -890,7 +900,30 @@ Owners send offers to customers who ticked "send me offers from {shop} on WhatsA
   `OWNER_ONLY` in `ViewAsOwner` — an admin can't send for a shop.
 - **Unsubscribe**: `GET /u/{token}` only shows the page (link previews fetch it);
   `POST` sets `marketing_consent = false` + `marketing_opted_out_at` for that one card.
-- Not built: delivery/read receipts (Meta status webhook) and replies.
+- **Webhook** (`/api/whatsapp/webhook` in `routes/api.php`, `WhatsAppWebhookController` →
+  `App\Services\WhatsAppWebhook`): GET = Meta's verify handshake (`WHATSAPP_WEBHOOK_VERIFY_TOKEN`);
+  POST trusted only with a valid `X-Hub-Signature-256` (HMAC of the raw body with
+  `META_APP_SECRET`), else 401. Set in Meta → WhatsApp → Configuration, fields `messages` +
+  `message_template_status_update`; connecting already subscribes our app to each account.
+  Every lookup goes through the account the change is for (by `phone_number_id` / `waba_id`),
+  so one shop's webhook can't touch another's rows. It records:
+  - **ticks** on offers (`marketing_messages.delivered_at` / `read_at`, never going back) and
+    on replies; a later `failed` marks the offer failed and recounts the campaign. Sent shows
+    "N sent · N delivered · N read";
+  - **customers' messages** (`whatsapp_messages`, stored once per Meta id, matched to the card
+    by phone; reactions skipped). A message of just **STOP / unsubscribe** withdraws that
+    shop's offers, like the button;
+  - **template approvals**.
+  "Keys" numbers' webhooks go to the owner's own Meta app, so they get no ticks or replies
+  (`ShopWhatsAppAccount::receivesWebhooks()`; the Replies tab says so).
+- **Replies** (owner, WhatsApp → **Replies** tab with an unread badge, `Components/Dashboard/WhatsAppChats.jsx`,
+  `App\Services\WhatsAppInbox`): chats newest first (`chats` / `unreadChats` props), one chat as
+  JSON (`GET /dashboard/whatsapp/chat?phone=…` - phone in the query, never the path) with the
+  offers that customer was sent, ticks, and a reply box → `POST /dashboard/whatsapp/chat`
+  (`sendText`, plain text, **only within 24 h of the customer's last message** - WhatsApp's
+  rule; refused otherwise). Both poll every 20 s while open. Opening a chat marks it seen,
+  except for an admin viewing as owner, who can read but **not reply** (`dashboard.whatsapp.reply`
+  is OWNER_ONLY). Photos etc. show as "[Photo]" (media isn't downloaded).
 
 ## Owners don't get their card link (additive — protects counter display sales)
 
@@ -1335,6 +1368,8 @@ default, and customers can register without it. `CustomerRegistrar` only ever tu
 unticked box on a repeat registration is not a withdrawal. Withdrawal is the unsubscribe link
 (see "WhatsApp marketing"). Plus `marketing_unsubscribe_token`, `marketing_opted_out_at`,
 `marketing_campaigns`, `marketing_messages`. Plus `shop_whatsapp_accounts` (see "WhatsApp marketing").
+Plus `shop_whatsapp_accounts.templates` / `templates_checked_at`, `marketing_messages.delivered_at` /
+`read_at` (+ index on `wa_message_id`, the webhook's lookup) and `whatsapp_messages` (see "WhatsApp marketing").
 
 ## Working rules
 

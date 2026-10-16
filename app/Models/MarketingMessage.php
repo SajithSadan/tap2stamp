@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MarketingMessage extends Model
 {
-    protected $fillable = ['marketing_campaign_id', 'customer_shop_card_id', 'status', 'wa_message_id', 'error', 'sent_at'];
+    protected $fillable = ['marketing_campaign_id', 'customer_shop_card_id', 'status', 'wa_message_id', 'error', 'sent_at', 'delivered_at', 'read_at'];
 
     protected function casts(): array
     {
-        return ['sent_at' => 'datetime'];
+        return ['sent_at' => 'datetime', 'delivered_at' => 'datetime', 'read_at' => 'datetime'];
     }
 
     public function campaign(): BelongsTo

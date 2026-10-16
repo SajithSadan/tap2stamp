@@ -7,6 +7,8 @@ use App\Models\MarketingCampaign;
 use App\Services\MarketingService;
 use App\Services\WhatsAppConnect;
 use App\Services\WhatsAppGateway;
+use App\Services\WhatsAppInbox;
+use App\Services\WhatsAppTemplates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,11 +22,16 @@ use Inertia\Response;
  */
 class MarketingController extends Controller
 {
-    public function index(Request $request, MarketingService $marketing, WhatsAppConnect $connect): Response
+    public function index(Request $request, MarketingService $marketing, WhatsAppConnect $connect, WhatsAppTemplates $templates, WhatsAppInbox $inbox): Response
     {
         $shop = $request->user()->shop;
         $account = $shop->whatsappAccount;
         $campaigns = MarketingCampaign::where('shop_id', $shop->id)->latest('id');
+
+        // Still waiting for Meta to approve our templates? Ask (at most every few minutes).
+        if ($account) {
+            $templates->refreshIfWaiting($account);
+        }
 
         return Inertia::render('Dashboard/Marketing', [
             'shop' => DashboardController::shopSummary($shop),
@@ -33,7 +40,20 @@ class MarketingController extends Controller
             'sentThisMonth' => (int) (clone $campaigns)
                 ->where('created_at', '>=', now()->timezone('Europe/London')->startOfMonth())
                 ->sum('sent_count'),
-            'campaigns' => (clone $campaigns)->limit(20)->get()->map->summary(),
+            'campaigns' => (clone $campaigns)
+                ->withCount([
+                    'messages as delivered_count' => fn ($q) => $q->whereNotNull('delivered_at'),
+                    'messages as read_count' => fn ($q) => $q->whereNotNull('read_at'),
+                ])
+                ->limit(20)->get()->map->summary(),
+            // Ready to send = connected and the offer template approved; posters need the second one.
+            'templatesReady' => [
+                'offer' => $account !== null && $templates->ready($account, false),
+                'poster' => $account !== null && $templates->ready($account, true),
+            ],
+            'chats' => $inbox->conversations($shop),
+            'unreadChats' => $inbox->unreadCount($shop),
+            'replyLimit' => WhatsAppInbox::MAX_REPLY,
             'nextAllowedAt' => $marketing->nextAllowedAt($shop)?->timezone('Europe/London')->format('D j M, g:i A'),
             // Sending needs the shop's own number connected.
             'whatsappReady' => $account !== null,
@@ -46,13 +66,22 @@ class MarketingController extends Controller
         ]);
     }
 
-    public function store(StartCampaignRequest $request, MarketingService $marketing): RedirectResponse
+    public function store(StartCampaignRequest $request, MarketingService $marketing, WhatsAppTemplates $templates): RedirectResponse
     {
         $shop = $request->user()->shop;
         $audience = $request->string('audience')->value();
+        $account = $shop->whatsappAccount()->first(); // fresh: it may have just been removed
+        $withPoster = $request->hasFile('poster');
+
+        if ($account) {
+            $templates->refreshIfWaiting($account);
+        }
 
         $problem = match (true) {
-            ! $shop->whatsappAccount()->exists() => 'Connect your WhatsApp number first.',
+            ! $account => 'Connect your WhatsApp number first.',
+            ! $templates->ready($account, $withPoster) => $withPoster && $templates->ready($account, false)
+                ? "Meta hasn't approved offers with a poster yet. Send it without the poster, or try again later."
+                : "Meta hasn't approved your offer message yet. It usually takes a few minutes, sometimes up to a day.",
             $marketing->nextAllowedAt($shop) !== null => 'You can send one message a day. Try again after '
                 .$marketing->nextAllowedAt($shop)->timezone('Europe/London')->format('D j M, g:i A').'.',
             $marketing->audience($shop, $audience)->doesntExist() => 'Nobody in that group has opted in yet.',

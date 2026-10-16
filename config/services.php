@@ -104,6 +104,8 @@ return [
         'template_image' => env('WHATSAPP_TEMPLATE_IMAGE', 'shop_offer_image'),
         'template_language' => env('WHATSAPP_TEMPLATE_LANGUAGE', 'en_GB'),
         'api_version' => env('WHATSAPP_API_VERSION', 'v21.0'),
+        // Any random string, typed into Meta's webhook settings too (WhatsAppWebhookController::verify).
+        'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN'),
     ],
 
     // Our Meta app, for owners connecting their own WhatsApp Business number

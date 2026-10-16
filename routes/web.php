@@ -54,6 +54,7 @@ use App\Http\Controllers\StaffSetupController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\UnsubscribeController;
 use App\Http\Controllers\WhatsAppConnectionController;
+use App\Http\Controllers\WhatsAppInboxController;
 use App\Services\StaffAppLinks;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -350,6 +351,11 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
         Route::post('/whatsapp/connection', [WhatsAppConnectionController::class, 'store'])->middleware('throttle:10,1')->name('whatsapp.connect');
         Route::post('/whatsapp/connection/keys', [WhatsAppConnectionController::class, 'keys'])->middleware('throttle:10,1')->name('whatsapp.connect-keys');
         Route::delete('/whatsapp/connection', [WhatsAppConnectionController::class, 'destroy'])->name('whatsapp.disconnect');
+        // Our offer templates on the shop's account: create missing ones / check Meta's review.
+        Route::post('/whatsapp/templates', [WhatsAppConnectionController::class, 'templates'])->middleware('throttle:6,1')->name('whatsapp.templates');
+        // Customers' replies (from Meta's webhook) and the owner's answers. Phone in the query/body, never the path.
+        Route::get('/whatsapp/chat', [WhatsAppInboxController::class, 'show'])->middleware('throttle:120,1')->name('whatsapp.chat');
+        Route::post('/whatsapp/chat', [WhatsAppInboxController::class, 'reply'])->middleware('throttle:30,1')->name('whatsapp.reply');
     });
 
     // Ordering products (any quantity) through Stripe Checkout, and tracking them.

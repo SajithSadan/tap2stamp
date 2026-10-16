@@ -165,8 +165,13 @@ class MarketingService
         return $this->refreshCounts($campaign);
     }
 
-    /** @return array{sent: int, failed: int, total: int, done: bool} */
-    private function refreshCounts(MarketingCampaign $campaign): array
+    /**
+     * Also called by WhatsAppWebhook when Meta reports a message failed after
+     * accepting it.
+     *
+     * @return array{sent: int, failed: int, total: int, done: bool}
+     */
+    public function refreshCounts(MarketingCampaign $campaign): array
     {
         $counts = $campaign->messages()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
         $done = ! ($counts['pending'] ?? 0) && ! ($counts['sending'] ?? 0);

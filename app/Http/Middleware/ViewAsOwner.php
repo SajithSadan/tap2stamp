@@ -44,6 +44,8 @@ class ViewAsOwner
         'dashboard.whatsapp.connect',
         'dashboard.whatsapp.connect-keys',
         'dashboard.whatsapp.disconnect',
+        // Customers would get a reply the owner never wrote.
+        'dashboard.whatsapp.reply',
     ];
 
     public function handle(Request $request, Closure $next): Response

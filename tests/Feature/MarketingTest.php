@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
 beforeEach(function () {
     config([
         'services.whatsapp.template' => 'shop_offer',
+        'services.whatsapp.template_image' => 'shop_offer_image',
         'services.whatsapp.template_language' => 'en_GB',
         'services.whatsapp.api_version' => 'v21.0',
         'loyalty.marketing_batch_size' => 2,
@@ -31,6 +32,9 @@ function marketingOwner(): array
     ShopWhatsAppAccount::create([
         'shop_id' => $shop->id, 'mode' => 'keys', 'waba_id' => '99001', 'phone_number_id' => '123456',
         'display_phone_number' => '+44 7700 900999', 'access_token' => 'wa_secret_token',
+        // Both offer templates already approved by Meta on the account.
+        'templates' => ['shop_offer' => 'APPROVED', 'shop_offer_image' => 'APPROVED'],
+        'templates_checked_at' => now(),
     ]);
 
     return [$owner, $shop];

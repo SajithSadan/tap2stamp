@@ -62,6 +62,9 @@ class MarketingCampaign extends Model
             'recipients' => $this->recipients_count,
             'sent' => $this->sent_count,
             'failed' => $this->failed_count,
+            // From Meta's webhook; null when not loaded.
+            'delivered' => $this->delivered_count,
+            'read' => $this->read_count,
             'sending' => $this->isSending(),
             'date' => $this->created_at->timezone('Europe/London')->format('j M Y, g:i A'),
         ];

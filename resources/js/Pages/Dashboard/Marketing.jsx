@@ -2,15 +2,16 @@ import { router, useForm } from "@inertiajs/react";
 import axios from "axios";
 import { useEffect, useRef, useState } from "react";
 import { FaWhatsapp } from "react-icons/fa6";
-import { LuCheckCheck, LuClock, LuExternalLink, LuHistory, LuImagePlus, LuSend, LuTrash2, LuUsers } from "react-icons/lu";
+import { LuCheckCheck, LuClock, LuExternalLink, LuHistory, LuImagePlus, LuMessageCircle, LuSend, LuTrash2, LuUsers } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
 import OwnerLayout from "@/Components/Dashboard/OwnerLayout";
+import WhatsAppChats from "@/Components/Dashboard/WhatsAppChats";
 import WhatsAppConnectPanel from "@/Components/Dashboard/WhatsAppConnectPanel";
 import { EmptyState, FieldError, inputClass, Panel, primaryButton, secondaryButton, StatTile } from "@/Components/Dashboard/Ui";
 
 const SAMPLE_NAME = "Sam";
 
-const TAB_KEYS = ["send", "sent", "number"];
+const TAB_KEYS = ["send", "sent", "replies", "number"];
 
 function audienceOptions(activeDays) {
     return [
@@ -59,7 +60,7 @@ function useFileUrl(file) {
     return url;
 }
 
-function PosterPicker({ file, url, onChange, error }) {
+function PosterPicker({ file, url, onChange, error, unavailable }) {
     const inputRef = useRef(null);
     const [preparing, setPreparing] = useState(false);
 
@@ -100,11 +101,12 @@ function PosterPicker({ file, url, onChange, error }) {
             ) : (
                 <button
                     type="button"
-                    disabled={preparing}
+                    disabled={preparing || unavailable}
                     onClick={() => inputRef.current?.click()}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand-border py-4 text-sm font-medium text-brand-muted transition-colors hover:border-brand-accent hover:text-brand-text"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand-border py-4 text-sm font-medium text-brand-muted transition-colors enabled:hover:border-brand-accent enabled:hover:text-brand-text disabled:opacity-60"
                 >
-                    <LuImagePlus className="h-4 w-4" /> {preparing ? "Preparing…" : "Add a poster · JPG or PNG"}
+                    <LuImagePlus className="h-4 w-4" />
+                    {unavailable ? "Posters can be added once Meta approves them" : preparing ? "Preparing…" : "Add a poster · JPG or PNG"}
                 </button>
             )}
             <FieldError message={error} />
@@ -196,6 +198,10 @@ export default function Marketing({
     whatsappReady,
     whatsappAccount = null,
     embeddedSignup = null,
+    templatesReady = { offer: false, poster: false },
+    chats = [],
+    unreadChats = 0,
+    replyLimit,
     templateBody,
     maxMessage,
     activeDays,
@@ -211,9 +217,11 @@ export default function Marketing({
 
     const blocked = !whatsappReady
         ? "Connect your WhatsApp number first. Offers go out from it."
-        : nextAllowedAt
-          ? `One message a day keeps customers happy. Your next one can go after ${nextAllowedAt}.`
-          : null;
+        : !templatesReady.offer
+          ? "Meta is still approving your offer message. It usually takes a few minutes, sometimes up to a day."
+          : nextAllowedAt
+            ? `One message a day keeps customers happy. Your next one can go after ${nextAllowedAt}.`
+            : null;
 
     // Open on the number while there's none; the hash (#sent) keeps the tab across reloads.
     const [tab, setTab] = useState(() => {
@@ -235,6 +243,7 @@ export default function Marketing({
     const tabs = [
         { key: "send", label: "New offer", icon: LuSend },
         { key: "sent", label: "Sent", icon: LuHistory, count: campaigns.length },
+        { key: "replies", label: "Replies", icon: LuMessageCircle, unread: unreadChats },
         { key: "number", label: "WhatsApp number", icon: FaWhatsapp, warn: !whatsappReady },
     ];
 
@@ -276,12 +285,19 @@ export default function Marketing({
                         <t.icon className="h-4 w-4" />
                         {t.label}
                         {t.count > 0 && <span className="text-xs tabular-nums text-brand-muted">{t.count}</span>}
+                        {t.unread > 0 && (
+                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#25D366] px-1.5 text-[11px] font-semibold tabular-nums text-white">
+                                {t.unread}
+                            </span>
+                        )}
                         {t.warn && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-label="not connected" />}
                     </button>
                 ))}
             </nav>
 
             {tab === "number" && <WhatsAppConnectPanel account={whatsappAccount} embeddedSignup={embeddedSignup} confirm={confirm} />}
+
+            {tab === "replies" && <WhatsAppChats chats={chats} account={whatsappAccount} replyLimit={replyLimit} />}
 
             {tab === "send" && (
                 <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -368,6 +384,7 @@ export default function Marketing({
                                     url={posterUrl}
                                     onChange={(file) => form.setData("poster", file)}
                                     error={form.errors.poster}
+                                    unavailable={whatsappReady && templatesReady.offer && !templatesReady.poster}
                                 />
 
                                 {blocked && (
@@ -428,6 +445,8 @@ export default function Marketing({
                                         ) : (
                                             <>
                                                 <span className="text-brand-text">{c.sent} sent</span>
+                                                {c.delivered > 0 && <span className="text-brand-muted"> · {c.delivered} delivered</span>}
+                                                {c.read > 0 && <span className="text-brand-muted"> · {c.read} read</span>}
                                                 {c.failed > 0 && <span className="text-red-600"> · {c.failed} failed</span>}
                                             </>
                                         )}

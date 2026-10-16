@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DeployController;
+use App\Http\Controllers\WhatsAppWebhookController;
 use Illuminate\Support\Facades\Route;
 
 // Outward-facing endpoints (served under /api, stateless - no session, no
@@ -11,3 +12,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/deploy/migrate', [DeployController::class, 'browserMigrate'])
     ->middleware('throttle:5,1')
     ->name('api.deploy.migrate');
+
+// Meta's WhatsApp webhook: delivery / read ticks, customers' replies, template
+// approvals. GET is Meta's verify handshake; POST is trusted only with a valid
+// X-Hub-Signature-256 (our Meta app secret).
+Route::get('/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify'])->name('api.whatsapp.webhook.verify');
+Route::post('/whatsapp/webhook', [WhatsAppWebhookController::class, 'receive'])->name('api.whatsapp.webhook');

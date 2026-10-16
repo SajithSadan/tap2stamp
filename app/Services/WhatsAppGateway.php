@@ -60,21 +60,39 @@ class WhatsAppGateway
             $from->phone_number_id,
         );
 
+        return $this->post($url, $from, [
+            'messaging_product' => 'whatsapp',
+            // International format without the "+".
+            'to' => ltrim($phone, '+'),
+            'type' => 'template',
+            'template' => [
+                'name' => config($imageUrl ? 'services.whatsapp.template_image' : 'services.whatsapp.template'),
+                'language' => ['code' => config('services.whatsapp.template_language')],
+                'components' => $components,
+            ],
+        ]);
+    }
+
+    /**
+     * A plain text reply. WhatsApp only allows these within 24 hours of the
+     * customer's last message to the number (WhatsAppInbox checks first).
+     *
+     * @return array{ok: bool, id?: string, error?: string}
+     */
+    public function sendText(ShopWhatsAppAccount $from, string $phone, string $text): array
+    {
+        return $this->post(
+            sprintf('https://graph.facebook.com/%s/%s/messages', config('services.whatsapp.api_version'), $from->phone_number_id),
+            $from,
+            ['messaging_product' => 'whatsapp', 'to' => ltrim($phone, '+'), 'type' => 'text', 'text' => ['body' => $text]],
+        );
+    }
+
+    /** @return array{ok: bool, id?: string, error?: string} */
+    private function post(string $url, ShopWhatsAppAccount $from, array $payload): array
+    {
         try {
-            $response = Http::acceptJson()
-                ->timeout(15)
-                ->withToken($from->access_token)
-                ->post($url, [
-                    'messaging_product' => 'whatsapp',
-                    // International format without the "+".
-                    'to' => ltrim($phone, '+'),
-                    'type' => 'template',
-                    'template' => [
-                        'name' => config($imageUrl ? 'services.whatsapp.template_image' : 'services.whatsapp.template'),
-                        'language' => ['code' => config('services.whatsapp.template_language')],
-                        'components' => $components,
-                    ],
-                ]);
+            $response = Http::acceptJson()->timeout(15)->withToken($from->access_token)->post($url, $payload);
         } catch (ConnectionException $e) {
             return ['ok' => false, 'error' => 'WhatsApp unreachable'];
         }

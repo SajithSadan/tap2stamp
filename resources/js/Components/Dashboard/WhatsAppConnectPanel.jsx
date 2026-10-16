@@ -1,7 +1,7 @@
 import { router, useForm, usePage } from "@inertiajs/react";
 import { useState } from "react";
 import { FaFacebook, FaWhatsapp } from "react-icons/fa6";
-import { LuEye, LuEyeOff, LuKeyRound, LuLink, LuLoaderCircle, LuPlus, LuSmartphone, LuTrash2 } from "react-icons/lu";
+import { LuEye, LuEyeOff, LuKeyRound, LuLink, LuLoaderCircle, LuPlus, LuRefreshCw, LuSmartphone, LuTrash2 } from "react-icons/lu";
 import { FieldError, inputClass, Panel, primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
 
 /**
@@ -13,15 +13,15 @@ import { FieldError, inputClass, Panel, primaryButton, secondaryButton } from "@
  */
 
 const MODES = {
-    new: {
-        icon: LuPlus,
-        title: "Create a new WhatsApp Business account",
-        text: "Use a number that isn't on WhatsApp yet. Meta's window walks you through it.",
-    },
     existing: {
         icon: LuSmartphone,
-        title: "Use my WhatsApp Business app",
-        text: "Keep using the app on your phone. Offers go out from the same number; you'll scan a QR in the app.",
+        title: "My WhatsApp Business app",
+        text: "Keep the number you use on your phone.",
+    },
+    new: {
+        icon: LuPlus,
+        title: "A new number",
+        text: "One that isn't on WhatsApp yet.",
     },
 };
 
@@ -213,6 +213,56 @@ function KeysForm() {
     );
 }
 
+// Meta's review of our offer templates on the shop's account (App\Services\WhatsAppTemplates).
+const TEMPLATE_STATES = {
+    APPROVED: { label: "Approved", className: "bg-brand-accent/10 text-brand-accent" },
+    PENDING: { label: "Waiting for Meta", className: "bg-amber-500/10 text-amber-700" },
+    IN_APPEAL: { label: "Waiting for Meta", className: "bg-amber-500/10 text-amber-700" },
+    REJECTED: { label: "Rejected", className: "bg-red-500/10 text-red-600" },
+    PAUSED: { label: "Paused by Meta", className: "bg-red-500/10 text-red-600" },
+    DISABLED: { label: "Disabled by Meta", className: "bg-red-500/10 text-red-600" },
+};
+const NOT_SET_UP = { label: "Not set up", className: "bg-brand-bg text-brand-muted" };
+
+function TemplateStatus({ templates }) {
+    const [checking, setChecking] = useState(false);
+    const rows = [
+        { key: "offer", label: "Offer message" },
+        { key: "poster", label: "Offer with a poster" },
+    ];
+    const allApproved = rows.every((r) => templates?.[r.key] === "APPROVED");
+
+    function check() {
+        router.post("/dashboard/whatsapp/templates", {}, { preserveScroll: true, onStart: () => setChecking(true), onFinish: () => setChecking(false) });
+    }
+
+    return (
+        <div className="border-t border-brand-border px-5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-brand-muted">Message templates</p>
+                {!allApproved && (
+                    <button type="button" onClick={check} disabled={checking} className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-muted hover:text-brand-text disabled:opacity-60">
+                        <LuRefreshCw className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} /> Check again
+                    </button>
+                )}
+            </div>
+            <ul className="mt-1 divide-y divide-brand-border">
+                {rows.map((r) => {
+                    const state = TEMPLATE_STATES[templates?.[r.key]] ?? NOT_SET_UP;
+
+                    return (
+                        <li key={r.key} className="flex items-center justify-between gap-3 py-2 text-sm">
+                            <span className="text-brand-text">{r.label}</span>
+                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${state.className}`}>{state.label}</span>
+                        </li>
+                    );
+                })}
+            </ul>
+            {!allApproved && <p className="text-xs text-brand-muted">Meta reviews each new number's messages, usually within minutes, sometimes a day.</p>}
+        </div>
+    );
+}
+
 export default function WhatsAppConnectPanel({ account, embeddedSignup, confirm }) {
     const { errors } = usePage().props;
     const [busy, setBusy] = useState(null);
@@ -246,8 +296,8 @@ export default function WhatsAppConnectPanel({ account, embeddedSignup, confirm 
 
     if (account) {
         return (
-            <Panel title="Your WhatsApp number">
-                <div className="flex flex-wrap items-center gap-3">
+            <Panel title="Your WhatsApp number" bodyClassName="">
+                <div className="flex flex-wrap items-center gap-3 px-5 py-4">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#25D366]/15 text-[#128C7E]">
                         <FaWhatsapp className="h-5 w-5" />
                     </span>
@@ -264,64 +314,78 @@ export default function WhatsAppConnectPanel({ account, embeddedSignup, confirm 
                         <LuTrash2 className="h-4 w-4" /> Remove
                     </button>
                 </div>
+                <TemplateStatus templates={account.templates} />
             </Panel>
         );
     }
 
-    // With our Meta app set up, two ways in: Meta's window, or keys from their own Meta app.
-    const ways = embeddedSignup
-        ? [
-              { key: "facebook", label: "Connect with Facebook", icon: FaFacebook },
-              { key: "keys", label: "Enter keys", icon: LuKeyRound },
-          ]
-        : null;
-    const way = ways ? (withKeys ? "keys" : "facebook") : "keys";
+    // Meta's window first, keys from their own Meta app behind a link. Without our Meta app's
+    // keys the two rows still show, as "Coming soon", and keys are the way in.
+    const popupReady = Boolean(embeddedSignup);
+    const linkButton = "inline-flex items-center gap-1.5 text-sm font-medium text-brand-muted hover:text-brand-text";
 
     return (
-        <Panel title="Connect your WhatsApp" description="Offers go out from your shop's own WhatsApp number. Connect one to start sending.">
-            {ways && (
-                <div role="tablist" aria-label="How to connect" className="mb-5 inline-flex rounded-xl bg-brand-bg p-1">
-                    {ways.map((w) => (
-                        <button
-                            key={w.key}
-                            type="button"
-                            role="tab"
-                            aria-selected={way === w.key}
-                            onClick={() => setWithKeys(w.key === "keys")}
-                            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
-                                way === w.key ? "bg-brand-card text-brand-text ring-1 ring-brand-border" :"text-brand-muted hover:text-brand-text"
-                            }`}
-                        >
-                            <w.icon className="h-4 w-4" /> {w.label}
-                        </button>
-                    ))}
-                </div>
-            )}
-            {way === "facebook" ? (
+        <Panel
+            title="Connect your WhatsApp"
+            description="Offers go out from your shop's own number."
+            action={
+                withKeys && (
+                    <button type="button" onClick={() => setWithKeys(false)} className={linkButton}>
+                        <FaFacebook className="h-4 w-4 text-[#1877F2]" /> {popupReady ? "Connect with Facebook" : "Back"}
+                    </button>
+                )
+            }
+            bodyClassName={withKeys ? "p-5" : ""}
+        >
+            {!withKeys ? (
                 <>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <ul className="divide-y divide-brand-border">
                         {Object.entries(MODES).map(([mode, m]) => (
-                            <button
-                                key={mode}
-                                type="button"
-                                onClick={() => connect(mode)}
-                                disabled={busy !== null}
-                                className="flex items-start gap-3 rounded-2xl border border-brand-border p-4 text-left transition-colors hover:border-brand-accent disabled:opacity-60"
-                            >
-                                {busy === mode ? (
-                                    <LuLoaderCircle className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-brand-accent" />
-                                ) : (
-                                    <m.icon className="mt-0.5 h-5 w-5 shrink-0 text-brand-accent" />
-                                )}
-                                <span className="min-w-0">
-                                    <span className="block text-sm font-semibold text-brand-text">{m.title}</span>
-                                    <span className="mt-1 block text-xs text-brand-muted">{m.text}</span>
+                            <li key={mode} className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4">
+                                <span
+                                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                                        popupReady ? "bg-[#25D366]/15 text-[#128C7E]" : "bg-brand-bg text-brand-muted"
+                                    }`}
+                                >
+                                    <m.icon className="h-5 w-5" />
                                 </span>
-                            </button>
+                                <div className="min-w-0 flex-1">
+                                    <p className={`text-sm font-semibold ${popupReady ? "text-brand-text" : "text-brand-muted"}`}>{m.title}</p>
+                                    <p className="text-xs text-brand-muted">{m.text}</p>
+                                </div>
+                                {popupReady ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => connect(mode)}
+                                        disabled={busy !== null}
+                                        className={`${mode === "existing" ? primaryButton : secondaryButton} w-full sm:w-auto`}
+                                    >
+                                        {busy === mode ? <LuLoaderCircle className="h-4 w-4 animate-spin" /> : <FaFacebook className="h-4 w-4" />}
+                                        {busy === mode ? "Opening Meta…" : "Connect"}
+                                    </button>
+                                ) : (
+                                    <span className="rounded-full bg-brand-bg px-2.5 py-1 text-xs font-medium text-brand-muted">Coming soon</span>
+                                )}
+                            </li>
                         ))}
+                    </ul>
+                    {(error || errors?.whatsapp) && (
+                        <div className="px-5 pb-3">
+                            <FieldError message={error ?? errors?.whatsapp} />
+                        </div>
+                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-brand-border px-5 py-3">
+                        <p className="text-xs text-brand-muted">
+                            {popupReady ? "You'll sign in with Facebook. Meta bills marketing messages." : "Have your own Meta keys? Connect with them now."}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setWithKeys(true)}
+                            className={popupReady ? linkButton : secondaryButton}
+                        >
+                            <LuKeyRound className="h-4 w-4" /> {popupReady ? "Enter keys instead" : "Enter keys"}
+                        </button>
                     </div>
-                    <p className="mt-3 text-xs text-brand-muted">You'll log in with Facebook. Meta bills your business for marketing messages.</p>
-                    <FieldError message={error ?? errors?.whatsapp} />
                 </>
             ) : (
                 <KeysForm />
