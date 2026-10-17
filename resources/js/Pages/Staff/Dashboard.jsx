@@ -1,7 +1,7 @@
 import { Head } from "@inertiajs/react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     LuCheck,
     LuChartColumn,
@@ -23,7 +23,7 @@ import AiStockCommand from "@/Components/Menu/AiStockCommand";
 import OfflineBanner from "@/Components/OfflineBanner";
 import TechsaFooter from "@/Components/TechsaFooter";
 import { STAFF_BROWSER_ID_KEY, STAFF_TOKEN_KEY } from "@/lib/storage";
-import { redeemAppLink, staffManifestHref, StaffInstallPrompt, appLinkCode, addingApp } from "@/Components/StaffApp";
+import { redeemAppLink, staffManifestHref, StaffInstallPrompt, appLinkCode } from "@/Components/StaffApp";
 
 function CenteredMessage({ icon: Icon, title, children }) {
     return (
@@ -773,11 +773,11 @@ function MenuTab({ api, onApiError, ai = false }) {
 
 /* ---------- Page ---------- */
 
+// Scan isn't listed: it's the raised button in the middle of the tab bar.
 const TABS = [
-    { id: "scan", label: "Scan", icon: LuScanLine },
+    { id: "today", label: "Today", icon: LuChartColumn },
     { id: "lookup", label: "Customers", icon: LuUsers },
     { id: "menu", label: "Menu", icon: LuUtensils },
-    { id: "today", label: "Today", icon: LuChartColumn },
 ];
 
 export default function Dashboard() {
@@ -794,10 +794,8 @@ export default function Dashboard() {
     const [authState, setAuthState] = useState("loading"); // loading | ready | unauthenticated | blocked | error
     const [retryKey, setRetryKey] = useState(0);
     const [me, setMe] = useState(null);
-    const [tab, setTab] = useState("scan");
+    const [tab, setTab] = useState("today");
     const [summary, setSummary] = useState(null);
-    // Back from "Add" on the Today tab (iPhone): open Today, where its steps are.
-    const startOnToday = useRef(addingApp());
 
     // One axios instance carrying the device's bearer token.
     const [api] = useState(() =>
@@ -861,8 +859,6 @@ export default function Dashboard() {
 
         api.get("/api/staff/me")
             .then(({ data }) => {
-                // Not signed in: the PIN screen's banner shows the steps instead.
-                if (!data.staff) startOnToday.current = false;
                 setMe(data);
                 setAuthState("ready");
             })
@@ -882,8 +878,8 @@ export default function Dashboard() {
 
     useEffect(() => {
         if (me?.staff) {
-            setTab(startOnToday.current ? "today" : "scan");
-            startOnToday.current = false;
+            // Every sign-in starts on Today (also where the iPhone "Add" steps are).
+            setTab("today");
             refreshSummary();
         } else {
             setSummary(null);
@@ -1026,6 +1022,22 @@ export default function Dashboard() {
         );
     }
 
+    // Tabs either side of the centre Scan button (the extra one goes left).
+    const navTabs = TABS.filter((t) => t.id !== "menu" || me.menu_enabled);
+    const leftCount = Math.ceil(navTabs.length / 2);
+    const renderTab = ({ id, label, icon: Icon }) => (
+        <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            aria-current={tab === id ? "page" : undefined}
+            className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-3 text-xs font-medium ${tab === id ? "text-brand-accent" : "text-brand-muted"}`}
+        >
+            <Icon className="h-5 w-5" />
+            <span className="truncate">{label}</span>
+        </button>
+    );
+
     return (
         <>
             {headTags}
@@ -1067,7 +1079,8 @@ export default function Dashboard() {
                     </div>
                 </header>
 
-                <main className="flex min-h-0 flex-1 flex-col">
+                {/* On Scan, room under the code bar so the raised button doesn't cover it. */}
+                <main className={`flex min-h-0 flex-1 flex-col ${tab === "scan" ? "pb-6" : ""}`}>
                     {tab === "scan" && (
                         <ScanTab
                             api={api}
@@ -1091,21 +1104,27 @@ export default function Dashboard() {
                     )}
                 </main>
 
-                <nav
-                    className={`grid ${me.menu_enabled ? "grid-cols-4" : "grid-cols-3"} border-t border-brand-border bg-brand-card pb-[env(safe-area-inset-bottom)]`}
-                >
-                    {TABS.filter((t) => t.id !== "menu" || me.menu_enabled).map(({ id, label, icon: Icon }) => (
+                {/* Same raised centre Scan button as the owner's phone tab bar (OwnerLayout). */}
+                <nav className="relative z-10 flex items-stretch border-t border-brand-border bg-brand-card pb-[env(safe-area-inset-bottom)]">
+                    {navTabs.slice(0, leftCount).map(renderTab)}
+                    <div className="relative flex min-w-14 flex-1 flex-col items-center justify-end">
                         <button
-                            key={id}
                             type="button"
-                            onClick={() => setTab(id)}
-                            aria-current={tab === id ? "page" : undefined}
-                            className={`flex flex-col items-center gap-1 py-3 text-xs font-medium ${tab === id ? "text-brand-accent" : "text-brand-muted"}`}
+                            onClick={() => setTab("scan")}
+                            aria-label="Scan customer card"
+                            aria-current={tab === "scan" ? "page" : undefined}
+                            className="absolute -top-5 flex h-14 w-14 items-center justify-center rounded-full bg-brand-accent text-brand-accent-text shadow-lg ring-4 ring-brand-bg transition active:scale-95"
                         >
-                            <Icon className="h-5 w-5" />
-                            {label}
+                            <LuScanLine className="h-6 w-6" />
                         </button>
-                    ))}
+                        <span
+                            className={`pb-3 text-xs font-medium ${tab === "scan" ? "text-brand-accent" : "text-brand-muted"}`}
+                            aria-hidden="true"
+                        >
+                            Scan
+                        </span>
+                    </div>
+                    {navTabs.slice(leftCount).map(renderTab)}
                 </nav>
             </div>
         </>

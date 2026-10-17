@@ -409,10 +409,11 @@ owner-approved device.
   per shop + PIN), reset PIN, remove. Removing sets `deactivated_at` (a soft delete, so past
   stamps keep the name) and signs them out of every device. PINs are hashed (`pin_hash`); the
   owner tells staff their PIN in person.
-- **Staff dashboard** (`/staff` → `Staff/Dashboard.jsx`): PIN sign-in, then three tabs: Scan
-  (camera only mounted while open), Customers (read-only lookup by name or ≥3 phone digits via
-  `GET /api/staff/customers`, this shop only, phone shown as last 3 digits) and Today (my
-  numbers vs the whole shop's). Lookup can't stamp; stamping still needs the customer's QR.
+- **Staff dashboard** (`/staff` → `Staff/Dashboard.jsx`): PIN sign-in, then it **opens on
+  Today**. Tabs: Today, Customers (+ Menu), with **Scan** as the raised centre button of the tab
+  bar (like the owner's; camera only mounted while open). Customers = read-only lookup by name or ≥3 phone digits via
+  `GET /api/staff/customers`, this shop only, phone shown as last 3 digits; Today = my
+  numbers vs the whole shop's. Lookup can't stamp; stamping still needs the customer's QR.
 - **Owner dashboard** is now sidebar + sections, one Inertia page each, all in
   `DashboardController`: Overview (stat tiles, 14-day stamps-per-day chart, last 5 activity),
   Customers (search, no phones), Activity (paginated 15), Reviews (average + breakdown +
