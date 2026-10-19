@@ -46,6 +46,16 @@ function ProductRow({ product, canOrder, maxQuantity }) {
                         </button>
                     </div>
                     <CouponField productId={product.id} quantity={count} coupon={coupon} onChange={setCoupon} />
+                    <p className="text-xs text-brand-muted">
+                        14-day refunds ·{' '}
+                        <a href="/refunds" target="_blank" className="font-medium text-brand-accent hover:underline">
+                            Refund policy
+                        </a>{' '}
+                        ·{' '}
+                        <a href="/shipping" target="_blank" className="font-medium text-brand-accent hover:underline">
+                            Delivery
+                        </a>
+                    </p>
                 </div>
             )}
         </li>

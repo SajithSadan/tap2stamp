@@ -1,7 +1,7 @@
 import { router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
-import { LuCircleAlert, LuHand, LuImage, LuKeyRound, LuLandmark, LuLayoutDashboard, LuLock, LuLockOpen, LuSmartphone, LuWifi, LuMail, LuPalette, LuRotateCcw, LuSettings, LuSparkles, LuStamp, LuStore, LuToggleRight, LuTriangleAlert } from 'react-icons/lu';
+import { LuCircleAlert, LuHand, LuImage, LuKeyRound, LuLandmark, LuLayoutDashboard, LuLock, LuLockOpen, LuSmartphone, LuWifi, LuMail, LuPalette, LuRotateCcw, LuScale, LuSettings, LuSparkles, LuStamp, LuStore, LuToggleRight, LuTriangleAlert } from 'react-icons/lu';
 import { useConfirm } from '@/Components/ConfirmDialog';
 import { FaWhatsapp } from 'react-icons/fa6';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
@@ -270,11 +270,149 @@ function WelcomeMessage({ saved }) {
     );
 }
 
+/**
+ * The public legal pages (/privacy, /terms, /refunds, /shipping, /contact):
+ * the company details shown on all of them, and each page's own text
+ * (Markdown, with {placeholders} filled in from the details).
+ */
+function LegalSettings({ legal }) {
+    const details = useForm({ ...Object.fromEntries(Object.entries(legal.details).map(([k, v]) => [k, v ?? ''])) });
+    const [slug, setSlug] = useState(legal.pages[0].slug);
+    const page = legal.pages.find((p) => p.slug === slug);
+    const text = useForm({ markdown: page.markdown });
+    const [confirm, confirmDialog] = useConfirm();
+    const inputClass =
+        'w-full min-w-0 rounded-xl border border-brand-border bg-brand-card px-3.5 py-2.5 text-sm text-brand-text outline-none transition focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/10';
+
+    // Switching page (or after a save / reset) loads that page's current text.
+    useEffect(() => {
+        text.setData('markdown', page.markdown);
+        text.setDefaults('markdown', page.markdown);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [slug, page.markdown]);
+
+    const field = (key, label, props = {}) => (
+        <label className="block min-w-0">
+            <span className="mb-1.5 block text-sm font-medium text-brand-text">{label}</span>
+            {props.rows ? (
+                <textarea value={details.data[key]} onChange={(e) => details.setData(key, e.target.value)} className={`${inputClass} resize-y`} {...props} />
+            ) : (
+                <input value={details.data[key]} onChange={(e) => details.setData(key, e.target.value)} className={inputClass} {...props} />
+            )}
+            <FieldError message={details.errors[key]} />
+        </label>
+    );
+
+    async function reset() {
+        const ok = await confirm({
+            title: `Reset the ${page.title}?`,
+            message: 'Your edits to this page are replaced with the built-in text. The company details stay as they are.',
+            confirmLabel: 'Reset',
+            danger: true,
+        });
+        if (ok) router.delete(`/admin/settings/legal/${slug}`, { preserveScroll: true });
+    }
+
+    return (
+        <div className="space-y-4">
+            {legal.missing.length > 0 && (
+                <div className="flex items-start gap-2.5 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
+                    <LuTriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>
+                        Add your {legal.missing.map((m) => m.replace('_', ' ')).join(', ')} below. Until then the pages say "Tada Tap" and point people to the Contact page.
+                        Payment providers expect a real business name, address and contact email.
+                    </p>
+                </div>
+            )}
+
+            <Panel title="Company details" description="Shown on every legal page and on /contact.">
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        details.put('/admin/settings/legal', { preserveScroll: true });
+                    }}
+                    noValidate
+                    className="space-y-4"
+                >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        {field('company_name', 'Legal business name', { placeholder: 'e.g. Techsa Solutions Ltd' })}
+                        {field('company_number', 'Company / registration number (optional)', { placeholder: 'e.g. 12345678' })}
+                        {field('email', 'Contact email', { type: 'email', placeholder: 'support@…' })}
+                        {field('phones', 'Phone numbers (one per line, "Label: number")', { rows: 3, placeholder: 'UK: +44 …\nIndia: +91 …' })}
+                        {field('registered_address', 'Registered address', { rows: 3 })}
+                        {field('governing_law', 'Governing law', { placeholder: 'England and Wales' })}
+                    </div>
+                    <button type="submit" disabled={details.processing} className={primaryButton}>
+                        {details.processing ? 'Saving…' : 'Save details'}
+                    </button>
+                </form>
+            </Panel>
+
+            <Panel title="Pages" description="Each page's text, in Markdown (## heading, - list, **bold**, [link](/terms)). The placeholders below are filled in from the details above.">
+                <div className="mb-4 flex flex-wrap gap-1.5" role="tablist" aria-label="Legal page">
+                    {legal.pages.map((p) => (
+                        <button
+                            key={p.slug}
+                            type="button"
+                            role="tab"
+                            aria-selected={slug === p.slug}
+                            onClick={() => setSlug(p.slug)}
+                            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${slug === p.slug ? 'bg-brand-deep text-white' : 'bg-brand-bg text-brand-muted hover:text-brand-text'}`}
+                        >
+                            {p.title}
+                        </button>
+                    ))}
+                </div>
+                <p className="mb-2 text-xs text-brand-muted">
+                    {page.customised ? `Your own text, last saved ${page.updated}.` : `Built-in text (${page.updated}).`} Placeholders:{' '}
+                    {legal.placeholders.map((ph) => (
+                        <code key={ph} className="mr-1 rounded bg-brand-bg px-1 py-0.5 text-[11px] text-brand-text">
+                            {ph}
+                        </code>
+                    ))}
+                </p>
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        text.put(`/admin/settings/legal/${slug}`, { preserveScroll: true });
+                    }}
+                    noValidate
+                >
+                    <textarea
+                        value={text.data.markdown}
+                        onChange={(e) => text.setData('markdown', e.target.value)}
+                        rows={22}
+                        spellCheck
+                        aria-label={`${page.title} text`}
+                        className={`${inputClass} resize-y font-mono text-[13px] leading-6`}
+                    />
+                    <FieldError message={text.errors.markdown} />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <button type="submit" disabled={text.processing || !text.isDirty} className={primaryButton}>
+                            {text.processing ? 'Saving…' : 'Save page'}
+                        </button>
+                        <a href={`/${slug}`} target="_blank" rel="noreferrer" className={secondaryButton}>
+                            View page
+                        </a>
+                        {page.customised && (
+                            <button type="button" onClick={reset} className={secondaryButton}>
+                                <LuRotateCcw className="h-4 w-4" /> Reset to default
+                            </button>
+                        )}
+                    </div>
+                </form>
+            </Panel>
+            {confirmDialog}
+        </div>
+    );
+}
+
 /** One tab per kind of setting; the open one is kept in the URL hash (#payments). */
 const TABS = [
     { key: 'signin', label: 'Sign-in', icon: LuKeyRound, fields: ['enabled'] },
     { key: 'payments', label: 'Payments', icon: LuLandmark, fields: ['account_name', 'bank_name', 'sort_code', 'account_number'] },
     { key: 'whatsapp', label: 'WhatsApp', icon: FaWhatsapp, fields: ['message', 'video_url'] },
+    { key: 'legal', label: 'Legal', icon: LuScale, fields: ['company_name', 'company_number', 'registered_address', 'email', 'phones', 'governing_law', 'markdown'] },
     { key: 'appearance', label: 'Appearance', icon: LuPalette, fields: ['bg', 'text'] },
     { key: 'menu', label: 'Menu photos', icon: LuImage, fields: ['mode'] },
     { key: 'features', label: 'Features', icon: LuToggleRight, fields: ['feature', 'enabled'] },
@@ -476,7 +614,7 @@ function initialTab() {
     return TABS.some((t) => t.key === hash) ? hash : 'signin';
 }
 
-export default function Settings({ google, sidebar, bank, menuPhotos, features, welcome, shopCodeLocks = [] }) {
+export default function Settings({ google, sidebar, bank, menuPhotos, features, welcome, shopCodeLocks = [], legal }) {
     const { errors } = usePage().props;
     const [tab, setTab] = useState(initialTab);
     const [saving, setSaving] = useState(false);
@@ -582,6 +720,7 @@ export default function Settings({ google, sidebar, bank, menuPhotos, features, 
             )}
             {tab === 'payments' && <BankDetails saved={bank} />}
             {tab === 'whatsapp' && <WelcomeMessage saved={welcome} />}
+            {tab === 'legal' && <LegalSettings legal={legal} />}
             {tab === 'appearance' && <SidebarColors saved={sidebar} errors={errors} />}
             {tab === 'menu' && <MenuPhotos settings={menuPhotos} error={errors?.mode} />}
             {tab === 'features' && <FeatureDefaults features={features} errors={errors} />}

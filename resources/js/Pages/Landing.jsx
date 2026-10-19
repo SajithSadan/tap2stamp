@@ -10,6 +10,8 @@ import {
     LuSparkles,
 } from "react-icons/lu";
 import { Wordmark } from "@/Components/AuthShell";
+import LegalLinks from "@/Components/LegalLinks";
+import SupportChatButton from "@/Components/SupportChatButton";
 
 /**
  * "/" for visitors: hero (badge, heading, subtitle, trial + demo buttons),
@@ -422,12 +424,14 @@ export default function Landing({
                 <footer className="border-t border-brand-border">
                     <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-brand-muted sm:px-6">
                         <span>© {new Date().getFullYear()} TaDa Tap</span>
+                        <LegalLinks linkClassName="hover:text-brand-text" />
                         <Link href="/login" className="hover:text-brand-text">
                             Log in
                         </Link>
                     </div>
                 </footer>
             </div>
+            <SupportChatButton />
         </>
     );
 }

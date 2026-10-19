@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
+use App\Support\LegalPages;
 use Illuminate\Http\Response;
 
 /**
@@ -38,6 +39,9 @@ class SeoController extends Controller
         $pages = [
             // The landing page only: every other page of the app is noindex.
             ['loc' => self::base(), 'lastmod' => $updated ? substr((string) $updated, 0, 10) : null, 'priority' => '1.0'],
+            // The legal pages and Contact (trust signals; also what payment providers check).
+            ...collect(LegalPages::PAGES)->keys()->map(fn ($slug) => ['loc' => self::base().$slug, 'lastmod' => LegalPages::updatedAt($slug)->format('Y-m-d'), 'priority' => '0.3'])->all(),
+            ['loc' => self::base().'contact', 'lastmod' => null, 'priority' => '0.3'],
         ];
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n".'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";

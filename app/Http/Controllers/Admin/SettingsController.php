@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\MenuItemImages;
 use App\Services\ShopCodeJoin;
 use App\Support\Features;
+use App\Support\LegalPages;
 use App\Support\WelcomeMessage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -45,6 +46,18 @@ class SettingsController extends Controller
             ],
             'sidebar' => Setting::get(Setting::SIDEBAR_COLORS),
             'bank' => Setting::get(Setting::BANK_DETAILS),
+            'legal' => [
+                'details' => LegalPages::details(),
+                'missing' => LegalPages::missingDetails(),
+                'pages' => collect(LegalPages::PAGES)->map(fn ($title, $slug) => [
+                    'slug' => $slug,
+                    'title' => $title,
+                    'markdown' => LegalPages::markdown($slug),
+                    'customised' => LegalPages::isCustomised($slug),
+                    'updated' => LegalPages::updatedAt($slug)->format('j M Y'),
+                ])->values(),
+                'placeholders' => array_keys(LegalPages::placeholders()),
+            ],
             'welcome' => [...WelcomeMessage::settings(), 'defaults' => ['message' => WelcomeMessage::DEFAULT_MESSAGE, 'video_url' => WelcomeMessage::DEFAULT_VIDEO]],
             // Owner features: the platform default, and how many shops the admin set otherwise.
             'features' => self::featureSummary(),

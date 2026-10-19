@@ -1,3 +1,5 @@
+import LegalLinks from '@/Components/LegalLinks';
+
 const themes = {
     light: {
         text: 'text-slate-500',
@@ -33,7 +35,7 @@ const sizes = {
  * variant: 'static' flows with the content, 'fixed' docks to the bottom of
  * the viewport without blocking clicks on what's behind it.
  */
-function TechsaFooter({ variant = 'static', hideOnMobile = false, theme = 'auto', size = 'md', className = '' }) {
+function TechsaFooter({ variant = 'static', hideOnMobile = false, theme = 'auto', size = 'md', className = '', legal = true }) {
     const t = themes[theme] ?? themes.auto;
     const s = sizes[size] ?? sizes.md;
     const isFixed = variant === 'fixed';
@@ -46,7 +48,9 @@ function TechsaFooter({ variant = 'static', hideOnMobile = false, theme = 'auto'
     ].join(' ');
 
     return (
-        <footer className={wrapper}>
+        <footer className={`${wrapper} ${legal && !isFixed ? 'flex-col items-center gap-0.5' : ''}`}>
+            {/* Privacy · Terms · Refunds · Delivery · Contact (not on the docked variant: it would cover content). */}
+            {legal && !isFixed && <LegalLinks className={`${s.text} ${t.text}`} />}
             <a
                 href="https://techsasolutions.com"
                 target="_blank"

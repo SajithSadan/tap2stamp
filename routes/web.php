@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\FollowUpController;
 use App\Http\Controllers\Admin\LandingPageController;
+use App\Http\Controllers\Admin\LegalPageController;
 use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController;
@@ -33,6 +34,7 @@ use App\Http\Controllers\DeployController;
 use App\Http\Controllers\Dev\CustomThemeController;
 use App\Http\Controllers\Dev\ThemePreviewController;
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\MyCardsController;
@@ -56,6 +58,7 @@ use App\Http\Controllers\UnsubscribeController;
 use App\Http\Controllers\WhatsAppConnectionController;
 use App\Http\Controllers\WhatsAppInboxController;
 use App\Services\StaffAppLinks;
+use App\Support\LegalPages;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -63,6 +66,12 @@ use Inertia\Inertia;
 // Landing page). Signed-in users: their own home. Named `home` so the guest
 // middleware also sends signed-in visitors of /login here.
 Route::get('/', LandingController::class)->name('home');
+// Legal pages (App\Support\LegalPages) + Contact: public, indexable, linked from every footer.
+foreach (array_keys(LegalPages::PAGES) as $legalPage) {
+    Route::get("/{$legalPage}", [LegalController::class, 'show'])->defaults('page', $legalPage)->name("legal.{$legalPage}");
+}
+Route::get('/contact', [LegalController::class, 'contact'])->name('contact');
+
 // For search engines (built per install; only production is indexable).
 Route::get('/robots.txt', [SeoController::class, 'robots'])->name('robots');
 Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
@@ -267,6 +276,10 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::put('/settings/sidebar', [SettingsController::class, 'updateSidebar'])->name('settings.sidebar');
     Route::put('/settings/bank', [SettingsController::class, 'updateBank'])->name('settings.bank');
     Route::put('/settings/welcome', [SettingsController::class, 'updateWelcome'])->name('settings.welcome');
+    // Legal pages: company details, and each page's text (or back to the default).
+    Route::put('/settings/legal', [LegalPageController::class, 'updateDetails'])->name('settings.legal');
+    Route::put('/settings/legal/{page}', [LegalPageController::class, 'updatePage'])->name('settings.legal.page');
+    Route::delete('/settings/legal/{page}', [LegalPageController::class, 'resetPage'])->name('settings.legal.page.reset');
     // The WhatsApp button reports a chat opened / welcome sent (activity log + users.welcome_sent_at).
     Route::post('/whatsapp-contacts', [WhatsAppContactController::class, 'store'])->middleware('throttle:60,1')->name('whatsapp-contacts.store');
     Route::put('/settings/menu-photos', [SettingsController::class, 'updateMenuPhotos'])->name('settings.menu-photos');

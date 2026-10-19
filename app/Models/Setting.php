@@ -36,6 +36,12 @@ class Setting extends Model
     /** The admin's WhatsApp welcome message to new shops ({message, video_url}); App\Support\WelcomeMessage. */
     public const WHATSAPP_WELCOME = 'whatsapp_welcome';
 
+    /** Company details on the legal pages ({company_name, company_number, registered_address, email, phone, governing_law}); App\Support\LegalPages. */
+    public const LEGAL_DETAILS = 'legal_details';
+
+    /** The admin's own text for a legal page ({page: {markdown, updated_at}}; missing = the default). */
+    public const LEGAL_PAGES = 'legal_pages';
+
     /** The last AI follow-up briefing (App\Services\CrmAssistant::weeklyBriefing()). */
     public const CRM_BRIEFING = 'crm_briefing';
 

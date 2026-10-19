@@ -533,6 +533,12 @@ export default function RegistrationModal({
                                         WhatsApp. Unsubscribe any time.
                                     </span>
                                 </label>
+                                <p className="mt-2 text-center text-[11px] text-brand-muted">
+                                    Your name and number go to {shopName} for its loyalty card.{" "}
+                                    <a href="/privacy" target="_blank" rel="noopener" className="underline">
+                                        Privacy policy
+                                    </a>
+                                </p>
                             </Reveal>
 
                             {errors.general && (

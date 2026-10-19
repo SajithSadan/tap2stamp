@@ -19,7 +19,7 @@ class SecurityHeaders
      * signed-in areas, JSON) says noindex - more reliable than robots.txt,
      * which only stops crawling, not a linked URL being listed.
      */
-    public const INDEXABLE_ROUTES = ['home', 'menu.show'];
+    public const INDEXABLE_ROUTES = ['home', 'menu.show', 'legal.*', 'contact'];
 
     public function handle(Request $request, Closure $next): Response
     {

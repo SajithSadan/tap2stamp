@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Enums\UserRole;
 use App\Models\Setting;
 use App\Support\Industries;
+use App\Support\LegalPages;
 use App\Support\Navigation;
 use App\Support\WelcomeMessage;
 use Illuminate\Http\Request;
@@ -71,6 +72,10 @@ class HandleInertiaRequests extends Middleware
                 && $shop->industry === null
                     ? ['industries' => Industries::options()]
                     : null,
+            // Privacy / Terms / Refunds / Delivery / Contact, for every footer (no database).
+            'legalLinks' => LegalPages::links(),
+            // The floating "Chat with us" button (Components/SupportChatButton.jsx): our UK WhatsApp.
+            'supportWhatsapp' => fn () => LegalPages::supportWhatsapp(),
             // Admin: the WhatsApp button's "Welcome message" text (Admin → Settings → WhatsApp).
             'whatsappWelcome' => fn () => $request->user()?->role === UserRole::Admin ? WelcomeMessage::text() : null,
             // Admin → Settings sidebar colours ({bg, text}, null = default look).

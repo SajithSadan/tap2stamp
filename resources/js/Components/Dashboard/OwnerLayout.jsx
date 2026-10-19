@@ -23,6 +23,7 @@ import TechsaFooter from "@/Components/TechsaFooter";
 import OwnerScanner from "@/Components/Dashboard/OwnerScanner";
 import IndustryPrompt from "@/Components/Dashboard/IndustryPrompt";
 import { OwnerAppHead } from "@/Components/OwnerApp";
+import SupportChatButton from "@/Components/SupportChatButton";
 import { navIcon } from "@/lib/navIcons";
 import { useDocumentTheme } from "@/lib/theme";
 
@@ -384,6 +385,9 @@ export default function OwnerLayout({
             {scannerOpen && (
                 <OwnerScanner onClose={() => setScannerOpen(false)} />
             )}
+
+            {/* Above the phone's tab bar; the desktop corner otherwise. */}
+            <SupportChatButton shopName={shop.name} className="bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-6" />
 
             {props.industryPrompt && (
                 <IndustryPrompt industries={props.industryPrompt.industries} />

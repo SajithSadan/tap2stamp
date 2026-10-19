@@ -164,3 +164,12 @@ test('robots.txt blocks the sign-in plumbing and the sitemap lists only the land
         ->assertSee('<loc>https://tadatap.app/</loc>', false)
         ->assertDontSee('register', false);
 });
+
+test('the sign-up page offers the landing page video as "How to get started"', function () {
+    seoLanding(['youtube_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ']);
+    $this->get('/register')->assertInertia(fn ($page) => $page->component('Auth/Register')->where('videoId', 'dQw4w9WgXcQ'));
+
+    // No video set: no button.
+    seoLanding(['youtube_url' => null]);
+    $this->get('/register')->assertInertia(fn ($page) => $page->where('videoId', null));
+});

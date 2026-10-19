@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterOwnerRequest;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Support\LandingPage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -21,7 +22,11 @@ class RegisteredUserController extends Controller
 {
     public function create(): Response
     {
-        return Inertia::render('Auth/Register', ['googleEnabled' => GoogleAuthController::enabled()]);
+        return Inertia::render('Auth/Register', [
+            'googleEnabled' => GoogleAuthController::enabled(),
+            // "How to get started": the landing page's video (Admin → Landing page), null = no button.
+            'videoId' => LandingPage::youtubeId(LandingPage::content()['youtube_url'] ?? null),
+        ]);
     }
 
     public function store(RegisterOwnerRequest $request): RedirectResponse

@@ -1319,6 +1319,43 @@ charged, enforced or switched off by the trial yet (phase 3).
     card, stage, trial, the admin's last 3 notes, open follow-ups - never customer names or
     phones.
 
+## Legal pages (additive - needed for taking payments)
+
+`/privacy`, `/terms`, `/refunds` (Refund & Cancellation), `/shipping` (Delivery) and `/contact`:
+public, indexable (`SecurityHeaders::INDEXABLE_ROUTES`), in the sitemap, with server-side
+title / description / canonical (`withViewData('seo')`; `app.blade.php` makes the image and
+JSON-LD tags optional). `App\Support\LegalPages`:
+- **Text:** each page is Markdown, the admin's own (`Setting::LEGAL_PAGES` =
+  {page: {markdown, updated_at}}) else `resources/legal/{page}.md`.
+- **Placeholders** (`{company}`, `{company_details}`, `{email}`, `{law}`, `{website}`,
+  `{trial_days}`, `{refund_days}`, `{contact_block}`) are filled from `Setting::LEGAL_DETAILS`
+  (Admin → Settings → **Legal**: company name / number, registered address, email, phone
+  numbers (one "Label: number" per line → `LegalPages::phones()`: call + WhatsApp links on
+  /contact), governing law) and config when shown. Built-in defaults (`LegalPages::DEFAULTS`,
+  so a fresh install has them): support@tadatap.app, UK +44 793 204 5061, India +91 96455 22802,
+  England and Wales. A missing detail reads
+  "Tada Tap" / "via our Contact page", never a gap.
+- **Rendering:** `Str::markdown()` (GFM tables) with `html_input: strip`,
+  `allow_unsafe_links: false`, then `Pages/Legal.jsx` inserts it.
+
+The policy the business set:
+- free trial `loyalty.trial_days` (30), no payment details;
+- **full refund within 14 days** (`REFUND_DAYS`) of payment (subscriptions) or of delivery
+  (products);
+- after that a yearly subscription can be cancelled, with no refund.
+
+**Support chat**: `Components/SupportChatButton.jsx`, a floating WhatsApp button (bottom right,
+"Chat with us" on desktop). It opens `LegalPages::supportWhatsapp()` (the "UK" phone line,
+else the first; shared as `supportWhatsapp`) with a first line typed in, naming the shop for
+owners. It shows on the landing page, `AuthShell` (log-in / sign-up / reset), shop setup,
+`PublicShell` (legal / contact) and `OwnerLayout` (above the phone tab bar), and not while an
+admin views as owner. It never shows on customers' cards, the staff app or the admin panel.
+
+Links (shared `legalLinks`, `Components/LegalLinks.jsx`):
+- `TechsaFooter` (not the docked variant), the landing footer and `PublicShell`;
+- the sign-up form ("By creating an account you agree to…");
+- the customer card sign-up (privacy) and the owner's order rows (refunds, delivery).
+
 ## Navigation & page access (one registry)
 
 `App\Support\Navigation::items()` is the **single list of dashboard menu pages and which roles
