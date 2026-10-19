@@ -138,3 +138,16 @@ test('the support chat button opens the UK WhatsApp number (else the first one)'
     Setting::set(Setting::LEGAL_DETAILS, ['phones' => 'India: +91 96455 22802']);
     expect(LegalPages::supportWhatsapp())->toBe('https://wa.me/919645522802');
 });
+
+test('the privacy policy keeps a "Cookies" section for the cookie notice\'s link (/privacy#cookies)', function () {
+    expect(LegalPages::html('privacy'))->toContain('<h2>Cookies</h2>')
+        ->and(strip_tags(LegalPages::html('privacy')))->toContain('only essential cookies');
+});
+
+test('the pages always name the site tadatap.app, whatever APP_URL says', function () {
+    config(['app.url' => 'https://app.example.test']);
+
+    expect(strip_tags(LegalPages::html('privacy')))->toContain('Tada Tap (tadatap.app) collects')
+        ->and(strip_tags(LegalPages::html('terms')))->toContain('loyalty card service at tadatap.app')
+        ->and(LegalPages::fill('Visit {website}'))->toBe('Visit tadatap.app');
+});

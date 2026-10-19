@@ -1,4 +1,4 @@
-This policy explains what personal data Tada Tap ({website}) collects, why, who we share it with, and your rights.
+This policy explains what personal data Tada Tap (tadatap.app) collects, why, who we share it with, and your rights.
 
 **Who provides Tada Tap:** {company}.{company_details}
 

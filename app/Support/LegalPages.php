@@ -33,6 +33,9 @@ class LegalPages
     /** "Last updated" for a page still on its default text. */
     public const DEFAULT_UPDATED = '2026-10-19';
 
+    /** The site's name on the pages (the default text says it outright; {website} still works in custom text). */
+    public const WEBSITE = 'tadatap.app';
+
     public const DETAIL_FIELDS = ['company_name', 'company_number', 'registered_address', 'email', 'phones', 'governing_law'];
 
     /** Shown until the admin sets their own (Admin → Settings → Legal), so a fresh install has them. */
@@ -142,7 +145,8 @@ class LegalPages
             '{company_details}' => $companyDetails ? ' '.$companyDetails : '',
             '{email}' => $email,
             '{law}' => $d['governing_law'] ?: 'England and Wales',
-            '{website}' => preg_replace('#^https?://#', '', rtrim((string) config('app.url'), '/')),
+            // Fixed, not APP_URL: the pages always name the site the same way.
+            '{website}' => self::WEBSITE,
             '{trial_days}' => (string) config('loyalty.trial_days', 30),
             '{refund_days}' => (string) self::REFUND_DAYS,
             '{contact_block}' => $contact,

@@ -13,6 +13,7 @@ import PhoneField from "@/Components/PhoneField";
 import StateSelect from "@/Components/StateSelect";
 import IndustryPicker from "@/Components/IndustryPicker";
 import SupportChatButton from "@/Components/SupportChatButton";
+import CookieNotice from "@/Components/CookieNotice";
 import PhotoCropper, { croppedFile } from "@/Components/Menu/PhotoCropper";
 import {
     CardPreview,
@@ -967,6 +968,7 @@ export default function Shop({ ownerName, ownerEmail, draft, countries, industri
                 </div>
             </div>
             <SupportChatButton />
+            <CookieNotice />
         </>
     );
 }

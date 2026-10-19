@@ -1,4 +1,5 @@
 import { Link } from "@inertiajs/react";
+import { useEffect, useRef } from "react";
 import PublicShell from "@/Components/PublicShell";
 
 /**
@@ -19,7 +20,19 @@ const PROSE = [
     "[&_td]:border-b [&_td]:border-brand-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top",
 ].join(" ");
 
+/** "Your rights" → "your-rights": ids for the headings, so links like /privacy#cookies jump to them. */
+const slug = (text) => text.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
 export default function Legal({ page, title, html, updated, links = [] }) {
+    const body = useRef(null);
+
+    useEffect(() => {
+        body.current?.querySelectorAll("h2, h3").forEach((h) => {
+            if (!h.id) h.id = slug(h.textContent);
+        });
+        if (window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
+    }, [html]);
+
     return (
         <PublicShell title={title}>
             <nav aria-label="Legal pages" className="no-scrollbar -mx-1 mb-8 flex gap-1.5 overflow-x-auto px-1">
@@ -39,7 +52,7 @@ export default function Legal({ page, title, html, updated, links = [] }) {
             <h1 className="font-heading text-3xl font-bold text-brand-deep sm:text-4xl">{title}</h1>
             <p className="mt-2 text-sm text-brand-muted">Last updated {updated}</p>
             <div className="mt-6 overflow-x-auto">
-                <div className={PROSE} dangerouslySetInnerHTML={{ __html: html }} />
+                <div ref={body} className={`${PROSE} [&_h2]:scroll-mt-6`} dangerouslySetInnerHTML={{ __html: html }} />
             </div>
         </PublicShell>
     );

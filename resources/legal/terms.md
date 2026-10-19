@@ -1,4 +1,4 @@
-These terms apply to your use of Tada Tap, the digital loyalty card service at {website} ("Tada Tap", "we", "us").
+These terms apply to your use of Tada Tap, the digital loyalty card service at tadatap.app ("Tada Tap", "we", "us").
 
 **Who provides Tada Tap:** {company}.{company_details}
 

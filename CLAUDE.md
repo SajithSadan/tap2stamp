@@ -1328,7 +1328,7 @@ JSON-LD tags optional). `App\Support\LegalPages`:
 - **Text:** each page is Markdown, the admin's own (`Setting::LEGAL_PAGES` =
   {page: {markdown, updated_at}}) else `resources/legal/{page}.md`.
 - **Placeholders** (`{company}`, `{company_details}`, `{email}`, `{law}`, `{website}`,
-  `{trial_days}`, `{refund_days}`, `{contact_block}`) are filled from `Setting::LEGAL_DETAILS`
+  `{trial_days}`, `{refund_days}`, `{contact_block}`; `{website}` is the fixed `LegalPages::WEBSITE`, tadatap.app, not APP_URL) are filled from `Setting::LEGAL_DETAILS`
   (Admin → Settings → **Legal**: company name / number, registered address, email, phone
   numbers (one "Label: number" per line → `LegalPages::phones()`: call + WhatsApp links on
   /contact), governing law) and config when shown. Built-in defaults (`LegalPages::DEFAULTS`,
@@ -1350,6 +1350,13 @@ else the first; shared as `supportWhatsapp`) with a first line typed in, naming 
 owners. It shows on the landing page, `AuthShell` (log-in / sign-up / reset), shop setup,
 `PublicShell` (legal / contact) and `OwnerLayout` (above the phone tab bar), and not while an
 admin views as owner. It never shows on customers' cards, the staff app or the admin panel.
+
+**Cookie notice** (`Components/CookieNotice.jsx`): only essential cookies and storage are used
+(no consent needed), so it's a once-per-browser notice with "OK" (localStorage
+`cookie_notice_ok`) and a link to `/privacy#cookies`. It is not an accept / reject choice. Shown
+where the support chat is, except the owner dashboard. **If analytics or ad pixels are ever
+added, turn it into a real choice and load them only after "Accept".** `Legal.jsx` gives h2/h3
+ids from their text, so anchors work.
 
 Links (shared `legalLinks`, `Components/LegalLinks.jsx`):
 - `TechsaFooter` (not the docked variant), the landing footer and `PublicShell`;

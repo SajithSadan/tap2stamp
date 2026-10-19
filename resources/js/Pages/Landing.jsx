@@ -12,6 +12,7 @@ import {
 import { Wordmark } from "@/Components/AuthShell";
 import LegalLinks from "@/Components/LegalLinks";
 import SupportChatButton from "@/Components/SupportChatButton";
+import CookieNotice from "@/Components/CookieNotice";
 
 /**
  * "/" for visitors: hero (badge, heading, subtitle, trial + demo buttons),
@@ -432,6 +433,7 @@ export default function Landing({
                 </footer>
             </div>
             <SupportChatButton />
+            <CookieNotice />
         </>
     );
 }

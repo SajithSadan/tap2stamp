@@ -2,6 +2,7 @@ import { Head, Link } from "@inertiajs/react";
 import { Wordmark } from "@/Components/AuthShell";
 import LegalLinks from "@/Components/LegalLinks";
 import SupportChatButton from "@/Components/SupportChatButton";
+import CookieNotice from "@/Components/CookieNotice";
 
 /** The plain public frame for the legal pages and Contact: logo header, content, legal footer. */
 export default function PublicShell({ title, children }) {
@@ -28,6 +29,7 @@ export default function PublicShell({ title, children }) {
                 </footer>
             </div>
             <SupportChatButton />
+            <CookieNotice />
         </>
     );
 }

@@ -4,6 +4,7 @@ import { FcGoogle } from "react-icons/fc";
 import { LuEye, LuEyeOff, LuGift, LuSmartphone, LuStar } from "react-icons/lu";
 import { FieldError } from "@/Components/Dashboard/Ui";
 import SupportChatButton from "@/Components/SupportChatButton";
+import CookieNotice from "@/Components/CookieNotice";
 
 // Log in / sign up / shop setup share this shell so they match the
 // Tada Tap brand: navy panel beside the form on desktop, the
@@ -207,6 +208,7 @@ export default function AuthShell({
                 </main>
             </div>
             <SupportChatButton />
+            <CookieNotice />
         </>
     );
 }
