@@ -269,6 +269,12 @@ export default function DataTable({
 
     const actions = (className = "") => (
         <div className={`flex shrink-0 items-center gap-2 ${className}`}>
+            {/* Back to the default list in one tap: search, chips, dropdowns. */}
+            {isFiltered && (
+                <button type="button" onClick={clearAll} className={`${secondaryButton} h-[42px]`} title="Clear search and filters">
+                    <LuFilterX className="h-4 w-4" /> <span className="hidden sm:inline">Clear filters</span>
+                </button>
+            )}
             <ColumnsMenu table={table} />
             <button
                 type="button"

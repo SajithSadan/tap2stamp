@@ -166,8 +166,10 @@ Admins are never self-registered; owners can be created by the admin **or** sign
 - **Blocking a shop** (closing down, subscription unpaid): `shops.blocked_at` (null = active,
   the default) + `blocked_reason` (admin-only note). Admin → shop settings → **Block shop**
   (dialog with an optional reason; `PUT /admin/shops/{shop}/block`) and the red banner's
-  **Unblock** (`DELETE …/block`), via `Admin\ShopBlockController`. The Shops grid shows the
-  `blocked` status, which overrides the others, and has a Blocked filter. Always check with
+  **Unblock** (`DELETE …/block`), via `Admin\ShopBlockController`. Blocked shops are **kept
+  out of the Shops grid's main list**: "All", every chip, tile, count and dropdown cover active
+  shops only. They appear only under the **Blocked** chip, and "Clear filters" goes back to the
+  default list (DataTable shows that button whenever anything is filtered). Always check with
   `Shop::isBlocked()`. **Nothing is deleted.** While blocked:
   - **Customer pages**: the `shop.active` middleware (`EnsureShopActive`) shows
     `Pages/ShopInactive.jsx` on the card page (and on the menu, from `MenuController`). The card

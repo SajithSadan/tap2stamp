@@ -897,17 +897,17 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
     const [segment, setSegment] = useState("all");
     const [stage, setStage] = useState("all");
 
-    // Country, business type and stage narrow everything; the health tiles count within them.
-    const base = useMemo(
-        () =>
-            shops.filter(
-                (s) =>
-                    (country === "all" || (s.country_code ?? "") === country) &&
-                    (industry === "all" || (s.industry ?? "") === industry) &&
-                    (stage === "all" || s.stage === stage),
-            ),
-        [shops, country, industry, stage],
-    );
+    // Blocked shops never mix with the rest: the main list (and every count, tile and dropdown)
+    // is the active shops; the Blocked chip shows only the blocked ones.
+    const showingBlocked = status === "blocked";
+    const pool = useMemo(() => shops.filter((s) => (s.status === "blocked") === showingBlocked), [shops, showingBlocked]);
+    const matchesDropdowns = (s) =>
+        (country === "all" || (s.country_code ?? "") === country) &&
+        (industry === "all" || (s.industry ?? "") === industry) &&
+        (stage === "all" || s.stage === stage);
+
+    // The health tiles count within the dropdowns.
+    const base = useMemo(() => pool.filter(matchesDropdowns), [pool, country, industry, stage]);
     const segmentCounts = useMemo(
         () => base.reduce((acc, s) => ({ ...acc, [s.health.segment]: (acc[s.health.segment] ?? 0) + 1 }), {}),
         [base],
@@ -917,42 +917,49 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
         () => (segment === "all" ? base : base.filter((s) => s.health.segment === segment)),
         [base, segment],
     );
+    // How many blocked shops the Blocked chip would show (same dropdowns + tile).
+    const blockedCount = useMemo(
+        () => shops.filter((s) => s.status === "blocked" && matchesDropdowns(s) && (segment === "all" || s.health.segment === segment)).length,
+        [shops, country, industry, stage, segment],
+    );
     const stageOptions = useMemo(
         () =>
             Object.entries(stages)
-                .map(([value, label]) => ({ value, label, count: shops.filter((s) => s.stage === value).length }))
+                .map(([value, label]) => ({ value, label, count: pool.filter((s) => s.stage === value).length }))
                 .filter((o) => o.count > 0),
-        [shops, stages],
+        [pool, stages],
     );
     // Each dropdown's counts follow the other's choice.
     const countries = useMemo(
-        () => countryOptions(industry === "all" ? shops : shops.filter((s) => (s.industry ?? "") === industry)),
-        [shops, industry],
+        () => countryOptions(industry === "all" ? pool : pool.filter((s) => (s.industry ?? "") === industry)),
+        [pool, industry],
     );
     const industries = useMemo(
-        () => industryOptions(country === "all" ? shops : shops.filter((s) => (s.country_code ?? "") === country)),
-        [shops, country],
+        () => industryOptions(country === "all" ? pool : pool.filter((s) => (s.country_code ?? "") === country)),
+        [pool, country],
     );
 
     const columns = useMemo(() => buildColumns(window.location.origin), []);
 
-    const counts = useMemo(
-        () => ({
-            all: inCountry.length,
-            active: inCountry.filter((s) => s.status === "active").length,
-            quiet: inCountry.filter((s) => s.status === "quiet").length,
-            not_started: inCountry.filter((s) => s.status === "not_started").length,
-            blocked: inCountry.filter((s) => s.status === "blocked").length,
-            no_owner: inCountry.filter((s) => !s.owner_email).length,
-            no_display: inCountry.filter(needsDisplay).length,
-            no_qr: inCountry.filter(needsQr).length,
-            no_welcome: inCountry.filter(needsWelcome).length,
-        }),
-        [inCountry],
-    );
+    // The chips always count the active shops (whichever chip is picked); Blocked counts its own.
+    const counts = useMemo(() => {
+        const active = shops.filter((s) => s.status !== "blocked" && matchesDropdowns(s) && (segment === "all" || s.health.segment === segment));
+        return {
+            all: active.length,
+            active: active.filter((s) => s.status === "active").length,
+            quiet: active.filter((s) => s.status === "quiet").length,
+            not_started: active.filter((s) => s.status === "not_started").length,
+            blocked: blockedCount,
+            no_owner: active.filter((s) => !s.owner_email).length,
+            no_display: active.filter(needsDisplay).length,
+            no_qr: active.filter(needsQr).length,
+            no_welcome: active.filter(needsWelcome).length,
+        };
+    }, [shops, country, industry, stage, segment, blockedCount]);
 
     const rows = useMemo(() => {
-        if (status === "all") return inCountry;
+        // "All" and "Blocked" are the whole pool (active shops, or the blocked ones).
+        if (status === "all" || status === "blocked") return inCountry;
         if (status === "no_owner") return inCountry.filter((s) => !s.owner_email);
         if (status === "no_display") return inCountry.filter(needsDisplay);
         if (status === "no_qr") return inCountry.filter(needsQr);
@@ -969,7 +976,9 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
                     ? `Shops that haven't ordered the ${primaryProduct} (and have no order awaiting payment) - with their contact details to follow up.`
                     : status === "no_qr"
                       ? "Shops that print their own QR but haven't downloaded it yet. Not opened = may not have found it; opened or failed = may need help downloading."
-                      : `Every shop on TaDa Tap and the owner who runs it. Quiet = no stamps for ${quietDays} days.`
+                      : showingBlocked
+                        ? "Blocked shops: their card page, staff app and owner dashboard are paused. Open a shop's settings to unblock it."
+                        : `Every active shop on TaDa Tap and the owner who runs it (blocked shops are under Blocked). Quiet = no stamps for ${quietDays} days.`
             }
             actions={
                 <Link href="/admin/shops/create" className={primaryButton}>
@@ -1037,7 +1046,7 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
                                 value={stage}
                                 onChange={setStage}
                                 options={stageOptions}
-                                total={shops.length}
+                                total={pool.length}
                             />
                         </>
                     }
