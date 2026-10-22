@@ -265,7 +265,8 @@ export function StackedLines({ data, lines, caption }) {
 /* Columns: one series, or 2 stacked                                  */
 /* ------------------------------------------------------------------ */
 
-export function ColumnChart({ data, series, caption, height = 180 }) {
+// `format` = how a value reads in the tooltip (e.g. money), `tickFormat` = on the y-axis (short).
+export function ColumnChart({ data, series, caption, height = 180, format = formatNumber, tickFormat = format }) {
     const [active, setActive] = useState(null);
     const n = data.length;
     const totals = data.map((d) => series.reduce((sum, s) => sum + d[s.key], 0));
@@ -282,10 +283,10 @@ export function ColumnChart({ data, series, caption, height = 180 }) {
             )}
 
             <div className="flex gap-2">
-                <div className="flex w-8 shrink-0 flex-col justify-between text-right text-[11px] tabular-nums text-brand-muted" style={{ height }} aria-hidden="true">
+                <div className="flex min-w-8 shrink-0 flex-col justify-between whitespace-nowrap text-right text-[11px] tabular-nums text-brand-muted" style={{ height }} aria-hidden="true">
                     {ticks.map((t) => (
                         <span key={t} className="-translate-y-1/2 leading-none first:translate-y-0 last:translate-y-0">
-                            {formatNumber(t)}
+                            {tickFormat(t)}
                         </span>
                     ))}
                 </div>
@@ -309,7 +310,7 @@ export function ColumnChart({ data, series, caption, height = 180 }) {
                                     onMouseEnter={() => setActive(i)}
                                     onFocus={() => setActive(i)}
                                     onBlur={() => setActive(null)}
-                                    aria-label={`${d.label}: ${series.map((s) => `${d[s.key]} ${s.label.toLowerCase()}`).join(', ')}`}
+                                    aria-label={`${d.label}: ${series.map((s) => `${format(d[s.key])} ${s.label.toLowerCase()}`).join(', ')}`}
                                     className="group relative flex h-full min-w-0 flex-1 items-end justify-center outline-none"
                                 >
                                     {/* Capped width, 4px rounded top, 2px gap between stacked segments */}
@@ -338,7 +339,7 @@ export function ColumnChart({ data, series, caption, height = 180 }) {
                             >
                                 <TooltipCard
                                     title={`${data[active].weekday} ${data[active].label}`}
-                                    rows={series.map((s) => ({ label: s.label.toLowerCase(), value: formatNumber(data[active][s.key]), color: series.length > 1 ? s.color : null }))}
+                                    rows={series.map((s) => ({ label: s.label.toLowerCase(), value: format(data[active][s.key]), color: series.length > 1 ? s.color : null }))}
                                 />
                             </span>
                         )}
@@ -361,7 +362,7 @@ export function ColumnChart({ data, series, caption, height = 180 }) {
                 </div>
             </div>
 
-            <SrTable caption={caption} columns={['Day', ...series.map((s) => s.label)]} rows={data.map((d) => [d.label, ...series.map((s) => d[s.key])])} />
+            <SrTable caption={caption} columns={['Day', ...series.map((s) => s.label)]} rows={data.map((d) => [d.label, ...series.map((s) => format(d[s.key]))])} />
         </div>
     );
 }

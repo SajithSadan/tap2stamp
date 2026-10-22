@@ -6,8 +6,12 @@ import {
     LuArrowDown,
     LuArrowRight,
     LuArrowUp,
+    LuCalendarClock,
+    LuCreditCard,
     LuExternalLink,
     LuGift,
+    LuHourglass,
+    LuTimerOff,
     LuMoon,
     LuPackage,
     LuPackageCheck,
@@ -598,6 +602,121 @@ function OrdersPanel({ orders }) {
     );
 }
 
+/* ---------- Subscriptions ---------- */
+
+/** "₹5,500" in the tooltip; "₹5.5K" on the axis. */
+const money = (symbol) => (v) => `${symbol}${v.toLocaleString('en-GB', { maximumFractionDigits: 2 })}`;
+const shortMoney = (symbol) => (v) => `${symbol}${new Intl.NumberFormat('en-GB', { notation: 'compact', maximumFractionDigits: 1 }).format(v)}`;
+
+/**
+ * Plans & subscriptions: where shops stand now (not blocked) as tiles, the
+ * period's revenue per day as a chart - one currency at a time, as prices are
+ * typed per currency and never converted - and paying shops per plan with
+ * the latest payments beside it.
+ */
+function SubscriptionsSection({ subscriptions: s }) {
+    const { ranges, loading, reload } = useContext(DashboardContext);
+    const [picked, setPicked] = useState(null);
+    const revenue = s.revenue.find((r) => r.currency === picked) ?? s.revenue[0] ?? null;
+    const busy = loading === 'subscriptions';
+
+    return (
+        <>
+            <SectionTitle
+                hint="Plans owners pay for · revenue after refunds"
+                action={<RangeTabs ranges={ranges} value={s.range} busy={busy} onChange={(r) => reload('subscriptions', r)} />}
+            >
+                Subscriptions
+            </SectionTitle>
+
+            <div className={`transition-opacity ${busy ? 'opacity-60' : ''}`}>
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                    <KpiTile
+                        icon={LuCreditCard}
+                        label="Paying"
+                        value={formatNumber(s.paying)}
+                        note={s.paused > 0 ? `Paid year running · ${formatNumber(s.paused)} paused` : 'Paid year running'}
+                    />
+                    <KpiTile icon={LuHourglass} label="Free trial" value={formatNumber(s.trial)} note={`${formatNumber(s.trials_ending)} end in the next 7 days`} />
+                    <KpiTile
+                        icon={LuTimerOff}
+                        label="Ended"
+                        value={formatNumber(s.ended)}
+                        note={`${formatNumber(s.ended - s.lapsed)} never paid · ${formatNumber(s.lapsed)} didn't renew`}
+                    />
+                    <KpiTile icon={LuCalendarClock} label="Renewals due" value={formatNumber(s.renewals_due)} note="Paid year ends in the next 30 days" />
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+                    <Panel
+                        className="xl:col-span-2"
+                        title="Revenue"
+                        description={
+                            revenue
+                                ? `${revenue.total_label} from ${formatNumber(revenue.payments)} ${revenue.payments === 1 ? 'payment' : 'payments'}, ${lastDays(s.range)}${s.refunds > 0 ? ` · ${formatNumber(s.refunds)} refunded` : ''}`
+                                : `No plan payments in the ${lastDays(s.range)}`
+                        }
+                        action={
+                            revenue && (
+                                <div className="flex items-center gap-2">
+                                    <ChangePill change={percentChange(revenue.total, revenue.previous)} />
+                                    {s.revenue.length > 1 && (
+                                        <Segmented
+                                            label="Currency"
+                                            value={revenue.currency}
+                                            onChange={setPicked}
+                                            options={s.revenue.map((r) => ({ value: r.currency, label: r.currency }))}
+                                        />
+                                    )}
+                                </div>
+                            )
+                        }
+                    >
+                        {revenue ? (
+                            <ColumnChart
+                                data={revenue.days}
+                                caption={`Subscription revenue per day, ${revenue.currency}`}
+                                series={[{ key: 'revenue', label: 'Revenue', color: SERIES.primary }]}
+                                format={money(revenue.symbol)}
+                                tickFormat={shortMoney(revenue.symbol)}
+                            />
+                        ) : (
+                            <EmptyState icon={LuCreditCard} title="No revenue yet">
+                                Plan payments made online show up here. Years you mark as paid on a shop's page aren't counted.
+                            </EmptyState>
+                        )}
+                    </Panel>
+
+                    <Panel title="Plans" description={`${formatNumber(s.paying)} paying ${s.paying === 1 ? 'shop' : 'shops'}`}>
+                        {s.by_plan.length === 0 ? <p className="text-sm text-brand-muted">No paying shops yet.</p> : <BarList items={s.by_plan} of={s.paying} />}
+
+                        <p className="mt-6 text-xs font-medium uppercase tracking-wide text-brand-muted">Latest payments</p>
+                        {s.recent.length === 0 ? (
+                            <p className="mt-2 text-sm text-brand-muted">None yet.</p>
+                        ) : (
+                            <ul className="-mx-5 -mb-5 mt-1 divide-y divide-brand-border">
+                                {s.recent.map((p) => (
+                                    <li key={p.id}>
+                                        <Link href={`/admin/shops/${p.shop_id}/settings`} className="flex items-center gap-3 px-5 py-2.5 text-sm transition-colors hover:bg-brand-bg">
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate font-medium text-brand-text">{p.shop_name}</span>
+                                                <span className="block truncate text-xs text-brand-muted">
+                                                    {p.plan} · {p.paid_label}
+                                                </span>
+                                            </span>
+                                            <span className={`tabular-nums ${p.refunded ? 'text-brand-muted line-through' : 'font-semibold text-brand-text'}`}>{p.amount}</span>
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </Panel>
+                </div>
+            </div>
+        </>
+    );
+}
+
 function QrPanel({ qr }) {
     const percent = qr.total ? Math.round((qr.mapped / qr.total) * 100) : 0;
 
@@ -639,6 +758,7 @@ function QrPanel({ qr }) {
 export default function Dashboard({
     ranges,
     orders,
+    subscriptions,
     kpis,
     customerGrowth,
     shopGrowth,
@@ -731,6 +851,8 @@ export default function Dashboard({
                         note={`${formatNumber(rating.rated_shops)} rated shops · all time`}
                     />
                 </div>
+
+                <SubscriptionsSection subscriptions={subscriptions} />
 
                 {/* Growth */}
                 <SectionTitle hint="Running total above, new each day below - same days, own scale each">Growth</SectionTitle>

@@ -9,11 +9,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\CustomerShopCard;
 use App\Models\Order;
+use App\Models\Plan;
 use App\Models\QrCode;
 use App\Models\Review;
 use App\Models\Shop;
 use App\Models\StampLog;
+use App\Models\SubscriptionPayment;
 use App\Models\User;
+use App\Support\Currencies;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
@@ -54,6 +57,7 @@ class DashboardController extends Controller
         return Inertia::render('Admin/Dashboard', [
             'ranges' => self::RANGES,
             'orders' => fn () => $this->orders(),
+            'subscriptions' => fn () => $this->subscriptions($range('subscriptions')),
             'kpis' => fn () => $this->kpis($range('kpis')),
             'customerGrowth' => fn () => $this->growth($range('customerGrowth'), Customer::query()),
             'shopGrowth' => fn () => $this->growth($range('shopGrowth'), Shop::query()),
@@ -436,6 +440,112 @@ class DashboardController extends Controller
                 ->get()
                 ->map(fn (Order $order) => [...$order->summary(), 'shop_id' => $order->shop_id, 'shop_name' => $order->shop?->name]),
         ];
+    }
+
+    /**
+     * Plans & subscriptions. Where shops stand now (not blocked; the same
+     * rules as Shop::subscriptionStatus(), counted in SQL), what's coming up,
+     * paying shops per plan, and the period's online payments - revenue per
+     * currency (prices are typed per currency, never converted), net of
+     * refunds. Years the admin marked as paid outside the app count as paying
+     * but have no payment row.
+     */
+    private function subscriptions(int $range): array
+    {
+        [$start, $end, $prevStart] = $this->window($range);
+        $now = now();
+        $shops = fn () => Shop::whereNull('blocked_at');
+        $active = fn ($q) => $q->where('subscription_ends_at', '>', $now);
+        $trial = fn ($q) => $q->where(fn ($q) => $q->whereNull('subscription_ends_at')->orWhere('subscription_ends_at', '<=', $now))
+            ->where(fn ($q) => $q->where('trial_ends_at', '>', $now)
+                ->orWhere(fn ($q) => $q->whereNull('trial_ends_at')->whereNull('subscription_ends_at')));
+
+        $paying = $active($shops())->count();
+        $onTrial = $trial($shops())->count();
+        $total = $shops()->count();
+        $paid = fn () => SubscriptionPayment::whereIn('status', [SubscriptionPayment::PAID, SubscriptionPayment::REFUNDED]);
+        $inPeriod = fn ($from, $to) => $paid()->where('paid_at', '>=', $from)->where('paid_at', '<', $to);
+
+        return [
+            'range' => $range,
+            'paying' => $paying,
+            'trial' => $onTrial,
+            'ended' => $total - $paying - $onTrial,
+            // Of the ended: never paid (trial ran out) vs paid once and didn't renew.
+            'lapsed' => $shops()->whereNotNull('subscription_ends_at')->where('subscription_ends_at', '<=', $now)->count(),
+            'trials_ending' => $trial($shops())->whereNotNull('trial_ends_at')->where('trial_ends_at', '<=', $now->copy()->addDays(7))->count(),
+            'renewals_due' => $active($shops())->where('subscription_ends_at', '<=', $now->copy()->addDays(30))->count(),
+            'paused' => $shops()->whereNotNull('scanning_paused_at')->count(),
+            'by_plan' => Plan::ordered()
+                ->withCount(['shops as paying' => fn ($q) => $active($q->whereNull('blocked_at'))])
+                ->get()
+                ->filter(fn (Plan $plan) => $plan->paying > 0)
+                ->map(fn (Plan $plan) => ['label' => $plan->name, 'value' => $plan->paying])
+                ->sortByDesc('value')
+                ->values()
+                ->all(),
+            'payments' => $inPeriod($start, $end)->count(),
+            'previous_payments' => $inPeriod($prevStart, $start)->count(),
+            'revenue' => $this->subscriptionRevenue($range, $inPeriod),
+            'refunds' => SubscriptionPayment::where('amount_refunded', '>', 0)->where('refunded_at', '>=', $start)->where('refunded_at', '<', $end)->count(),
+            'recent' => $paid()->with('shop:id,name')
+                ->latest('paid_at')
+                ->limit(5)
+                ->get()
+                ->map(fn (SubscriptionPayment $payment) => [
+                    'id' => $payment->id,
+                    'shop_id' => $payment->shop_id,
+                    'shop_name' => $payment->shop?->name,
+                    'plan' => $payment->plan_name,
+                    'amount' => $payment->amountLabel(),
+                    'refunded' => $payment->status === SubscriptionPayment::REFUNDED,
+                    'method' => $payment->provider === SubscriptionPayment::STRIPE ? 'Card' : 'Razorpay',
+                    'paid_label' => $payment->paid_at?->timezone('Europe/London')->format('j M Y'),
+                ])
+                ->all(),
+        ];
+    }
+
+    /**
+     * Net revenue (after refunds) per currency, with a value for every day of
+     * the period - one chart per currency, as they can't be added together.
+     * Currencies paid in this period or the one before, most payments first.
+     */
+    private function subscriptionRevenue(int $range, \Closure $inPeriod): array
+    {
+        [$start, $end, $prevStart] = $this->window($range);
+        $net = 'SUM(amount - amount_refunded)';
+
+        $daily = $inPeriod($start, $end)
+            ->selectRaw("currency, DATE(paid_at) as day, {$net} as net")
+            ->groupBy('currency', 'day')
+            ->toBase()
+            ->get()
+            ->groupBy('currency');
+        $totals = $inPeriod($start, $end)->selectRaw("currency, {$net} as net, COUNT(*) as payments")->groupBy('currency')->toBase()->get()->keyBy('currency');
+        $previous = $inPeriod($prevStart, $start)->selectRaw("currency, {$net} as net")->groupBy('currency')->toBase()->pluck('net', 'currency');
+
+        return $totals->keys()->merge($previous->keys())->unique()
+            ->map(function (string $currency) use ($daily, $totals, $previous, $range) {
+                $major = fn ($minor) => (int) $minor / 10 ** Currencies::decimals($currency);
+                $byDay = ($daily[$currency] ?? collect())->pluck('net', 'day');
+                $total = (int) ($totals[$currency]->net ?? 0);
+
+                return [
+                    'currency' => $currency,
+                    'symbol' => Currencies::symbol($currency),
+                    'total' => $major($total),
+                    'total_label' => Currencies::format($total, $currency),
+                    'previous' => $major($previous[$currency] ?? 0),
+                    'payments' => (int) ($totals[$currency]->payments ?? 0),
+                    'days' => $this->days($range)->map(fn (Carbon $day) => $this->dayRow($day, [
+                        'revenue' => $major($byDay[$day->format('Y-m-d')] ?? 0),
+                    ]))->all(),
+                ];
+            })
+            ->sortByDesc('payments')
+            ->values()
+            ->all();
     }
 
     private function recentOwners(): array

@@ -5,10 +5,12 @@ use App\Enums\UserRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Customer;
 use App\Models\CustomerShopCard;
+use App\Models\Plan;
 use App\Models\QrCode;
 use App\Models\Review;
 use App\Models\Shop;
 use App\Models\StampLog;
+use App\Models\SubscriptionPayment;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -319,5 +321,52 @@ test('QR progress, newest owners and quiet shops are included', function () {
         ->where('recentOwners.0.via_google', true)
         ->has('quietShops', 1)
         ->where('quietShops.0.name', 'Quiet Cafe')
+    );
+});
+
+test('the subscriptions card shows where shops stand, paying shops per plan and payments per currency', function () {
+    $admin = dashboardAdmin();
+    $plan = Plan::where('is_default', true)->firstOrFail();
+    $base = ['plan_id' => $plan->id];
+
+    // Paying (renewal due in 10 days), paying, on trial (ends in 3 days), never paid, didn't renew, blocked (left out).
+    $due = Shop::factory()->create([...$base, 'subscription_ends_at' => now()->addDays(10), 'trial_ends_at' => now()->subMonth()]);
+    Shop::factory()->create([...$base, 'subscription_ends_at' => now()->addMonths(6), 'trial_ends_at' => now()->subMonth()]);
+    Shop::factory()->create([...$base, 'subscription_ends_at' => null, 'trial_ends_at' => now()->addDays(3)]);
+    Shop::factory()->create([...$base, 'subscription_ends_at' => null, 'trial_ends_at' => now()->subDay()]);
+    Shop::factory()->create([...$base, 'subscription_ends_at' => now()->subDay(), 'trial_ends_at' => now()->subYear()]);
+    Shop::factory()->create([...$base, 'subscription_ends_at' => now()->addYear(), 'blocked_at' => now()]);
+
+    $pay = fn (array $attrs) => SubscriptionPayment::create([
+        'shop_id' => $due->id, 'plan_id' => $plan->id, 'plan_name' => $plan->name, 'provider' => SubscriptionPayment::RAZORPAY,
+        'provider_order_id' => 'order_'.uniqid(), 'currency' => 'INR', 'amount' => 499900, 'amount_refunded' => 0, 'status' => SubscriptionPayment::PAID, 'paid_at' => now()->subDays(2), ...$attrs,
+    ]);
+    $pay([]);
+    $pay(['currency' => 'GBP', 'amount' => 4900, 'provider' => SubscriptionPayment::STRIPE]);
+    $pay(['status' => SubscriptionPayment::REFUNDED, 'amount_refunded' => 499900, 'refunded_at' => now()->subDay()]);
+    $pay(['status' => SubscriptionPayment::PENDING, 'paid_at' => null]); // never counted
+    $pay(['paid_at' => now()->subDays(40)]); // the period before
+
+    $this->actingAs($admin)->get('/admin/dashboard')->assertInertia(fn ($page) => $page
+        ->where('subscriptions.range', 30)
+        ->where('subscriptions.paying', 2)
+        ->where('subscriptions.trial', 1)
+        ->where('subscriptions.ended', 2)
+        ->where('subscriptions.lapsed', 1)
+        ->where('subscriptions.trials_ending', 1)
+        ->where('subscriptions.renewals_due', 1)
+        ->where('subscriptions.by_plan', [['label' => $plan->name, 'value' => 2]])
+        ->where('subscriptions.payments', 3)
+        ->where('subscriptions.previous_payments', 1)
+        ->where('subscriptions.refunds', 1)
+        ->where('subscriptions.revenue', fn ($rows) => collect($rows)->pluck('payments', 'currency')->all() === ['INR' => 2, 'GBP' => 1])
+        // Net of the refund, one value per day of the period, in whole units.
+        ->where('subscriptions.revenue.0.total', 4999)
+        ->where('subscriptions.revenue.0.previous', 4999)
+        ->where('subscriptions.revenue.0.total_label', '₹4,999')
+        ->has('subscriptions.revenue.0.days', 30)
+        ->where('subscriptions.revenue.0.days', fn ($days) => collect($days)->sum('revenue') == 4999)
+        ->where('subscriptions.revenue.1.total', 49)
+        ->has('subscriptions.recent', 4)
     );
 });

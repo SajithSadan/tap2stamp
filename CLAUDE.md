@@ -1198,6 +1198,12 @@ later maybe more (table stickers). Prices and copy live in our DB, not in Stripe
   KPIs, growth (running total + new per day), popularity (active customers split first-time vs
   returning, stamps vs rewards, weekday × hour heatmap), a this-period-vs-previous table, a
   sortable shop comparison, ratings, health ratios, owner activation funnel, quiet shops.
+  **Subscriptions** section after Key numbers (`subscriptions` prop, its own range): tiles for
+  paying / free trial / ended (never paid vs didn't renew) / renewals due, for shops not blocked
+  (same rules as `Shop::subscriptionStatus()`, in SQL); a **Revenue** column chart per day, net
+  of refunds, **one currency at a time** (switch when there are several; never converted or
+  added together; `ColumnChart`'s `format` / `tickFormat` for money); paying shops per plan +
+  latest 5 payments. Years marked paid by the admin count as paying but have no payment row.
   **Each card has its own 7/30/90-day filter** (default 30): every section is a lazy Inertia
   prop whose name is also its URL param (`?visits=7&comparison=90`), and a card's switch does
   `router.reload({ only: [prop], data: {prop: range} })` — only that section is recomputed.
