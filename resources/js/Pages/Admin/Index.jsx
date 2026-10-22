@@ -506,20 +506,26 @@ function buildColumns(origin) {
             header: "Plan",
             meta: {
                 label: "Plan",
-                csv: (s) => `${s.plan ?? ""} - ${s.subscription.status}${s.subscription.paid_until_label ? ` until ${s.subscription.paid_until_label}` : ""}`,
+                csv: (s) =>
+                    s.subscription
+                        ? `${s.plan ?? ""} - ${s.subscription.status}${s.subscription.paid_until_label ? ` until ${s.subscription.paid_until_label}` : ""}`
+                        : (s.plan ?? ""),
             },
+            // No `subscription` (a server older than this page) = just the plan name, never a crash.
             cell: ({ row: { original: s } }) => (
                 <div className="whitespace-nowrap">
                     <span className="text-sm text-brand-text">{s.plan ?? "-"}</span>
-                    <span className={`mt-0.5 block w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${SUBSCRIPTION_TONE[s.subscription.status]}`}>
-                        {s.subscription.status === "active"
-                            ? `Paid to ${s.subscription.paid_until_label}`
-                            : s.subscription.status === "trial"
-                              ? "Free trial"
-                              : s.subscription.paused
-                                ? "Ended · scanning paused"
-                                : "Ended"}
-                    </span>
+                    {s.subscription && (
+                        <span className={`mt-0.5 block w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${SUBSCRIPTION_TONE[s.subscription.status]}`}>
+                            {s.subscription.status === "active"
+                                ? `Paid to ${s.subscription.paid_until_label}`
+                                : s.subscription.status === "trial"
+                                  ? "Free trial"
+                                  : s.subscription.paused
+                                    ? "Ended · scanning paused"
+                                    : "Ended"}
+                        </span>
+                    )}
                 </div>
             ),
         },
