@@ -21,4 +21,15 @@ class ShopNote extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    /** The shape the admin's notes lists show (shop settings → Account, the Shops grid's dialog). */
+    public function toRow(): array
+    {
+        return [
+            'id' => $this->id,
+            'body' => $this->body,
+            'author' => $this->author?->name,
+            'at_label' => $this->created_at->timezone('Europe/London')->format('j M Y, H:i'),
+        ];
+    }
 }

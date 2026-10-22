@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateShopSettingsRequest;
+use App\Models\Plan;
 use App\Models\Product;
 use App\Models\QrDesign;
 use App\Models\Setting;
@@ -13,6 +14,7 @@ use App\Models\ShopNote;
 use App\Models\ShopTask;
 use App\Services\CrmAssistant;
 use App\Services\ShopHealth;
+use App\Services\ShopPayments;
 use App\Services\ShopTimeline;
 use App\Support\Countries;
 use App\Support\CrmStage;
@@ -39,18 +41,20 @@ class ShopSettingsController extends Controller
                 'crm_stage' => $shop->crm_stage,
                 'trial_ends_at' => $shop->trial_ends_at?->timezone('Europe/London')->format('Y-m-d'),
                 'lost_reason' => $shop->lost_reason,
+                // Subscription: the plan, and paid up to (null = never paid, on the trial).
+                'plan_id' => $shop->plan_id,
+                'subscription_ends_at' => $shop->subscription_ends_at?->timezone('Europe/London')->format('Y-m-d'),
             ],
+            'subscription' => $shop->subscriptionSummary(),
+            'plans' => Plan::ordered()->get(['id', 'name', 'is_active', 'is_default']),
+            // Every payment of the shop: plan payments and paid orders, newest first (the Payments tab).
+            'payments' => app(ShopPayments::class)->rows($shop),
             'crmStages' => CrmStage::STORED,
             // Phase 2: notes, tags, follow-ups, the shop's timeline, AI "Brief me".
             'crm' => [
                 'tags' => $shop->crm_tags ?? [],
                 'tag_suggestions' => self::TAG_SUGGESTIONS,
-                'notes' => $shop->notes()->with('author:id,name')->latest()->limit(50)->get()->map(fn (ShopNote $note) => [
-                    'id' => $note->id,
-                    'body' => $note->body,
-                    'author' => $note->author?->name,
-                    'at_label' => $note->created_at->timezone('Europe/London')->format('j M Y, H:i'),
-                ]),
+                'notes' => $shop->notes()->with('author:id,name')->latest()->limit(50)->get()->map(fn (ShopNote $note) => $note->toRow()),
                 // Open first (soonest due), then the last 10 done.
                 'tasks' => $shop->tasks()->open()->orderByRaw('due_on IS NULL, due_on')->get()
                     ->concat($shop->tasks()->whereNotNull('done_at')->latest('done_at')->limit(10)->get())
@@ -112,12 +116,23 @@ class ShopSettingsController extends Controller
      * The shop's place in the sales pipeline: stage, trial end (e.g. extended
      * for an active shop) and why it was lost. Logged by RecordsActivity.
      */
+    /** Pause (or resume) this shop's scanning - the admin's call, never automatic. Logged by RecordsActivity. */
+    public function updateScanning(Request $request, Shop $shop): RedirectResponse
+    {
+        $paused = (bool) $request->validate(['paused' => ['required', 'boolean']])['paused'];
+        $shop->forceFill(['scanning_paused_at' => $paused ? ($shop->scanning_paused_at ?? now()) : null])->save();
+
+        return back()->with('status', $paused ? 'Scanning paused for this shop.' : 'Scanning resumed for this shop.');
+    }
+
     public function updateAccount(Request $request, Shop $shop): RedirectResponse
     {
         $input = $request->validate([
             'crm_stage' => ['required', Rule::in(array_keys(CrmStage::STORED))],
             'trial_ends_at' => ['nullable', 'date'],
             'lost_reason' => ['nullable', 'string', 'max:255'],
+            'plan_id' => ['nullable', 'integer', Rule::exists('plans', 'id')],
+            'subscription_ends_at' => ['nullable', 'date'],
         ]);
 
         $shop->forceFill([
@@ -127,6 +142,11 @@ class ShopSettingsController extends Controller
                 ? Carbon::parse($input['trial_ends_at'], 'Europe/London')->endOfDay()
                 : null,
             'lost_reason' => $input['crm_stage'] === CrmStage::LOST ? (trim((string) ($input['lost_reason'] ?? '')) ?: null) : null,
+            // Not sent = unchanged (older forms); sent empty = no plan / never paid.
+            ...$request->has('plan_id') ? ['plan_id' => $input['plan_id'] ?? null] : [],
+            ...$request->has('subscription_ends_at') ? ['subscription_ends_at' => filled($input['subscription_ends_at'] ?? null)
+                ? Carbon::parse($input['subscription_ends_at'], 'Europe/London')->endOfDay()
+                : null] : [],
         ])->save();
 
         return back()->with('status', "Account saved for {$shop->name}.");

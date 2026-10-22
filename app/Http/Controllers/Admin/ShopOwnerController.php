@@ -46,7 +46,7 @@ class ShopOwnerController extends Controller
         $primary = Product::where('is_featured', true)->first();
         $primaryOrders = fn ($q) => $q->where('product_id', $primary?->id ?? 0);
 
-        $shops = Shop::with('owner:id,name,email,google_id,welcome_sent_at')
+        $shops = Shop::with(['owner:id,name,email,google_id,welcome_sent_at', 'plan:id,name'])
             ->withMax(['orders as primary_paid_at' => fn ($q) => $primaryOrders($q)->where('status', OrderStatus::Paid)], 'paid_at')
             ->withExists(['orders as primary_awaiting' => fn ($q) => $primaryOrders($q)
                 ->where('status', OrderStatus::Pending)
@@ -58,6 +58,7 @@ class ShopOwnerController extends Controller
                 'stampLogs as rewards_total' => fn ($q) => $q->where('action_type', ActionType::RewardRedeemed),
                 'staffMembers as staff' => fn ($q) => $q->whereNull('deactivated_at'),
                 'tasks as open_tasks' => fn ($q) => $q->whereNull('done_at'),
+                'notes',
                 'reviews',
             ])
             ->withAvg('reviews as rating', 'rating')
@@ -149,10 +150,15 @@ class ShopOwnerController extends Controller
                     'stage' => CrmStage::display($shop->crm_stage, $healthByShop[$shop->id]['metrics']['first_stamp_at'] !== null),
                     'tags' => $shop->crm_tags ?? [],
                     'open_tasks' => $shop->open_tasks,
+                    // The admin's notes on the shop (the grid's notes icon shows the count).
+                    'notes' => $shop->notes_count,
                     'trial_ends_at' => $shop->trial_ends_at?->toIso8601String(),
                     'trial_ends_label' => $shop->trial_ends_at?->timezone('Europe/London')->format('j M Y'),
                     // Whole days left (negative = ended that many days ago).
                     'trial_days_left' => $shop->trial_ends_at ? (int) now()->startOfDay()->diffInDays($shop->trial_ends_at->copy()->startOfDay(), false) : null,
+                    // Yearly plan: active (paid) / trial / expired, and whether scanning is paused.
+                    'plan' => $shop->plan?->name,
+                    'subscription' => collect($shop->subscriptionSummary())->only(['status', 'paid', 'paid_until_label', 'ended_label', 'paused'])->all(),
                     'created_at' => $shop->created_at->toIso8601String(),
                     'created_label' => $shop->created_at->format('j M Y'),
                 ];

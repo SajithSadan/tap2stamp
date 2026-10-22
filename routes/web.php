@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\LandingPageController;
 use App\Http\Controllers\Admin\LegalPageController;
 use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Admin\PlanController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\QrCodeController;
 use App\Http\Controllers\Admin\QrDesignController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Admin\ShopBlockController;
 use App\Http\Controllers\Admin\ShopCrmController;
 use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Controllers\Admin\ShopOwnerController;
+use App\Http\Controllers\Admin\ShopPaymentController;
 use App\Http\Controllers\Admin\ShopSettingsController;
 use App\Http\Controllers\Admin\ShopWhatsAppController;
 use App\Http\Controllers\Admin\UserController;
@@ -41,6 +43,7 @@ use App\Http\Controllers\MyCardsController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OwnerMenuController;
 use App\Http\Controllers\OwnerScanController;
+use App\Http\Controllers\PlanPaymentController;
 use App\Http\Controllers\QrRedirectController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SeoController;
@@ -53,7 +56,6 @@ use App\Http\Controllers\StaffController;
 use App\Http\Controllers\StaffDeviceController;
 use App\Http\Controllers\StaffMemberController;
 use App\Http\Controllers\StaffSetupController;
-use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\UnsubscribeController;
 use App\Http\Controllers\WhatsAppConnectionController;
 use App\Http\Controllers\WhatsAppInboxController;
@@ -183,10 +185,17 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::put('/shops/{shop}/settings', [ShopSettingsController::class, 'update'])->name('shops.settings.update');
     Route::put('/shops/{shop}/features', [ShopSettingsController::class, 'updateFeatures'])->name('shops.features.update');
     Route::put('/shops/{shop}/account', [ShopSettingsController::class, 'updateAccount'])->name('shops.account.update');
+    // Pause / resume one shop's scanning by hand (never automatic).
+    Route::put('/shops/{shop}/scanning', [ShopSettingsController::class, 'updateScanning'])->name('shops.scanning.update');
+    // Refund a payment made online (a plan payment or a Stripe order), through its provider.
+    Route::post('/shops/{shop}/payments/{kind}/{id}/refund', [ShopPaymentController::class, 'refund'])
+        ->whereIn('kind', ['plan', 'order'])->whereNumber('id')
+        ->middleware('throttle:10,1')->name('shops.payments.refund');
 
     // CRM on a shop (Account tab): notes, tags, follow-ups, AI "Brief me".
     // Scoped: a note / task is only found through its own shop.
     Route::scopeBindings()->group(function () {
+        Route::get('/shops/{shop}/notes', [ShopCrmController::class, 'notes'])->name('shops.notes');
         Route::post('/shops/{shop}/notes', [ShopCrmController::class, 'storeNote'])->name('shops.notes.store');
         Route::delete('/shops/{shop}/notes/{note}', [ShopCrmController::class, 'destroyNote'])->name('shops.notes.destroy');
         Route::put('/shops/{shop}/tags', [ShopCrmController::class, 'updateTags'])->name('shops.tags.update');
@@ -236,6 +245,11 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
     Route::post('/products', [ProductController::class, 'store'])->name('products.store');
     Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
+    // Plan billing (the plans themselves are the landing page's pricing).
+    // The owner's Plan page as an owner in a chosen country sees it.
+    Route::get('/plans/preview', [PlanController::class, 'preview'])->name('plans.preview');
+    // Which countries pay with Stripe (everyone else: Razorpay).
+    Route::put('/plans/payments', [PlanController::class, 'updatePayments'])->name('plans.payments');
     Route::get('/coupons', [CouponController::class, 'index'])->name('coupons.index');
     Route::post('/coupons', [CouponController::class, 'store'])->name('coupons.store');
     Route::put('/coupons/{coupon}', [CouponController::class, 'update'])->name('coupons.update');
@@ -315,6 +329,11 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     Route::get('/reviews', [DashboardController::class, 'reviews'])->name('reviews');
     Route::get('/staff', [DashboardController::class, 'staff'])->name('staff');
     Route::post('/scan', OwnerScanController::class)->middleware('throttle:30,1')->name('scan');
+    // The shop's plan, trial / paid year, and the plans to upgrade to.
+    Route::get('/plan', [DashboardController::class, 'plan'])->name('plan');
+    // Pay for a year of a plan: Stripe's card form (UK) / Razorpay (elsewhere).
+    Route::post('/plan/pay', [PlanPaymentController::class, 'start'])->middleware('throttle:10,1')->name('plan.pay');
+    Route::post('/plan/pay/confirm', [PlanPaymentController::class, 'confirm'])->middleware('throttle:30,1')->name('plan.pay.confirm');
     Route::get('/qr-codes', [DashboardController::class, 'qrCodes'])->name('qr-codes');
     Route::post('/qr-codes/downloaded', [DashboardController::class, 'qrDownloaded'])->middleware('throttle:30,1')->name('qr-codes.downloaded');
     Route::get('/settings', [DashboardController::class, 'settings'])->name('settings');
@@ -439,11 +458,6 @@ Route::middleware('staff.auth')->prefix('api/staff')->name('staff.')->group(func
         Route::put('/menu/availability', [StaffController::class, 'menuAvailability'])->middleware('throttle:120,1')->name('menu.availability');
     });
 });
-
-// Stripe's payment confirmations (signature-checked, CSRF-exempt).
-Route::post('/stripe/webhook', StripeWebhookController::class)
-    ->middleware('throttle:60,1')
-    ->name('stripe.webhook');
 
 // Runs `php artisan migrate` / bootstraps the admin account over HTTP for
 // hosting plans without SSH access. Must work in every environment (it's for

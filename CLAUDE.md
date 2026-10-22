@@ -1424,7 +1424,9 @@ Owners pay for a year of a plan on Billing & plan, in the shop's currency
 ## Admin CRM & AI briefing (MONETISATION-PLAN.md phase 2)
 
 - **Per shop** (shop settings → Account, `ShopCrmPanels.jsx`, `Admin\ShopCrmController`):
-  - **notes** (`shop_notes`, author, ≤ 2000);
+  - **notes** (`shop_notes`, author, ≤ 2000, `ShopNote::toRow()`); also on the Shops grid: a
+    notes icon with the count (`ShopNotesButton.jsx`) opens a dialog to read / add / delete them,
+    through the same routes answering JSON (`GET /admin/shops/{shop}/notes` lists them);
   - **tags** (`shops.crm_tags`, `Shop::tidyCrmTags()`: ≤ 8, ≤ 30 chars, deduped, with one-tap
     suggestions; searchable on the Shops grid, plus a Tags column with "N to do");
   - **follow-ups** (`shop_tasks`: title, `due_on`, `done_at` / `done_by`; `ShopTask::toRow()`

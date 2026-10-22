@@ -18,20 +18,37 @@ use Illuminate\Http\Request;
  */
 class ShopCrmController extends Controller
 {
-    public function storeNote(Request $request, Shop $shop): RedirectResponse
+    /** The Shops grid's notes dialog: the latest 50, newest first (JSON). */
+    public function notes(Shop $shop): JsonResponse
+    {
+        return response()->json(['notes' => $this->latestNotes($shop)]);
+    }
+
+    /** JSON callers (the Shops grid's dialog) get the fresh list; the Account tab is redirected back. */
+    public function storeNote(Request $request, Shop $shop): RedirectResponse|JsonResponse
     {
         $input = $request->validate(['body' => ['required', 'string', 'max:'.ShopNote::MAX_LENGTH]]);
 
         $shop->notes()->create(['body' => trim($input['body']), 'user_id' => $request->user()->id]);
 
-        return back()->with('status', 'Note added.');
+        return $request->wantsJson()
+            ? response()->json(['notes' => $this->latestNotes($shop)], 201)
+            : back()->with('status', 'Note added.');
     }
 
-    public function destroyNote(Shop $shop, ShopNote $note): RedirectResponse
+    public function destroyNote(Request $request, Shop $shop, ShopNote $note): RedirectResponse|JsonResponse
     {
         $note->delete();
 
-        return back()->with('status', 'Note deleted.');
+        return $request->wantsJson()
+            ? response()->json(['notes' => $this->latestNotes($shop)])
+            : back()->with('status', 'Note deleted.');
+    }
+
+    private function latestNotes(Shop $shop): array
+    {
+        return $shop->notes()->with('author:id,name')->latest()->limit(50)->get()
+            ->map(fn (ShopNote $note) => $note->toRow())->all();
     }
 
     public function updateTags(Request $request, Shop $shop): RedirectResponse

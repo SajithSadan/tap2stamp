@@ -115,6 +115,39 @@ test('the shops grid shows tags and open follow-ups', function () {
         ->where('shops.0.open_tasks', 1));
 });
 
+test('the shops grid notes dialog lists, adds and deletes notes as JSON', function () {
+    $admin = crmAdmin();
+    $shop = Shop::factory()->create();
+    $shop->notes()->create(['body' => 'First call', 'user_id' => $admin->id]);
+
+    $this->actingAs($admin)->get('/admin')->assertInertia(fn ($page) => $page->where('shops.0.notes', 1));
+
+    $this->actingAs($admin)->getJson("/admin/shops/{$shop->id}/notes")
+        ->assertOk()
+        ->assertJsonPath('notes.0.body', 'First call')
+        ->assertJsonPath('notes.0.author', 'Ada');
+
+    $this->actingAs($admin)->postJson("/admin/shops/{$shop->id}/notes", ['body' => ' Sent the QR sticker '])
+        ->assertCreated()
+        ->assertJsonCount(2, 'notes');
+    expect($shop->notes()->latest('id')->first()->body)->toBe('Sent the QR sticker');
+
+    $this->actingAs($admin)->postJson("/admin/shops/{$shop->id}/notes", ['body' => ''])->assertJsonValidationErrors('body');
+
+    $note = $shop->notes()->first();
+    $this->actingAs($admin)->deleteJson("/admin/shops/{$shop->id}/notes/{$note->id}")->assertOk()->assertJsonCount(1, 'notes');
+});
+
+test('the notes list is admin only and per shop', function () {
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+    $shop->notes()->create(['body' => 'Admin only']);
+    $other = Shop::factory()->create();
+
+    $this->actingAs($owner)->getJson("/admin/shops/{$shop->id}/notes")->assertForbidden();
+    $this->actingAs(crmAdmin())->getJson("/admin/shops/{$other->id}/notes")->assertOk()->assertJsonCount(0, 'notes');
+});
+
 // --- Timeline ------------------------------------------------------------------------
 
 test('the timeline has milestones, notes, follow-ups and activity, but not every stamp', function () {

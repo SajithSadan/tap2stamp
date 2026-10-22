@@ -21,6 +21,7 @@ import {
 } from "react-icons/lu";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import DataTable from "@/Components/Dashboard/DataTable";
+import ShopNotesButton from "@/Components/Dashboard/ShopNotesButton";
 import WhatsAppButton from "@/Components/Dashboard/WhatsAppButton";
 import {
     Avatar,
@@ -916,6 +917,7 @@ function buildColumns(origin) {
                         welcomeSentLabel={s.welcome_sent_label}
                         upgradeText={upgradeMessage(s, origin)}
                     />
+                    <ShopNotesButton shopId={s.id} shopName={s.name} count={s.notes} />
                     <Link
                         href={`/admin/shops/${s.id}/settings`}
                         aria-label={`Configure ${s.name}`}
