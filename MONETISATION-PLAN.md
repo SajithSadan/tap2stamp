@@ -157,7 +157,8 @@ Rules for AI:
    - CRM notes, follow-ups, timeline
    - AI weekly briefing + "Brief me" call prep
 3. **Week 3**:
-   - subscription billing + trial-end handling
+   - subscription billing + trial-end handling (plans, per-plan trial, paid-until and the
+     "pause scanning" switch built 2026-10-20; online payment still to do)
    - owner "Your month" value report
 4. **Later**: automatic nudges. Hostinger hPanel cron can run `php artisan schedule:run`;
    no queue worker is needed.

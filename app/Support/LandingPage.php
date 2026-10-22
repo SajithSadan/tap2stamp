@@ -2,13 +2,16 @@
 
 namespace App\Support;
 
+use App\Models\Plan;
 use App\Models\Setting;
 
 /**
  * The public landing page at "/" (signed-out visitors): title, description,
  * a YouTube video, and the pricing plans. Edited by the admin (Admin →
- * Landing page) and kept as one JSON setting (Setting::LANDING_PAGE); until
- * then the defaults below apply.
+ * Landing page). The texts are one JSON setting (Setting::LANDING_PAGE; until
+ * then the defaults below apply); the plans are the `plans` table - the same
+ * plans owners pay for - so the defaults' plans are only suggestions ("Load
+ * default content", and the first install's rows).
  *
  * Prices are typed per currency by the admin (no conversion). A visitor sees
  * their country's currency (App\Services\VisitorCountry) when it's offered,
@@ -19,8 +22,6 @@ class LandingPage
     public const MAX_PLANS = 4;
 
     public const MAX_FEATURES = 12;
-
-    public const MAX_CURRENCIES = 12;
 
     public const MAX_TRUST_POINTS = 6;
 
@@ -128,13 +129,17 @@ class LandingPage
 
     /**
      * The saved page, or the defaults. A page saved before a field existed
-     * (e.g. the trust banner) gets that field's default, not nothing.
+     * (e.g. the trust banner) gets that field's default, not nothing. The
+     * plans come from the `plans` table, in their order.
      *
      * @return array<string, mixed>
      */
     public static function content(): array
     {
-        return array_replace(self::defaults(), Setting::get(Setting::LANDING_PAGE) ?? []);
+        return [
+            ...array_replace(self::defaults(), Setting::get(Setting::LANDING_PAGE) ?? []),
+            'plans' => Plan::ordered()->get()->map(fn (Plan $plan) => $plan->toLanding())->values()->all(),
+        ];
     }
 
     /**
@@ -187,8 +192,9 @@ class LandingPage
             ])->all(),
             'youtube_id' => self::youtubeId($content['youtube_url'] ?? null),
             'currency' => $currency,
-            'plans' => collect($content['plans'])->map(fn (array $plan) => [
-                ...collect($plan)->except('prices')->all(),
+            // Only the offered plans; the admin's billing settings stay off the page.
+            'plans' => collect($content['plans'])->filter(fn (array $plan) => $plan['is_active'] ?? true)->map(fn (array $plan) => [
+                ...collect($plan)->only(['name', 'description', 'note', 'badge', 'highlighted', 'cta_label', 'period', 'billing_note', 'features'])->all(),
                 'price' => $plan['prices'][$currency] ?? $plan['prices'][$default] ?? null,
                 'symbol' => Currencies::symbol(isset($plan['prices'][$currency]) ? $currency : $default),
             ])->values()->all(),

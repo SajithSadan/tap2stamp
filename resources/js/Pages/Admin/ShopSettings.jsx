@@ -4,6 +4,8 @@ import { FaWhatsapp } from "react-icons/fa6";
 import {
     LuActivity,
     LuBuilding2,
+    LuCircleAlert,
+    LuCreditCard,
     LuExternalLink,
     LuEye,
     LuPackage,
@@ -14,6 +16,7 @@ import {
     LuUtensils,
 } from "react-icons/lu";
 import AddressLookup from "@/Components/AddressLookup";
+import { useConfirm } from "@/Components/ConfirmDialog";
 import CountrySelect from "@/Components/CountrySelect";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import PhoneField from "@/Components/PhoneField";
@@ -38,6 +41,7 @@ import { BlockedBanner, BlockShopButton } from "@/Components/Dashboard/ShopBlock
 import { formatPence } from "@/lib/money";
 import IndustryPicker from "@/Components/IndustryPicker";
 import ShopAccountTab from "@/Components/Dashboard/ShopAccountTab";
+import ShopPaymentsTab from "@/Components/Dashboard/ShopPaymentsTab";
 import ShopWhatsAppTab from "@/Components/Dashboard/ShopWhatsAppTab";
 
 /** The page's tabs, and which form fields live on each (to flag errors). */
@@ -54,6 +58,7 @@ const TABS = [
     { key: "features", label: "Features", icon: LuToggleRight, fields: [] },
     { key: "whatsapp", label: "WhatsApp", icon: FaWhatsapp, fields: [] },
     { key: "orders", label: "Orders", icon: LuPackage, fields: [] },
+    { key: "payments", label: "Payments", icon: LuCreditCard, fields: [] },
     {
         key: "business",
         label: "Business",
@@ -184,10 +189,28 @@ function OrdersTab({ shop, orders, products, productOrderedAt, deliveryAddress, 
 
 /**
  * Owner features for this shop: follow the platform default (Admin →
- * Settings → Features) or switch on / off just here. Saved on click.
+ * Settings → Features) or switch on / off just here. Saved on click. First,
+ * Scanning: paused by hand only (never automatic when a trial or paid year
+ * ends); paying online resumes it.
  */
-function FeaturesTab({ shop, features }) {
+function FeaturesTab({ shop, features, scanningPaused }) {
     const [saving, setSaving] = useState(null);
+    const [confirm, confirmDialog] = useConfirm();
+
+    async function setScanning(paused) {
+        if (
+            paused &&
+            !(await confirm({
+                title: "Pause scanning?",
+                message: `${shop.name}'s staff and owner won't be able to give stamps until you switch it back on (or they pay for a plan online). Customers still see their cards.`,
+                confirmLabel: "Pause scanning",
+                danger: true,
+            }))
+        ) {
+            return;
+        }
+        router.put(`/admin/shops/${shop.id}/scanning`, { paused }, { preserveScroll: true, onStart: () => setSaving("scanning"), onFinish: () => setSaving(null) });
+    }
 
     function choose(key, choice) {
         router.put(`/admin/shops/${shop.id}/features`, { features: { [key]: choice } }, {
@@ -199,6 +222,34 @@ function FeaturesTab({ shop, features }) {
 
     return (
         <Section title="Features">
+            <Row label="Scanning" hint="Staff and owner giving stamps. Never paused by itself - only here. Paying online turns it back on.">
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className={`flex rounded-lg bg-brand-bg p-0.5 ring-1 ring-brand-border ${saving === "scanning" ? "opacity-60" : ""}`} role="radiogroup" aria-label="Scanning">
+                        {[
+                            [false, "On"],
+                            [true, "Paused"],
+                        ].map(([paused, label]) => (
+                            <button
+                                key={label}
+                                type="button"
+                                role="radio"
+                                aria-checked={scanningPaused === paused}
+                                disabled={saving !== null}
+                                onClick={() => scanningPaused !== paused && setScanning(paused)}
+                                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                    scanningPaused === paused ? (paused ? "bg-red-600 text-white shadow-sm" : "bg-brand-card text-brand-text shadow-sm") : "text-brand-muted hover:text-brand-text"
+                                }`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${scanningPaused ? "text-red-700" : "text-emerald-700"}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${scanningPaused ? "bg-red-500" : "bg-emerald-500"}`} />
+                        {scanningPaused ? "No stamps for this shop" : "Stamping works"}
+                    </span>
+                </div>
+            </Row>
             {features.map((f) => {
                 const current = f.override === null ? "default" : f.override ? "on" : "off";
                 const effective = f.override ?? f.default;
@@ -236,6 +287,7 @@ function FeaturesTab({ shop, features }) {
                     </Row>
                 );
             })}
+            {confirmDialog}
         </Section>
     );
 }
@@ -297,11 +349,14 @@ export default function ShopSettings({
     qrDesigns,
     defaultQrDesign,
     industries = [],
+    payments = [],
     health,
     healthModel,
     pipeline,
     crmStages,
     crm,
+    subscription,
+    plans = [],
     whatsappAccount = null,
 }) {
     const [tab, setTab] = useState(initialTab);
@@ -400,10 +455,26 @@ export default function ShopSettings({
             }
         >
             {shop.blocked_at && <BlockedBanner shop={shop} />}
+            {!shop.blocked_at && (subscription.status === "expired" || subscription.paused) && (
+                <div role="status" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950">
+                    <LuCircleAlert className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                        {subscription.status === "expired" && (
+                            <>
+                                <strong>{subscription.paid ? "Paid year ended" : "Free trial ended"}</strong> on {subscription.ended_label}.{" "}
+                            </>
+                        )}
+                        {subscription.paused ? <strong>Scanning is paused.</strong> : "Scanning still works - pause it on the Features tab if needed."}
+                    </span>
+                    <button type="button" onClick={() => openTab("account")} className="font-semibold underline underline-offset-2">
+                        Set the plan
+                    </button>
+                </div>
+            )}
 
             <nav role="tablist" aria-label="Shop settings" className="-mx-1 mb-4 flex gap-1 overflow-x-auto border-b border-brand-border px-1 [scrollbar-width:none]">
                 {TABS.map((t) => {
-                    const count = t.key === "menu" ? menuItemsCount : t.key === "orders" ? orders.length : null;
+                    const count = { menu: menuItemsCount, orders: orders.length, payments: payments.length }[t.key] ?? null;
 
                     return (
                         <button
@@ -426,9 +497,12 @@ export default function ShopSettings({
             </nav>
 
             {tab === "menu" && <MenuTab shop={shop} menuItemsCount={menuItemsCount} menuUrl={menuUrl} />}
-            {tab === "features" && <FeaturesTab shop={shop} features={features} />}
+            {tab === "features" && <FeaturesTab shop={shop} features={features} scanningPaused={Boolean(subscription.paused)} />}
             {tab === "whatsapp" && <ShopWhatsAppTab shop={shop} account={whatsappAccount} />}
-            {tab === "account" && <ShopAccountTab shop={shop} health={health} healthModel={healthModel} pipeline={pipeline} crmStages={crmStages} crm={crm} />}
+            {tab === "account" && (
+                <ShopAccountTab shop={shop} health={health} healthModel={healthModel} pipeline={pipeline} crmStages={crmStages} crm={crm} subscription={subscription} plans={plans} />
+            )}
+            {tab === "payments" && <ShopPaymentsTab shop={shop} payments={payments} />}
 
             {tab === "orders" && (
                 <OrdersTab

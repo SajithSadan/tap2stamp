@@ -257,7 +257,7 @@ test('a signed checkout.session.completed webhook marks the order paid, once', f
         ]],
     ]);
 
-    $send = fn () => $this->call('POST', '/stripe/webhook', [], [], [], [
+    $send = fn () => $this->call('POST', '/api/stripe/webhook', [], [], [], [
         'HTTP_STRIPE_SIGNATURE' => stripeSignature($payload, 'whsec_test'),
         'CONTENT_TYPE' => 'application/json',
     ], $payload);
@@ -282,7 +282,7 @@ test('a webhook with a bad signature is rejected', function () {
         'data' => ['object' => ['id' => 'cs_test_forged', 'payment_status' => 'paid']],
     ]);
 
-    $this->call('POST', '/stripe/webhook', [], [], [], [
+    $this->call('POST', '/api/stripe/webhook', [], [], [], [
         'HTTP_STRIPE_SIGNATURE' => stripeSignature($payload, 'whsec_wrong'),
         'CONTENT_TYPE' => 'application/json',
     ], $payload)->assertStatus(400);

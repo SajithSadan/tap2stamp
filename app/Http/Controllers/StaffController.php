@@ -40,6 +40,8 @@ class StaffController extends Controller
             'menu_enabled' => $device->shop->hasFeature(Features::MENU) && $device->shop->menuItems()->exists(),
             // The Menu tab's "tell the AI" bar (needs a Gemini key).
             'menu_ai' => app(MenuCommandParser::class)->configured(),
+            // Trial / paid year over: the Scan tab shows this instead of the camera (StampService refuses too).
+            'scan_paused' => $device->shop->scanningPaused(),
         ]);
     }
 

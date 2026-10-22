@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -96,8 +97,11 @@ class Shop extends Model
         static::creating(function (Shop $shop) {
             $shop->menu_slug ??= static::uniqueMenuSlug($shop->name ?? '');
             $shop->shop_code ??= static::uniqueShopCode();
-            // The free trial runs from the day the shop is set up.
-            $shop->trial_ends_at ??= now()->addDays((int) config('loyalty.trial_days', 30));
+            // Every new shop starts on the default plan, with that plan's free
+            // trial from the day the shop is set up (Admin → Landing page).
+            $plan = $shop->plan_id ? Plan::find($shop->plan_id) : Plan::defaultPlan();
+            $shop->plan_id ??= $plan?->id;
+            $shop->trial_ends_at ??= now()->addDays($plan?->trial_days ?? (int) config('loyalty.trial_days', 30));
         });
 
         // Orders placed before the shop had an address (or arranged by the
@@ -175,6 +179,8 @@ class Shop extends Model
             'show_menu_on_card' => 'boolean',
             'qr_page_viewed_at' => 'datetime',
             'trial_ends_at' => 'datetime',
+            'subscription_ends_at' => 'datetime',
+            'scanning_paused_at' => 'datetime',
             'crm_tags' => 'array',
             'qr_downloaded_at' => 'datetime',
             'qr_downloads' => 'integer',
@@ -488,6 +494,107 @@ class Shop extends Model
     public function logoUrl(): ?string
     {
         return $this->logo_path ? Storage::disk('uploads')->url($this->logo_path) : null;
+    }
+
+    public function subscriptionPayments(): HasMany
+    {
+        return $this->hasMany(SubscriptionPayment::class);
+    }
+
+    /** The yearly plan the shop is on (the default plan for new shops). */
+    public function plan(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class);
+    }
+
+    public const SUBSCRIPTION_ACTIVE = 'active';
+
+    public const SUBSCRIPTION_TRIAL = 'trial';
+
+    public const SUBSCRIPTION_EXPIRED = 'expired';
+
+    /**
+     * active = paid up (subscription_ends_at ahead); trial = the free trial
+     * hasn't ended (no end date = no limit, until paid once); expired = the
+     * trial or the paid year is over.
+     */
+    public function subscriptionStatus(): string
+    {
+        return match (true) {
+            $this->subscription_ends_at?->isFuture() => self::SUBSCRIPTION_ACTIVE,
+            $this->trial_ends_at?->isFuture(),
+            $this->trial_ends_at === null && $this->subscription_ends_at === null => self::SUBSCRIPTION_TRIAL,
+            default => self::SUBSCRIPTION_EXPIRED,
+        };
+    }
+
+    /**
+     * When a year paid now starts: paying during the free trial keeps the rest
+     * of it (the plan starts when the trial ends), and a renewal while the
+     * paid year still runs adds on to it (no days lost). Otherwise today.
+     * Mirrors markPaidYear() in Components/Dashboard/ShopAccountTab.jsx.
+     */
+    public function paidYearStart(): Carbon
+    {
+        return collect([now(), $this->trial_ends_at, $this->subscription_ends_at])
+            ->filter()
+            ->sortBy(fn (Carbon $at) => $at->getTimestamp())
+            ->last()
+            ->copy();
+    }
+
+    /** The end of a year paid now: a year after paidYearStart(), to the end of that UK day. */
+    public function paidYearEnd(): Carbon
+    {
+        return $this->paidYearStart()->timezone('Europe/London')->addYear()->endOfDay();
+    }
+
+    /** Record a year paid now (paid-until a year after paidYearStart()). The trial is untouched. */
+    public function startPaidYear(): void
+    {
+        $this->forceFill(['subscription_ends_at' => $this->paidYearEnd()])->save();
+    }
+
+    /**
+     * No stamps: the admin paused this shop's scanning (shop settings →
+     * Account → Pause scanning). Never automatic - a trial or paid year that
+     * ends doesn't stop scanning by itself. Paying online resumes it
+     * (SubscriptionCheckout). Customers' cards stay visible.
+     */
+    public function scanningPaused(): bool
+    {
+        return $this->scanning_paused_at !== null;
+    }
+
+    /**
+     * The shop's plan and where it stands, for the owner banner / Plan page,
+     * the staff app and the admin. Dates are UK days.
+     *
+     * @return array<string, mixed>
+     */
+    public function subscriptionSummary(): array
+    {
+        $status = $this->subscriptionStatus();
+        $today = now()->timezone('Europe/London')->startOfDay();
+        $daysUntil = fn ($at) => $at ? (int) $today->diffInDays($at->copy()->timezone('Europe/London')->startOfDay(), false) : null;
+        $label = fn ($at) => $at?->timezone('Europe/London')->format('j M Y');
+        // When it ran out: the paid year if they ever paid, else the trial.
+        $endedAt = $status === self::SUBSCRIPTION_EXPIRED ? ($this->subscription_ends_at ?? $this->trial_ends_at) : null;
+
+        return [
+            'status' => $status,
+            'plan' => $this->plan?->name,
+            'plan_id' => $this->plan_id,
+            'paid' => $this->subscription_ends_at !== null,
+            'trial_ends_label' => $label($this->trial_ends_at),
+            'trial_days_left' => $daysUntil($this->trial_ends_at),
+            'paid_until_label' => $label($this->subscription_ends_at),
+            // Paid during the free trial: the trial runs out first, then the paid year starts.
+            'trial_running' => (bool) $this->trial_ends_at?->isFuture(),
+            'paid_days_left' => $daysUntil($this->subscription_ends_at),
+            'ended_label' => $label($endedAt),
+            'paused' => $this->scanningPaused(),
+        ];
     }
 
     public function owner(): BelongsTo

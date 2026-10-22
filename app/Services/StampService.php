@@ -34,6 +34,11 @@ class StampService
             return $this->error(403, 'shop_blocked', "This shop's account is paused.");
         }
 
+        // The admin paused this shop's scanning (never automatic): no stamps until it's resumed.
+        if ($shop->scanningPaused()) {
+            return $this->error(403, 'scanning_paused', 'Scanning is paused for this shop. Ask the owner to upgrade or contact Tada Tap.');
+        }
+
         if (! preg_match('/^TOKEN:([0-9a-fA-F-]{36})\|SHOP:(\d+)$/', $payload, $matches)) {
             return $this->error(422, 'invalid_qr', "That doesn't look like a loyalty card QR code.");
         }

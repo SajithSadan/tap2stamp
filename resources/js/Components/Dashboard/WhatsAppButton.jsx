@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { FaWhatsapp } from "react-icons/fa6";
-import { LuCheck, LuExternalLink, LuHandHeart, LuMessageCircle, LuX } from "react-icons/lu";
+import { LuCheck, LuExternalLink, LuGem, LuHandHeart, LuMessageCircle, LuX } from "react-icons/lu";
 import { CopyButton, secondaryButton } from "@/Components/Dashboard/Ui";
 
 /** A mouse and a big screen: show the QR to scan with the phone instead of opening WhatsApp here. */
@@ -15,6 +15,7 @@ const pretty = (number) => `+${number}`;
 const OPTIONS = [
     { key: "chat", label: "Chat", icon: LuMessageCircle },
     { key: "welcome", label: "Welcome", icon: LuHandHeart },
+    { key: "upgrade", label: "Upgrade", icon: LuGem },
 ];
 
 /**
@@ -32,9 +33,13 @@ const OPTIONS = [
  * grids and the AI analysis: automatically for "Open WhatsApp" / "Open on this
  * computer"; after scanning the QR, with "Mark as sent". `shopId` / `userId`
  * say who it was; `welcomeSentLabel` = when the welcome was first sent.
+ * `upgradeText`: an **Upgrade** reminder for this shop (free trial ending /
+ * ended, Shops grid), offered as a third message.
  */
-export default function WhatsAppButton({ number, name, text, shopId = null, userId = null, welcomeSentLabel = null }) {
+export default function WhatsAppButton({ number, name, text, shopId = null, userId = null, welcomeSentLabel = null, upgradeText = null }) {
     const welcome = usePage().props.whatsappWelcome;
+    const messages = { welcome, upgrade: upgradeText };
+    const options = OPTIONS.filter(({ key }) => key === "chat" || messages[key]);
     const [open, setOpen] = useState(false);
     const [sentLabel, setSentLabel] = useState(welcomeSentLabel);
     const [marked, setMarked] = useState(false);
@@ -42,7 +47,9 @@ export default function WhatsAppButton({ number, name, text, shopId = null, user
     const [qr, setQr] = useState(null);
     const desktop = isDesktop();
     const chatLink = `https://wa.me/${number}`;
-    const link = kind === "welcome" && welcome ? `${chatLink}?text=${encodeURIComponent(welcome)}` : chatLink;
+    // The message typed in for Welcome / Upgrade (null = a plain chat).
+    const message = kind === "chat" ? null : messages[kind];
+    const link = message ? `${chatLink}?text=${encodeURIComponent(message)}` : chatLink;
 
     useEffect(() => {
         if (!open || !desktop) return;
@@ -119,9 +126,9 @@ export default function WhatsAppButton({ number, name, text, shopId = null, user
                                 </button>
                             </div>
 
-                            {welcome && (
-                                <div role="radiogroup" aria-label="What to send" className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-brand-bg p-1">
-                                    {OPTIONS.map(({ key, label: optionLabel, icon: Icon }) => (
+                            {options.length > 1 && (
+                                <div role="radiogroup" aria-label="What to send" className={`mt-4 grid gap-1 rounded-xl bg-brand-bg p-1 ${options.length > 2 ? "grid-cols-3" : "grid-cols-2"}`}>
+                                    {options.map(({ key, label: optionLabel, icon: Icon }) => (
                                         <button
                                             key={key}
                                             type="button"
@@ -141,10 +148,10 @@ export default function WhatsAppButton({ number, name, text, shopId = null, user
                                 </div>
                             )}
 
-                            {kind === "welcome" && welcome && (
+                            {message && (
                                 // WhatsApp-style bubble: exactly what will be typed in.
                                 <div className="mt-3 rounded-xl bg-[#e7f8ee] p-3">
-                                    <p className="whitespace-pre-line break-words text-sm text-neutral-800">{welcome}</p>
+                                    <p className="whitespace-pre-line break-words text-sm text-neutral-800">{message}</p>
                                 </div>
                             )}
                             {kind === "welcome" && welcome && sentLabel && (
@@ -159,12 +166,12 @@ export default function WhatsAppButton({ number, name, text, shopId = null, user
                                         {qr && <img src={qr} alt={`QR code to open WhatsApp with ${pretty(number)}`} className="h-full w-full" />}
                                     </div>
                                     <p className="mt-3 text-center text-xs text-brand-muted">
-                                        {kind === "welcome"
+                                        {message
                                             ? "Scan with your phone's camera - WhatsApp opens with the message typed in, ready to send."
                                             : "Scan with your phone's camera to open the chat in WhatsApp."}
                                     </p>
-                                    <div className={`mt-4 grid gap-2 ${kind === "welcome" ? "grid-cols-2" : ""}`}>
-                                        {kind === "welcome" && (
+                                    <div className={`mt-4 grid gap-2 ${message ? "grid-cols-2" : ""}`}>
+                                        {message && (
                                             // Scanned with the phone: the app can't see that, so the admin says so.
                                             <button
                                                 type="button"
@@ -179,7 +186,7 @@ export default function WhatsAppButton({ number, name, text, shopId = null, user
                                             </button>
                                         )}
                                         <a href={link} target="_blank" rel="noopener noreferrer" onClick={report} className={`${secondaryButton} w-full`}>
-                                            <LuExternalLink className="h-4 w-4" /> {kind === "welcome" ? "Open here" : "Open on this computer"}
+                                            <LuExternalLink className="h-4 w-4" /> {message ? "Open here" : "Open on this computer"}
                                         </a>
                                     </div>
                                 </>
@@ -195,7 +202,7 @@ export default function WhatsAppButton({ number, name, text, shopId = null, user
                                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-semibold text-white"
                                 >
                                     <FaWhatsapp className="h-4 w-4" />
-                                    {kind === "welcome" ? "Send welcome message" : "Open WhatsApp"}
+                                    {kind === "welcome" ? "Send welcome message" : kind === "upgrade" ? "Send upgrade reminder" : "Open WhatsApp"}
                                 </a>
                             )}
                         </div>

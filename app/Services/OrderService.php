@@ -153,6 +153,35 @@ class OrderService
     }
 
     /**
+     * A refund of an order paid online ($refunded = its total refunded so far,
+     * pence): from the shop's Payments tab, or Stripe's charge.refunded
+     * webhook. The order itself stays as it was. What it did, for the log.
+     */
+    public function recordRefund(?string $paymentIntent, int $refunded): string
+    {
+        if (blank($paymentIntent)) {
+            return 'no matching order';
+        }
+
+        return DB::transaction(function () use ($paymentIntent, $refunded) {
+            $order = Order::where('stripe_payment_intent', $paymentIntent)->lockForUpdate()->first();
+            if (! $order) {
+                return 'no matching order';
+            }
+
+            $refunded = min($refunded, $order->total_pence);
+            if ($refunded <= $order->amount_refunded_pence) {
+                return 'no change';
+            }
+
+            $full = $refunded >= $order->total_pence;
+            $order->forceFill(['amount_refunded_pence' => $refunded, 'refunded_at' => $full ? now() : $order->refunded_at])->save();
+
+            return $full ? 'order refunded' : 'order partly refunded';
+        });
+    }
+
+    /**
      * An order the admin arranges for a shop (e.g. agreed on the phone), at
      * the normal price or an agreed one (a promotion, or free). Either the
      * money is already in ($paid), or it waits for the shop's bank transfer

@@ -2,7 +2,6 @@ import { Head, Link } from "@inertiajs/react";
 import { useRef, useState } from "react";
 import {
     LuArrowRight,
-    LuCheck,
     LuChevronDown,
     LuCircleCheck,
     LuGift,
@@ -13,6 +12,7 @@ import { Wordmark } from "@/Components/AuthShell";
 import LegalLinks from "@/Components/LegalLinks";
 import SupportChatButton from "@/Components/SupportChatButton";
 import CookieNotice from "@/Components/CookieNotice";
+import PlanFeature from "@/Components/PlanFeature";
 
 /**
  * "/" for visitors: hero (badge, heading, subtitle, trial + demo buttons),
@@ -113,40 +113,6 @@ function TrustBanner({ title, description, points }) {
     );
 }
 
-/** A feature line: "Everything in Growth, plus:" is a small heading; "Title (detail)" shows the detail smaller. */
-function Feature({ text, dark }) {
-    if (text.trim().endsWith(":")) {
-        return (
-            <li
-                className={`pt-1 text-xs font-semibold uppercase tracking-wide ${dark ? "text-brand-accent" : "text-brand-muted"}`}
-            >
-                {text}
-            </li>
-        );
-    }
-
-    const match = text.match(/^(.*?)\s*\((.+)\)\s*$/);
-
-    return (
-        <li className="flex items-start gap-2.5">
-            <LuCheck
-                className="mt-1 h-4 w-4 shrink-0 text-brand-accent"
-                strokeWidth={3}
-            />
-            <span>
-                {match ? match[1] : text}
-                {match && (
-                    <span
-                        className={`mt-0.5 block text-[13px] leading-snug ${dark ? "text-white/60" : "text-brand-muted"}`}
-                    >
-                        {match[2]}
-                    </span>
-                )}
-            </span>
-        </li>
-    );
-}
-
 function PlanCard({ plan, currency }) {
     const dark = plan.highlighted;
     const shown = { price: plan.price, symbol: plan.symbol };
@@ -219,7 +185,7 @@ function PlanCard({ plan, currency }) {
                     className={`mt-7 space-y-3 border-t pt-6 text-[15px] ${dark ? "border-white/10" : "border-brand-border"}`}
                 >
                     {plan.features.map((feature) => (
-                        <Feature key={feature} text={feature} dark={dark} />
+                        <PlanFeature key={feature} text={feature} dark={dark} />
                     ))}
                 </ul>
             )}

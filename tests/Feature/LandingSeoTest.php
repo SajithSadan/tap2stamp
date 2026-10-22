@@ -85,7 +85,7 @@ test('the admin saves the SEO title, description and FAQ; empty rows are dropped
     $admin = User::factory()->create(['role' => UserRole::Admin]);
     $form = [
         ...collect(LandingPage::defaults())->except('plans')->all(),
-        'plans' => collect(LandingPage::defaults()['plans'])->map(fn ($p) => $p)->all(),
+        'plans' => LandingPage::content()['plans'],
         'seo_title' => '  Loyalty cards for any shop | Tada Tap ',
         'seo_description' => 'Stamp cards on the phone.',
         'faq_title' => 'Questions',

@@ -990,14 +990,21 @@ Enquiries come from all over the world, but we only ship hardware in the UK.
   **pricing** (`pricing_title`, `pricing_subtitle`, the plan cards). Every
   plan button → `/register`.
 - **Edited by the admin** at `/admin/landing-page` (`Admin\LandingPageController`,
-  `Admin/LandingPage.jsx`, nav "Landing page", desktop only), stored as one JSON setting
-  (`Setting::LANDING_PAGE`). `LandingPage::content()` = the saved page **merged over**
+  `Admin/LandingPage.jsx`, nav "Landing & plans", desktop only). The texts are one JSON setting
+  (`Setting::LANDING_PAGE`); `LandingPage::content()` = the saved page **merged over**
   `LandingPage::defaults()`, so a page saved before a field existed gets that field's default.
-  The editor's **"Load default content"** fills the form with the defaults (saved only on Save).
+  **The plans are the `plans` table** - the same rows owners pay for (see "Plans & trial end");
+  the setting holds no plans. The editor has tabs like shop settings (Hero, Trust banner,
+  Pricing & plans, FAQ, Search & sharing, Billing; red dot = an error there), label-left rows,
+  and the plans edited one at a time from a strip of plan pills. The editor's **"Load default content"**
+  fills the form with the defaults (saved only on Save; the suggested plans take over the
+  saved ones in order, keeping their ids, default and trial).
   Up to 4 plans: name, badge (short pill), "who it's for" (`description`), offer line (gift
   icon), price per currency, text after/under the price ("/ year", "Billed annually after …"),
   features (one per line, ≤ 200 chars: `Title (detail)` shows the detail smaller, a line ending
-  in `:` is a heading), button text, highlighted (dark, mint-ringed, raised card).
+  in `:` is a heading, drawn by `Components/PlanFeature.jsx` here and on the owner's Plan page),
+  button text, highlighted (dark, mint-ringed, raised card), plus **Offered**, **Default plan**
+  and its **Free trial (days)**.
 - **Currency**: prices are **typed per currency** by the admin (no conversion; every plan needs a
   price in every offered currency). A visitor sees **only their own country's currency** - no
   switch, and **other currencies' prices never reach the page or its data** (so nobody can
@@ -1122,7 +1129,8 @@ later maybe more (table stickers). Prices and copy live in our DB, not in Stripe
   pending order for that product and returns `Inertia::location()` to Stripe's hosted page
   (`price_data` built from our price, GBP). Paid is confirmed by **both** the success redirect
   (`GET /dashboard/orders/{order}/success`, order looked up through the owner's own shop) and the
-  webhook (`POST /stripe/webhook`, `StripeWebhookController`, signature-checked, CSRF-exempt),
+  webhook (`POST /api/stripe/webhook` in `routes/api.php`, `StripeWebhookController`,
+  signature-checked),
   whichever comes first; `markPaid()` locks the row and is idempotent. Needs `STRIPE_SECRET`
   (+ `STRIPE_WEBHOOK_SECRET`); with no secret the banner says "get in touch" and checkout 404s.
   Ordering needs an address (`Shop::deliveryAddress()`: delivery address, else the shop address).
@@ -1290,6 +1298,129 @@ Account tab) / Stage / Trial ends columns; shop settings → **Account** tab
 lost reason → `PUT /admin/shops/{shop}/account`, logged by RecordsActivity). Nothing is
 charged, enforced or switched off by the trial yet (phase 3).
 
+## Plans & trial end (MONETISATION-PLAN.md phase 3, first part)
+
+Yearly plans (`plans` table, `App\Models\Plan`) **are the landing page's pricing plans** - one
+set of rows, edited on Admin → Landing page (`UpdateLandingPageRequest::plans()` →
+`App\Services\PlanList::replace()`): name, description, `prices` JSON (currency → yearly price
+as typed; no conversion), `features`, the card's look (`note`, `badge`, `highlighted`,
+`cta_label`, `period`, `billing_note`), `trial_days`, `is_default` (exactly one, must be
+offered), `is_active` (**offered**: on the landing page and the owner's Plan page; off = hidden,
+shops on it keep it), `position` (the editor's order). Saved plans keep their id (shops and
+payments point at it); a plan removed in the editor is deleted and its shops move to the
+default. The migration **moves the live landing page's saved plans word for word** into the
+table (else the defaults' Starter / Growth / Elite Pro), the first as the default, and takes
+them out of the setting (rolling back puts them back) - so nothing on the live page changes
+and there's only one copy. There is no separate Plans page any more.
+
+- **New shops**: `Shop::booted()` puts them on the default plan, and `trial_ends_at` = that
+  plan's `trial_days` (the trial length is changed by editing the default plan; existing shops
+  keep theirs). `{trial_days}` on the legal pages = `Plan::defaultTrialDays()`.
+- **Status** (`Shop::subscriptionStatus()`): `active` (`shops.subscription_ends_at` ahead = paid
+  up to that day) / `trial` (trial not ended; no trial date and never paid = no limit) /
+  `expired`. `Shop::subscriptionSummary()` is the one shape sent to the owner (`shop.subscription`
+  in `shopSummary()`), the admin and the grid.
+- **Scanning is never stopped automatically.** A trial or paid year that ends doesn't pause
+  anything. The admin pauses **one shop by hand**: shop settings → **Features** tab → first row
+  **Scanning: On / Paused** (confirm; `PUT /admin/shops/{shop}/scanning {paused}`,
+  `shops.scanning_paused_at`, logged by RecordsActivity). `Shop::scanningPaused()` = that column;
+  `StampService::scan` then answers **403 `scanning_paused`** (staff and owner scanners); customer
+  cards keep working. Paying for a plan online clears it (`SubscriptionCheckout`). Staff app: `/me`
+  sends `scan_paused` → the Scan tab shows "Scanning is paused" + a strip on other tabs. Owner:
+  `OwnerLayout` banner (red once ended or paused, amber in the last 7 days) → Plan page; the Scan
+  buttons show "Paused" and open `/dashboard/plan`.
+- **Admin**: plans on Admin → Landing page (above), with a **Plan billing** section under the
+  form (`Components/Dashboard/PlanBilling.jsx`: payment countries, recent payments;
+  `Admin\PlanController` keeps `PUT /admin/plans/payments`) and
+  **Owner preview** = `/admin/plans/preview?country=XX`, the owner's Plan page as an owner in
+  that country sees it, with a country picker, default India (draws `Components/PlanCards.jsx`
+  and `Plan::forOwner()`, like the owner's page). The default can't be removed or switched
+  off; removing a plan with shops asks first. Shop settings → Account →
+  "Plan & pipeline": plan, **Paid until** ("Paid for a year": + 1 year from the **latest of
+  today, the trial end and the current paid end** - paying during the free trial keeps the rest
+  of it and the plan starts when it ends; a renewal adds on; stage Paid. Server twin for future
+  online payments: `Shop::paidYearStart()` / `paidYearEnd()` / `startPaidYear()`; the summary's
+  `trial_running` lets pages say "trial until X, then paid until Y") → `PUT /admin/shops/{shop}/account`. Shop
+  settings → **Payments** tab (`ShopPaymentsTab.jsx`, count on the tab): **every payment** of the
+  shop, newest first (`App\Services\ShopPayments::rows()`): plan payments (paid / refunded) and
+  paid counter display orders (Stripe, bank transfer, cash, free), also during the trial.
+  **Refund** (online ones only: a plan payment, or an order paid by Stripe Checkout): dialog with
+  amount (≤ what's left), optional reason, type REFUND → `POST /admin/shops/{shop}/payments/{plan|order}/{id}/refund`
+  (`Admin\ShopPaymentController`, throttled, found through the shop) → `ShopPayments::refund()`
+  calls `RazorpayGateway::refundPayment()` / `StripeGateway::refund()`. Processed straight away →
+  recorded at once (the same `recordRefund()` as the webhooks, so never counted twice; a full
+  plan refund takes the year back); pending → "requested", the webhook records it. Logged
+  `payment.refunded`. Order refunds: `orders.amount_refunded_pence` / `refunded_at`
+  (`OrderService::recordRefund()`, also from Stripe's `charge.refunded`); the order stays paid.
+  Bank transfer / cash are refunded outside the app. A red banner on the shop
+  page once ended. Shops grid: Plan column + "Trial / plan ended" chip + a **"Trial ends"
+  dropdown** (free-trial shops that never paid: ends today / in 7 days / in 30 days, ended
+  last 7 / 30 days; from the row's `trial_days_left` + `subscription.paid`, client-side). For
+  those shops (≤ 30 days left or ended) the row's WhatsApp button offers a third message,
+  **Upgrade** (trial end date + the owner's `/dashboard/plan` link, built in `upgradeMessage()`),
+  logged as `whatsapp.upgrade_sent` (`WhatsAppContacts::KINDS`).
+- **Owner**: `/dashboard/plan` (`DashboardController::plan`, `Dashboard/Plan.jsx`, nav
+  "Billing & plan"): the current plan on top, highlighted, with how long it has left (paid
+  year, else trial; amber at ≤ 30 days, red at ≤ 7 / ended, + Upgrade), then "Other plans" -
+  priced in the shop's own currency only (`Currencies::forCountry`, no price = "Ask us"). Every
+  button opens the payment window; its words come from `Plan::buttonAction()` (`action`):
+  trial running, never paid → **Upgrade** on every plan; trial ended, never paid → no "Your
+  plan" box, every plan under **Choose a plan** with **Pay now**; paid → their own plan is
+  `locked` (Renew greyed out, "You can renew from {renewFrom}") until `Plan::RENEW_DAYS` (30)
+  before the paid year ends (by UK day) or after, then **Renew**; other plans **Upgrade** (costs
+  more in the shop's currency) or **Switch to {name}** (less, the same, or no price to compare).
+  `PlanPaymentController::start` refuses a `locked` plan (422). See "Plan payments" (no WhatsApp fallback - removed on purpose). Greyed out while the plan isn't payable online, hidden for an
+  admin viewing as the owner. Payments taken outside the app: the admin sets "Paid until".
+  Under the plans, **Payment history** (`payments` prop, `SubscriptionPayment::toHistoryRow()`):
+  this shop's paid payments, newest first (≤ 50) - date, plan, the year it covers, amount,
+  Card (Stripe) / Razorpay and the provider's payment id. Unfinished attempts aren't listed;
+  nothing shows before the first payment.
+
+## Plan payments (Stripe card form / Razorpay, by country)
+
+Owners pay for a year of a plan on Billing & plan, in the shop's currency
+(`Currencies::forCountry`, GBP if none; amounts in the smallest unit via `Currencies::toMinor`).
+
+- **Which window**: `App\Support\PaymentProviders` - the **Stripe countries** (Admin → Landing page →
+  Plan billing → Payments, `Setting::PAYMENT_COUNTRIES` = `{stripe: [alpha-2]}`, default `['GB']`) get Stripe's
+  **Payment Element** in our own dialog (`@stripe/react-stripe-js`); **every other country gets
+  Razorpay's window** (`checkout.js`, loaded on the first Pay). Adding a country to the list moves
+  it to Stripe.
+- **Payable** (`SubscriptionCheckout::payable()`): the plan is offered, that provider has keys
+  (`STRIPE_SECRET` + `STRIPE_KEY`; `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET`) and the plan has a
+  price in the shop's currency. Otherwise its Upgrade button is disabled.
+- **Flow**: `POST /dashboard/plan/pay {plan_id}` (`PlanPaymentController::start`) creates the
+  PaymentIntent / Razorpay order (`StripeGateway`, `RazorpayGateway` - plain HTTP, the key secret
+  never reaches the browser) + a pending `subscription_payments` row → the window opens
+  (`Components/Dashboard/PlanCheckout.jsx`, `usePlanCheckout`) → `POST /dashboard/plan/pay/confirm
+  {payment_id, razorpay_*}`: the server checks **with the provider** (PaymentIntent status +
+  amount + currency; Razorpay HMAC `order|payment` with the key secret). Webhooks confirm too:
+  Stripe `payment_intent.succeeded` (`/api/stripe/webhook`) and `/api/razorpay/webhook` (`routes/api.php`)
+  (`X-Razorpay-Signature` = HMAC of the body with `RAZORPAY_WEBHOOK_SECRET`; `payment.captured` /
+  `order.paid`, amount checked). Stripe methods that leave the page come back to
+  `/dashboard/plan?paid={id}`, which confirms once.
+- **The browser check is verified with the provider**: Razorpay's signed answer, then the
+  payment **fetched from Razorpay's API** (same order / amount / currency, `captured`; an
+  `authorized` one is captured first - `RazorpayGateway::fetchPayment()` / `capturePayment()`),
+  Stripe's PaymentIntent fetched from Stripe. **Webhooks are the source of truth** for what
+  happens after: Razorpay `payment.authorized` / `payment.captured` / `order.paid`,
+  `refund.processed`, `payment.dispute.created`; Stripe `payment_intent.succeeded`,
+  `charge.refunded`, `charge.dispute.created`. Each logs one `Razorpay webhook` /
+  `Stripe webhook` line with its result (`SubscriptionCheckout::MARKED_PAID` …).
+- **Refunds / chargebacks** (`recordRefund()` / `recordDispute()`, idempotent): a **full**
+  refund makes the payment `refunded` (`amount_refunded`, `refunded_at`) and takes its year off
+  the shop (`subscription_ends_at` back by that year's length, or null with no other paid
+  payment → plan back to the default, stage trial; the latest year refunded → the plan paid
+  before). A part refund is only noted. A chargeback sets `disputed_at`, the plan stays. Each
+  adds a follow-up for the admin on the shop. Only a **pending** payment can become paid, so
+  a late "captured" webhook can't revive a refunded one. Payment history shows "Refunded …" /
+  "Disputed". Counter display orders paid by Stripe are refunded the same way (see the Payments tab).
+- **Paid** (`SubscriptionCheckout::markPaid`, row-locked, idempotent): the shop moves to the plan,
+  `subscription_ends_at` = `Shop::paidYearEnd()` (so paying in the trial starts the year at its
+  end), stage Paid, the period stored on the payment, logged `subscription.paid` as the owner.
+- Both routes are `OWNER_ONLY` (an admin viewing as owner can't pay). Admin → Landing page → Plan
+  billing lists the latest 20 paid payments.
+
 ## Admin CRM & AI briefing (MONETISATION-PLAN.md phase 2)
 
 - **Per shop** (shop settings → Account, `ShopCrmPanels.jsx`, `Admin\ShopCrmController`):
@@ -1406,6 +1537,8 @@ Plus `activity_logs` (see "Admin activity & logs").
 Plus `shops.industry` / `industry_other` (see "Shop industry").
 Plus `users.welcome_sent_at` (the admin's first WhatsApp welcome; see "WhatsApp contact").
 Plus `shops.trial_ends_at` / `crm_stage` / `lost_reason` (see "Shop health & sales pipeline").
+Plus `plans`, `shops.plan_id` / `subscription_ends_at` (see "Plans & trial end") and
+`subscription_payments` (see "Plan payments").
 Plus `shop_notes`, `shop_tasks`, `shops.crm_tags` (see "Admin CRM & AI briefing").
 Plus `shops.qr_page_viewed_at` / `qr_downloaded_at` / `qr_downloads` / `qr_download_failures` (see "Overseas shops").
 Plus `shops.shop_code`, `shop_code_attempts`, `shop_code_locks` (see "Shop code" under the staff scanner).
@@ -1415,6 +1548,9 @@ default, and customers can register without it. `CustomerRegistrar` only ever tu
 unticked box on a repeat registration is not a withdrawal. Withdrawal is the unsubscribe link
 (see "WhatsApp marketing"). Plus `marketing_unsubscribe_token`, `marketing_opted_out_at`,
 `marketing_campaigns`, `marketing_messages`. Plus `shop_whatsapp_accounts` (see "WhatsApp marketing").
+Plus `subscription_payments.amount_refunded` / `refunded_at` / `disputed_at` (see "Plan payments").
+Plus `orders.amount_refunded_pence` / `refunded_at` (refunds from the shop's Payments tab).
+Plus `shops.scanning_paused_at` (the admin's per-shop "Pause scanning").
 Plus `shop_whatsapp_accounts.templates` / `templates_checked_at`, `marketing_messages.delivered_at` /
 `read_at` (+ index on `wa_message_id`, the webhook's lookup) and `whatsapp_messages` (see "WhatsApp marketing").
 

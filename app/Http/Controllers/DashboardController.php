@@ -13,6 +13,7 @@ use App\Http\Requests\UpdateShopThemeRequest;
 use App\Models\CustomerShopCard;
 use App\Models\CustomTheme;
 use App\Models\Order;
+use App\Models\Plan;
 use App\Models\Product;
 use App\Models\QrCode;
 use App\Models\Review;
@@ -21,13 +22,16 @@ use App\Models\Shop;
 use App\Models\StaffDevice;
 use App\Models\StaffMember;
 use App\Models\StampLog;
+use App\Models\SubscriptionPayment;
 use App\Services\ActivityLogger;
 use App\Services\QrCodeGenerator;
 use App\Services\QrDownloads;
 use App\Services\ShopInsights;
 use App\Services\StripeGateway;
+use App\Services\SubscriptionCheckout;
 use App\Support\Countries;
 use App\Support\CuratedFonts;
+use App\Support\Currencies;
 use App\Support\Features;
 use App\Support\HeaderStyle;
 use App\Support\Industries;
@@ -466,6 +470,39 @@ class DashboardController extends Controller
     }
 
     /**
+     * Plan: the shop's plan, its free trial / paid year, and the plans to
+     * upgrade to, priced in the shop's own currency. Upgrading is arranged
+     * with Tada Tap for now (no online payment yet).
+     */
+    public function plan(Request $request, SubscriptionCheckout $checkout): Response
+    {
+        $shop = $request->user()->shop;
+        $currency = Currencies::forCountry($shop->country);
+
+        return Inertia::render('Dashboard/Plan', [
+            'shop' => $this->shopSummary($shop),
+            'plans' => Plan::active()->ordered()->get()
+                ->when($shop->plan && ! $shop->plan->is_active, fn ($plans) => $plans->prepend($shop->plan))
+                ->map(fn (Plan $plan) => [
+                    ...$plan->forOwner($currency, $shop->plan_id),
+                    // The button: upgrade / pay / renew / locked (already paid) / switch - Plan::buttonAction().
+                    'action' => $plan->buttonAction($shop, $currency),
+                    // Can be paid here (else the WhatsApp button).
+                    'payable' => $checkout->payable($shop, $plan),
+                ])
+                ->values(),
+            // A paid plan's Renew opens on this day (30 days before it ends).
+            'renewFrom' => Plan::renewFrom($shop)?->timezone('Europe/London')->format('j M Y'),
+            // Which payment window opens: stripe (card form) or razorpay.
+            'paymentProvider' => $checkout->providerFor($shop),
+            // Payment history: this shop's paid plan payments, newest first (unfinished attempts aren't payments).
+            'payments' => $shop->subscriptionPayments()->whereIn('status', [SubscriptionPayment::PAID, SubscriptionPayment::REFUNDED])
+                ->latest('paid_at')->limit(50)->get()
+                ->map(fn (SubscriptionPayment $payment) => $payment->toHistoryRow()),
+        ]);
+    }
+
+    /**
      * The QR codes the admin mapped to this shop (qr_codes.shop_id), to
      * download in the design the admin picked for it (null = plain QR). The
      * PNG / PDF are drawn in the browser by the same renderer as the admin's
@@ -585,6 +622,8 @@ class DashboardController extends Controller
             'google_review_url' => $shop->google_review_url,
             // Read by OwnerLayout on every section; null keeps the default look.
             'dashboard_theme' => $shop->theme_in_dashboard ? $shop->appliedTheme() : null,
+            // Plan, trial / paid year: OwnerLayout's "trial ended" banner and the paused scanner.
+            'subscription' => $shop->subscriptionSummary(),
         ];
     }
 

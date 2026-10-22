@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Plan;
 use App\Models\Setting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -147,7 +148,7 @@ class LegalPages
             '{law}' => $d['governing_law'] ?: 'England and Wales',
             // Fixed, not APP_URL: the pages always name the site the same way.
             '{website}' => self::WEBSITE,
-            '{trial_days}' => (string) config('loyalty.trial_days', 30),
+            '{trial_days}' => (string) Plan::defaultTrialDays(),
             '{refund_days}' => (string) self::REFUND_DAYS,
             '{contact_block}' => $contact,
         ];

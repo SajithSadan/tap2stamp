@@ -6,6 +6,7 @@ import {
     LuBriefcase,
     LuFlag,
     LuChevronDown,
+    LuClock,
     LuCopy,
     LuDownload,
     LuExternalLink,
@@ -164,6 +165,7 @@ function StatusChips({ value, onChange, counts }) {
         ["no_display", "Display not ordered"],
         ["no_qr", "QR not downloaded"],
         ["no_welcome", "Welcome not sent"],
+        ["expired", "Trial / plan ended"],
     ];
 
     return (
@@ -345,6 +347,51 @@ function SegmentTiles({ segments, counts, value, onChange }) {
 /** Has an owner who hasn't had the WhatsApp welcome yet. */
 const needsWelcome = (s) => s.owner_email && !s.welcome_sent_at;
 
+/**
+ * "Trial ends" filter: free-trial shops (never paid) whose trial ends today,
+ * within a week / month, or ended within the last week / month - the list to
+ * call or WhatsApp about upgrading. trial_days_left: negative = ended.
+ */
+const TRIAL_WINDOWS = [
+    ["today", "Trial ends today", (d) => d === 0],
+    ["week", "Ends in 7 days", (d) => d >= 0 && d <= 7],
+    ["month", "Ends in 30 days", (d) => d >= 0 && d <= 30],
+    ["ended_week", "Ended last 7 days", (d) => d < 0 && d >= -7],
+    ["ended_month", "Ended last 30 days", (d) => d < 0 && d >= -30],
+];
+const inTrialWindow = (s, key) => {
+    const window = TRIAL_WINDOWS.find(([k]) => k === key);
+    return !window || (!s.subscription?.paid && s.trial_days_left !== null && window[2](s.trial_days_left));
+};
+
+/**
+ * The WhatsApp upgrade reminder for a free-trial shop whose trial ends within
+ * 30 days or has ended (null otherwise): sent by the admin from their own
+ * WhatsApp, linking to the owner's Billing & plan page.
+ */
+function upgradeMessage(s, origin) {
+    const d = s.trial_days_left;
+    if (s.subscription?.paid || d === null || d === undefined || d > 30) return null;
+
+    const when = d === 0 ? "ends today" : d > 0 ? `ends on ${s.trial_ends_label} (${d} ${d === 1 ? "day" : "days"} left)` : `ended on ${s.trial_ends_label}`;
+    const hello = s.contact_name ? `Hi ${s.contact_name.split(" ")[0]},` : "Hi,";
+
+    return [
+        `${hello} your Tada Tap free trial for ${s.name} ${when}.`,
+        `To keep giving your customers stamps, choose a yearly plan here: ${origin}/dashboard/plan`,
+        "Or just reply and we'll set it up for you.",
+    ].join("\n\n");
+}
+
+/** Free trial or paid year over: to upgrade / renew. */
+const isExpired = (s) => s.subscription?.status === "expired";
+
+const SUBSCRIPTION_TONE = {
+    active: "bg-emerald-500/10 text-emerald-700",
+    trial: "bg-sky-500/10 text-sky-700",
+    expired: "bg-red-500/10 text-red-700",
+};
+
 /** Prints their own QR and hasn't managed to download it yet. */
 const needsQr = (s) => s.qr && s.qr.state !== "downloaded";
 
@@ -449,6 +496,30 @@ function buildColumns(origin) {
                 <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STAGE_TONE[s.stage] ?? STAGE_TONE.trial}`}>
                     {s.stage === "offered" ? "Upgrade offered" : s.stage}
                 </span>
+            ),
+        },
+        {
+            // Yearly plan + paid / trial / ended (and "scanning paused" when enforced).
+            id: "plan",
+            accessorFn: (s) => s.plan ?? "",
+            header: "Plan",
+            meta: {
+                label: "Plan",
+                csv: (s) => `${s.plan ?? ""} - ${s.subscription.status}${s.subscription.paid_until_label ? ` until ${s.subscription.paid_until_label}` : ""}`,
+            },
+            cell: ({ row: { original: s } }) => (
+                <div className="whitespace-nowrap">
+                    <span className="text-sm text-brand-text">{s.plan ?? "-"}</span>
+                    <span className={`mt-0.5 block w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${SUBSCRIPTION_TONE[s.subscription.status]}`}>
+                        {s.subscription.status === "active"
+                            ? `Paid to ${s.subscription.paid_until_label}`
+                            : s.subscription.status === "trial"
+                              ? "Free trial"
+                              : s.subscription.paused
+                                ? "Ended · scanning paused"
+                                : "Ended"}
+                    </span>
+                </div>
             ),
         },
         {
@@ -843,6 +914,7 @@ function buildColumns(origin) {
                         name={s.contact_name ? `${s.contact_name} · ${s.name}` : s.name}
                         shopId={s.id}
                         welcomeSentLabel={s.welcome_sent_label}
+                        upgradeText={upgradeMessage(s, origin)}
                     />
                     <Link
                         href={`/admin/shops/${s.id}/settings`}
@@ -896,6 +968,7 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
     const [industry, setIndustry] = useState("all");
     const [segment, setSegment] = useState("all");
     const [stage, setStage] = useState("all");
+    const [trial, setTrial] = useState("all");
 
     // Blocked shops never mix with the rest: the main list (and every count, tile and dropdown)
     // is the active shops; the Blocked chip shows only the blocked ones.
@@ -904,10 +977,11 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
     const matchesDropdowns = (s) =>
         (country === "all" || (s.country_code ?? "") === country) &&
         (industry === "all" || (s.industry ?? "") === industry) &&
-        (stage === "all" || s.stage === stage);
+        (stage === "all" || s.stage === stage) &&
+        inTrialWindow(s, trial);
 
     // The health tiles count within the dropdowns.
-    const base = useMemo(() => pool.filter(matchesDropdowns), [pool, country, industry, stage]);
+    const base = useMemo(() => pool.filter(matchesDropdowns), [pool, country, industry, stage, trial]);
     const segmentCounts = useMemo(
         () => base.reduce((acc, s) => ({ ...acc, [s.health.segment]: (acc[s.health.segment] ?? 0) + 1 }), {}),
         [base],
@@ -920,7 +994,11 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
     // How many blocked shops the Blocked chip would show (same dropdowns + tile).
     const blockedCount = useMemo(
         () => shops.filter((s) => s.status === "blocked" && matchesDropdowns(s) && (segment === "all" || s.health.segment === segment)).length,
-        [shops, country, industry, stage, segment],
+        [shops, country, industry, stage, segment, trial],
+    );
+    const trialOptions = useMemo(
+        () => TRIAL_WINDOWS.map(([value, label]) => ({ value, label, count: pool.filter((s) => inTrialWindow(s, value)).length })),
+        [pool],
     );
     const stageOptions = useMemo(
         () =>
@@ -954,8 +1032,9 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
             no_display: active.filter(needsDisplay).length,
             no_qr: active.filter(needsQr).length,
             no_welcome: active.filter(needsWelcome).length,
+            expired: active.filter(isExpired).length,
         };
-    }, [shops, country, industry, stage, segment, blockedCount]);
+    }, [shops, country, industry, stage, segment, trial, blockedCount]);
 
     const rows = useMemo(() => {
         // "All" and "Blocked" are the whole pool (active shops, or the blocked ones).
@@ -964,6 +1043,7 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
         if (status === "no_display") return inCountry.filter(needsDisplay);
         if (status === "no_qr") return inCountry.filter(needsQr);
         if (status === "no_welcome") return inCountry.filter(needsWelcome);
+        if (status === "expired") return inCountry.filter(isExpired);
 
         return inCountry.filter((s) => s.status === status);
     }, [inCountry, status]);
@@ -974,7 +1054,9 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
             description={
                 status === "no_display" && primaryProduct
                     ? `Shops that haven't ordered the ${primaryProduct} (and have no order awaiting payment) - with their contact details to follow up.`
-                    : status === "no_qr"
+                    : trial !== "all"
+                      ? "Free-trial shops by when their trial ends - contact them about upgrading (WhatsApp column)."
+                      : status === "no_qr"
                       ? "Shops that print their own QR but haven't downloaded it yet. Not opened = may not have found it; opened or failed = may need help downloading."
                       : showingBlocked
                         ? "Blocked shops: their card page, staff app and owner dashboard are paused. Open a shop's settings to unblock it."
@@ -1048,6 +1130,15 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
                                 options={stageOptions}
                                 total={pool.length}
                             />
+                            <SelectFilter
+                                label="Filter by when the free trial ends"
+                                icon={LuClock}
+                                allLabel="Any trial end"
+                                value={trial}
+                                onChange={setTrial}
+                                options={trialOptions}
+                                total={pool.length}
+                            />
                         </>
                     }
                     toolbar={
@@ -1057,13 +1148,14 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
                             counts={counts}
                         />
                     }
-                    filteredExternally={status !== "all" || country !== "all" || industry !== "all" || segment !== "all" || stage !== "all"}
+                    filteredExternally={status !== "all" || country !== "all" || industry !== "all" || segment !== "all" || stage !== "all" || trial !== "all"}
                     onClearAll={() => {
                         setStatus("all");
                         setCountry("all");
                         setIndustry("all");
                         setSegment("all");
                         setStage("all");
+                        setTrial("all");
                     }}
                     empty={<EmptyState icon={LuStore} title="No shops match" />}
                 />

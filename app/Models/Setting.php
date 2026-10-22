@@ -48,6 +48,9 @@ class Setting extends Model
     /** Platform defaults for owner features ({menu: bool, whatsapp: bool}); App\Support\Features. */
     public const FEATURES = 'features';
 
+    /** Which countries pay for plans with Stripe ({stripe: [alpha-2]}; everyone else Razorpay); App\Support\PaymentProviders. */
+    public const PAYMENT_COUNTRIES = 'payment_countries';
+
     protected $fillable = [
         'key',
         'value',

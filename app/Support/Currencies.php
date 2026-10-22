@@ -72,6 +72,36 @@ class Currencies
         return self::ALL[$code][0] ?? "{$code} ";
     }
 
+    /** Currencies with no minor unit (Stripe / Razorpay take whole amounts). */
+    private const ZERO_DECIMAL = ['JPY'];
+
+    /** Currencies with 3 decimal places (fils / baisa). */
+    private const THREE_DECIMAL = ['KWD', 'BHD', 'OMR'];
+
+    /** Digits after the point: 2 for most, 0 for JPY, 3 for KWD / BHD / OMR. */
+    public static function decimals(string $code): int
+    {
+        return match (true) {
+            in_array($code, self::ZERO_DECIMAL, true) => 0,
+            in_array($code, self::THREE_DECIMAL, true) => 3,
+            default => 2,
+        };
+    }
+
+    /** "2999.5" in $code → its smallest unit (299950 paise), as the payment providers want. */
+    public static function toMinor(string $amount, string $code): int
+    {
+        return (int) round((float) $amount * 10 ** self::decimals($code));
+    }
+
+    /** $minor (pence, paise…) for display: "₹4,999", "£49.50". */
+    public static function format(int $minor, string $code): string
+    {
+        $major = $minor / 10 ** self::decimals($code);
+
+        return self::symbol($code).(fmod($major, 1.0) === 0.0 ? number_format($major) : number_format($major, self::decimals($code)));
+    }
+
     public static function forCountry(?string $country): ?string
     {
         return self::BY_COUNTRY[strtoupper((string) $country)] ?? null;

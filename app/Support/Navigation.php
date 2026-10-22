@@ -58,8 +58,8 @@ class Navigation
             ['route' => 'admin.activity', 'label' => 'Activity', 'icon' => 'activity', 'roles' => $admin, 'active' => ['admin.activity*'], 'mobile' => false],
             ['route' => 'admin.ai-usage', 'label' => 'AI usage', 'icon' => 'ai', 'roles' => $admin, 'active' => ['admin.ai-usage*'], 'mobile' => false],
             ['route' => 'admin.logs', 'label' => 'Logs', 'icon' => 'logs', 'roles' => $admin, 'active' => ['admin.logs*'], 'mobile' => false],
-            // The public page at "/" (title, video, pricing). Desktop sidebar only.
-            ['route' => 'admin.landing-page', 'label' => 'Landing page', 'icon' => 'landing', 'roles' => $admin, 'active' => ['admin.landing-page*'], 'mobile' => false],
+            // The public page at "/" (title, video, pricing) - its pricing plans are the plans owners pay for. Desktop sidebar only.
+            ['route' => 'admin.landing-page', 'label' => 'Landing & plans', 'icon' => 'landing', 'roles' => $admin, 'active' => ['admin.landing-page*', 'admin.plans.*'], 'mobile' => false],
             ['route' => 'admin.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $admin, 'active' => ['admin.settings*']],
 
             // --- Owner dashboard -----------------------------------------
@@ -81,6 +81,7 @@ class Navigation
                 'route' => 'dashboard.qr-codes', 'label' => 'QR codes', 'icon' => 'qr', 'roles' => $owner,
                 'href' => fn (User $user) => $user->shop?->canOrderProducts() === false ? route('dashboard.qr-codes') : null,
             ],
+            ['route' => 'dashboard.plan', 'label' => 'Billing & plan', 'icon' => 'plans', 'roles' => $owner],
             ['route' => 'dashboard.theme', 'label' => 'Theme', 'icon' => 'theme', 'roles' => $owner, 'active' => ['dashboard.theme*']],
             ['route' => 'dashboard.settings', 'label' => 'Settings', 'icon' => 'settings', 'roles' => $owner, 'active' => ['dashboard.settings*']],
             [

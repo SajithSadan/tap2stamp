@@ -370,7 +370,22 @@ function PinSignIn({ shopName, members, api, onSignedIn, onApiError, install = n
 
 // One scan at a time, with a result screen and "Scan next"; full cards ask
 // "Mark reward as given" first (Components/CardScanner).
-function ScanTab({ api, onScanned, onApiError }) {
+function ScanTab({ api, onScanned, onApiError, paused }) {
+    // The shop's free trial / paid year is over (and the admin enforces it): no camera, just why.
+    if (paused) {
+        return (
+            <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-700">
+                    <LuLock className="h-6 w-6" />
+                </span>
+                <p className="mt-4 font-heading text-lg font-semibold text-brand-text">Scanning is paused</p>
+                <p className="mt-1 max-w-xs text-sm text-brand-muted">
+                    The shop's free trial or yearly plan has ended. Please ask the owner to upgrade to keep giving stamps.
+                </p>
+            </div>
+        );
+    }
+
     return (
         // min-h-0: stay inside the space above the tab bar (the camera shrinks, the code bar doesn't).
         <div className="flex min-h-0 flex-1 flex-col bg-black">
@@ -839,6 +854,12 @@ export default function Dashboard() {
             return true;
         }
 
+        // The admin paused scanning while the app was open: Scan shows "paused" from now on.
+        if (status === 403 && error.response.data?.code === "scanning_paused") {
+            setMe((m) => (m ? { ...m, scan_paused: true } : m));
+            return true;
+        }
+
         if (
             status === 403 &&
             error.response.data?.code === "staff_signed_out"
@@ -1079,6 +1100,12 @@ export default function Dashboard() {
                     </div>
                 </header>
 
+                {me.scan_paused && tab !== "scan" && (
+                    <p role="status" className="border-b border-red-200 bg-red-50 px-4 py-2 text-xs font-medium text-red-900">
+                        The shop's free trial or plan has ended - scanning is paused. Please ask the owner to upgrade.
+                    </p>
+                )}
+
                 {/* On Scan, room under the code bar so the raised button doesn't cover it. */}
                 <main className={`flex min-h-0 flex-1 flex-col ${tab === "scan" ? "pb-6" : ""}`}>
                     {tab === "scan" && (
@@ -1086,6 +1113,7 @@ export default function Dashboard() {
                             api={api}
                             onScanned={refreshSummary}
                             onApiError={handleApiError}
+                            paused={me.scan_paused}
                         />
                     )}
                     {tab === "lookup" && (

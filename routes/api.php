@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\DeployController;
+use App\Http\Controllers\RazorpayWebhookController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\WhatsAppWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,3 +20,16 @@ Route::get('/deploy/migrate', [DeployController::class, 'browserMigrate'])
 // X-Hub-Signature-256 (our Meta app secret).
 Route::get('/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify'])->name('api.whatsapp.webhook.verify');
 Route::post('/whatsapp/webhook', [WhatsAppWebhookController::class, 'receive'])->name('api.whatsapp.webhook');
+
+// Stripe's payment confirmations: counter display orders (Checkout) and plan
+// payments (Payment Element). Trusted only with a valid Stripe-Signature
+// (STRIPE_WEBHOOK_SECRET).
+Route::post('/stripe/webhook', StripeWebhookController::class)
+    ->middleware('throttle:60,1')
+    ->name('api.stripe.webhook');
+
+// Razorpay's plan payment confirmations: trusted only with a valid
+// X-Razorpay-Signature (RAZORPAY_WEBHOOK_SECRET).
+Route::post('/razorpay/webhook', RazorpayWebhookController::class)
+    ->middleware('throttle:60,1')
+    ->name('api.razorpay.webhook');

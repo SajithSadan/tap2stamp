@@ -1,24 +1,25 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\Plan;
 use App\Models\Setting;
 use App\Models\User;
+use App\Support\Currencies;
 use App\Support\LandingPage;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
-/** A saved landing page offering GBP (default), USD and INR. */
+/** A saved landing page offering GBP (default), USD and INR (the plans' prices are on the plan rows). */
 function landingWithCurrencies(): array
 {
-    $content = LandingPage::defaults();
+    $content = collect(LandingPage::defaults())->except('plans')->all();
     $content['currencies'] = ['GBP', 'USD', 'INR'];
     $content['default_currency'] = 'GBP';
     $content['youtube_url'] = 'https://youtu.be/dQw4w9WgXcQ';
-    $content['plans'] = collect($content['plans'])->map(fn ($plan, $i) => [
-        ...$plan,
-        'prices' => ['GBP' => ['4.99', '9.99', '15.99'][$i], 'USD' => ['5.99', '11.99', '19.99'][$i], 'INR' => ['399', '799', '1299'][$i]],
-    ])->all();
     Setting::set(Setting::LANDING_PAGE, $content);
+    Plan::ordered()->get()->each(fn (Plan $plan, $i) => $plan->update([
+        'prices' => ['GBP' => ['4.99', '9.99', '15.99'][$i], 'USD' => ['5.99', '11.99', '19.99'][$i], 'INR' => ['399', '799', '1299'][$i]],
+    ]));
 
     return $content;
 }
@@ -54,6 +55,7 @@ function landingForm(array $overrides = []): array
             'name' => 'Starter', 'description' => 'Small shops', 'note' => '', 'badge' => '', 'highlighted' => false,
             'cta_label' => 'Start Free', 'period' => '/ month', 'billing_note' => 'Billed annually',
             'prices' => ['GBP' => '4.99', 'EUR' => '5.49'], 'features' => ['Loyalty card', '', '  NFC tap  '],
+            'is_default' => true, 'is_active' => true, 'trial_days' => 30,
         ]],
         ...$overrides,
     ];
@@ -212,8 +214,12 @@ test('the admin saves the page; it is tidied and shown to visitors', function ()
     $this->actingAs(landingAdmin())->put('/admin/landing-page', landingForm())->assertSessionHasNoErrors();
 
     $saved = Setting::get(Setting::LANDING_PAGE);
-    expect($saved['plans'][0]['features'])->toBe(['Loyalty card', 'NFC tap'])
-        ->and($saved['plans'][0]['note'])->toBeNull()
+    $plan = Plan::sole();
+    expect($plan->features)->toBe(['Loyalty card', 'NFC tap'])
+        ->and($plan->note)->toBeNull()
+        ->and($plan->prices)->toBe(['GBP' => '4.99', 'EUR' => '5.49'])
+        ->and($plan->is_default)->toBeTrue()
+        ->and($saved)->not->toHaveKey('plans')
         ->and($saved['currencies'])->toBe(['GBP', 'EUR'])
         ->and($saved['kicker'])->toBe('For cafes')
         ->and($saved['demo_cta'])->toBeNull()
@@ -265,4 +271,13 @@ test('the editor gets the defaults for "Load default content"', function () {
         ->component('Admin/LandingPage')
         ->where('defaults.plans.2.name', 'Elite Pro')
         ->where('limits.trustPoints', LandingPage::MAX_TRUST_POINTS));
+});
+
+test('any number of the known currencies can be offered', function () {
+    $codes = collect(Currencies::ALL)->keys()->all();
+    $form = landingForm(['currencies' => $codes]);
+    $form['plans'][0]['prices'] = array_fill_keys($codes, '10');
+
+    $this->actingAs(landingAdmin())->put('/admin/landing-page', $form)->assertSessionHasNoErrors();
+    expect(Setting::get(Setting::LANDING_PAGE)['currencies'])->toBe($codes);
 });

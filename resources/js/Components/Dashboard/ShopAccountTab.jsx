@@ -129,15 +129,45 @@ function addDays(from, days) {
     return date.toISOString().slice(0, 10);
 }
 
-function PipelinePanel({ shop, pipeline, stages }) {
+const STATUS_TONE = {
+    active: "bg-emerald-500/10 text-emerald-700",
+    trial: "bg-sky-500/10 text-sky-700",
+    expired: "bg-red-500/10 text-red-700",
+};
+
+/** "Paid until 3 Mar 2027" / "Trial · 12 days left" / "Trial ended 4 Oct 2026 · scanning paused". */
+function statusText(sub) {
+    if (sub.status === "active")
+        return sub.trial_running ? `Paid · trial to ${sub.trial_ends_label}, then paid to ${sub.paid_until_label}` : `Paid until ${sub.paid_until_label}`;
+    if (sub.status === "trial") {
+        if (sub.trial_days_left === null) return "Free trial, no end date";
+        return sub.trial_days_left === 0 ? "Free trial ends today" : `Free trial · ${sub.trial_days_left} days left`;
+    }
+    return `${sub.paid ? "Paid year" : "Free trial"} ended ${sub.ended_label}${sub.paused ? " · scanning paused" : ""}`;
+}
+
+function PipelinePanel({ shop, pipeline, stages, subscription, plans }) {
     const form = useForm({
         crm_stage: pipeline.crm_stage,
         trial_ends_at: pipeline.trial_ends_at ?? "",
         lost_reason: pipeline.lost_reason ?? "",
+        plan_id: pipeline.plan_id ?? "",
+        subscription_ends_at: pipeline.subscription_ends_at ?? "",
     });
 
+    // Paid for a year: it starts when the free trial ends (paying during the trial keeps
+    // the rest of it), or when the paid year still running ends (renewal), else today.
+    // Mirrors Shop::paidYearStart().
+    function markPaidYear() {
+        const today = new Date().toISOString().slice(0, 10);
+        const from = [today, form.data.trial_ends_at, form.data.subscription_ends_at].filter(Boolean).sort().at(-1);
+        const date = new Date(`${from}T12:00:00`);
+        date.setFullYear(date.getFullYear() + 1);
+        form.setData((data) => ({ ...data, subscription_ends_at: date.toISOString().slice(0, 10), crm_stage: "paid" }));
+    }
+
     return (
-        <Panel title="Sales pipeline" description="Where this shop is on the way to a paid plan. Nothing is charged or switched off from here yet.">
+        <Panel title="Plan & pipeline" description="The shop's yearly plan, its trial and paid year, and where it is on the way to paying.">
             <form
                 onSubmit={(e) => {
                     e.preventDefault();
@@ -146,6 +176,47 @@ function PipelinePanel({ shop, pipeline, stages }) {
                 noValidate
                 className="space-y-5"
             >
+                <p className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[subscription.status]}`}>{statusText(subscription)}</p>
+
+                <div>
+                    <label htmlFor="plan_id" className="mb-1.5 block text-sm font-medium text-brand-text">
+                        Plan
+                    </label>
+                    <select id="plan_id" value={form.data.plan_id} onChange={(e) => form.setData("plan_id", e.target.value)} className={inputClass}>
+                        <option value="">No plan</option>
+                        {plans.map((plan) => (
+                            <option key={plan.id} value={plan.id}>
+                                {plan.name}
+                                {plan.is_default ? " (default)" : ""}
+                                {plan.is_active ? "" : " - not offered"}
+                            </option>
+                        ))}
+                    </select>
+                    <FieldError message={form.errors.plan_id} />
+                </div>
+
+                <div>
+                    <label htmlFor="subscription_ends_at" className="mb-1.5 block text-sm font-medium text-brand-text">
+                        Paid until
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="w-48">
+                            <input
+                                id="subscription_ends_at"
+                                type="date"
+                                value={form.data.subscription_ends_at}
+                                onChange={(e) => form.setData("subscription_ends_at", e.target.value)}
+                                className={inputClass}
+                            />
+                        </div>
+                        <button type="button" onClick={markPaidYear} className={secondaryButton}>
+                            <LuPlus className="h-4 w-4" /> Paid for a year
+                        </button>
+                    </div>
+                    <p className="mt-1.5 text-xs text-brand-muted">Empty = hasn't paid yet. Paid during the free trial, the year starts when the trial ends. Payment is taken outside the app for now.</p>
+                    <FieldError message={form.errors.subscription_ends_at} />
+                </div>
+
                 <div>
                     <span className="mb-1.5 block text-sm font-medium text-brand-text">Stage</span>
                     <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Stage">
@@ -215,7 +286,7 @@ function PipelinePanel({ shop, pipeline, stages }) {
     );
 }
 
-export default function ShopAccountTab({ shop, health, healthModel, pipeline, crmStages, crm }) {
+export default function ShopAccountTab({ shop, health, healthModel, pipeline, crmStages, crm, subscription, plans }) {
     return (
         <div className="space-y-4">
             <HealthPanel health={health} model={healthModel} />
@@ -226,7 +297,7 @@ export default function ShopAccountTab({ shop, health, healthModel, pipeline, cr
                     <NotesPanel shop={shop} notes={crm.notes} />
                 </div>
                 <div className="space-y-4">
-                    <PipelinePanel shop={shop} pipeline={pipeline} stages={crmStages} />
+                    <PipelinePanel shop={shop} pipeline={pipeline} stages={crmStages} subscription={subscription} plans={plans} />
                     <TagsPanel shop={shop} tags={crm.tags} suggestions={crm.tag_suggestions} />
                 </div>
             </div>

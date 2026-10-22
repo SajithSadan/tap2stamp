@@ -114,6 +114,18 @@ test('opening a chat is logged but is not a welcome', function () {
         ->and($owner->fresh()->welcome_sent_at)->toBeNull();
 });
 
+test('an upgrade reminder is logged, and is not a welcome', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($admin)->postJson('/admin/whatsapp-contacts', ['kind' => 'upgrade', 'shop_id' => $shop->id])->assertOk();
+
+    expect(ActivityLog::where('action', 'whatsapp.upgrade_sent')->where('shop_id', $shop->id)->value('description'))
+        ->toBe("Sent a WhatsApp upgrade reminder to {$shop->name}")
+        ->and($owner->fresh()->welcome_sent_at)->toBeNull();
+});
+
 test('an owner who has not set up a shop yet can be welcomed from the Users page', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin]);
     $owner = User::factory()->create(['role' => UserRole::Owner]);

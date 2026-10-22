@@ -7,8 +7,13 @@ use App\Support\LandingPage;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
-/** The landing page (Admin → Landing page): every plan needs a price in every offered currency. */
+/**
+ * The landing page (Admin → Landing page): every plan needs a price in every
+ * offered currency. The plans are also what owners pay for: exactly one is
+ * the default (new shops start on it), and it must be offered.
+ */
 class UpdateLandingPageRequest extends FormRequest
 {
     public function authorize(): bool
@@ -24,6 +29,8 @@ class UpdateLandingPageRequest extends FormRequest
             ...$plan,
             'features' => collect($plan['features'] ?? [])->map(fn ($f) => trim((string) $f))->filter()->values()->all(),
             'highlighted' => filter_var($plan['highlighted'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'is_default' => filter_var($plan['is_default'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'is_active' => filter_var($plan['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
         ] : $plan)->all();
 
         $this->merge([
@@ -67,10 +74,13 @@ class UpdateLandingPageRequest extends FormRequest
                     $fail('Paste a YouTube video link, e.g. https://www.youtube.com/watch?v=…');
                 }
             }],
-            'currencies' => ['required', 'array', 'min:1', 'max:'.LandingPage::MAX_CURRENCIES],
-            'currencies.*' => ['string', Rule::in(Currencies::codes())],
+            // Any of the currencies the app knows (Currencies::ALL), each once - no other limit.
+            'currencies' => ['required', 'array', 'min:1'],
+            'currencies.*' => ['string', 'distinct', Rule::in(Currencies::codes())],
             'default_currency' => ['required', 'string', Rule::in($currencies)],
             'plans' => ['required', 'array', 'min:1', 'max:'.LandingPage::MAX_PLANS],
+            // A saved plan keeps its id (shops and payments point at it); none = a new plan.
+            'plans.*.id' => ['nullable', 'integer', 'distinct', Rule::exists('plans', 'id')],
             'plans.*.name' => ['required', 'string', 'max:40'],
             'plans.*.description' => ['nullable', 'string', 'max:200'],
             'plans.*.note' => ['nullable', 'string', 'max:120'],
@@ -82,10 +92,37 @@ class UpdateLandingPageRequest extends FormRequest
             'plans.*.features' => ['array', 'max:'.LandingPage::MAX_FEATURES],
             // "Title (a longer detail)" is shown as a bold title + its detail; a line ending in ":" as a heading.
             'plans.*.features.*' => ['string', 'max:200'],
+            'plans.*.is_default' => ['boolean'],
+            'plans.*.is_active' => ['boolean'],
+            'plans.*.trial_days' => ['nullable', 'integer', 'between:0,365'],
             // As displayed: up to 2 decimals, e.g. 4.99 or 399.
             ...collect($currencies)->mapWithKeys(fn ($code) => [
                 "plans.*.prices.{$code}" => ['required', 'string', 'regex:/^\d{1,7}(\.\d{1,2})?$/'],
             ])->all(),
+        ];
+    }
+
+    public function after(): array
+    {
+        return [
+            function (Validator $validator) {
+                $plans = collect($this->input('plans', []))->filter(fn ($plan) => is_array($plan));
+                $defaults = $plans->filter(fn (array $plan) => $plan['is_default'] ?? false);
+
+                if ($defaults->count() !== 1) {
+                    $validator->errors()->add('plans', 'Pick one plan as the default - new shops start on it.');
+
+                    return;
+                }
+
+                $i = $defaults->keys()->first();
+                if (! ($defaults->first()['is_active'] ?? true)) {
+                    $validator->errors()->add("plans.{$i}.is_active", 'The default plan must be offered - new shops start on it.');
+                }
+                if (! is_numeric($defaults->first()['trial_days'] ?? null)) {
+                    $validator->errors()->add("plans.{$i}.trial_days", 'Enter the free trial length (0 = no trial).');
+                }
+            },
         ];
     }
 
@@ -100,7 +137,7 @@ class UpdateLandingPageRequest extends FormRequest
         ];
     }
 
-    /** The validated page, tidied: only offered currencies' prices, empty optional texts as null. */
+    /** The validated page's texts and currencies, tidied: empty optional texts as null. The plans are plans(). */
     public function content(): array
     {
         $data = $this->validated();
@@ -124,18 +161,36 @@ class UpdateLandingPageRequest extends FormRequest
             'youtube_url' => $blank($data['youtube_url'] ?? null),
             'default_currency' => $data['default_currency'],
             'currencies' => $data['currencies'],
-            'plans' => collect($data['plans'])->map(fn (array $plan) => [
-                'name' => trim($plan['name']),
-                'description' => $blank($plan['description'] ?? null),
-                'note' => $blank($plan['note'] ?? null),
-                'badge' => $blank($plan['badge'] ?? null),
-                'highlighted' => (bool) ($plan['highlighted'] ?? false),
-                'cta_label' => trim($plan['cta_label']),
-                'period' => $blank($plan['period'] ?? null),
-                'billing_note' => $blank($plan['billing_note'] ?? null),
-                'prices' => array_intersect_key($plan['prices'] ?? [], array_flip($data['currencies'])),
-                'features' => array_values($plan['features'] ?? []),
-            ])->values()->all(),
         ];
+    }
+
+    /**
+     * The validated plans in their new order, as `plans` columns (plus `id`,
+     * null for a new one): only offered currencies' prices.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function plans(): array
+    {
+        $data = $this->validated();
+        $blank = fn ($v) => filled($v) ? trim($v) : null;
+
+        return collect($data['plans'])->map(fn (array $plan) => [
+            'id' => isset($plan['id']) ? (int) $plan['id'] : null,
+            'name' => trim($plan['name']),
+            'description' => $blank($plan['description'] ?? null),
+            'note' => $blank($plan['note'] ?? null),
+            'badge' => $blank($plan['badge'] ?? null),
+            'highlighted' => (bool) ($plan['highlighted'] ?? false),
+            'cta_label' => trim($plan['cta_label']),
+            'period' => $blank($plan['period'] ?? null),
+            'billing_note' => $blank($plan['billing_note'] ?? null),
+            'prices' => array_intersect_key($plan['prices'] ?? [], array_flip($data['currencies'])),
+            'features' => array_values($plan['features'] ?? []),
+            'is_default' => (bool) $plan['is_default'],
+            'is_active' => (bool) $plan['is_active'],
+            // Only the default's is used (new shops' trial); others keep what they had, else the usual length.
+            ...(isset($plan['trial_days']) ? ['trial_days' => (int) $plan['trial_days']] : []),
+        ])->values()->all();
     }
 }

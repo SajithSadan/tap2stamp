@@ -50,6 +50,58 @@ class StripeGateway
         ];
     }
 
+    /** The card form on our page (Stripe Elements) also needs the publishable key. */
+    public function elementsConfigured(): bool
+    {
+        return $this->configured() && filled(config('services.stripe.key'));
+    }
+
+    public function publishableKey(): string
+    {
+        return (string) config('services.stripe.key');
+    }
+
+    /**
+     * A PaymentIntent for the card form (plan payments).
+     *
+     * @return array{id: string, client_secret: string}
+     */
+    public function createPaymentIntent(array $params): array
+    {
+        $intent = $this->client()->paymentIntents->create($params);
+
+        return ['id' => $intent->id, 'client_secret' => $intent->client_secret];
+    }
+
+    /**
+     * Refunds $amount (smallest unit) of a PaymentIntent. Returns the refund:
+     * {id, status: pending | succeeded | failed | canceled | requires_action}.
+     *
+     * @return array{id: string, status: string}
+     */
+    public function refund(string $paymentIntent, int $amount, array $metadata = []): array
+    {
+        $refund = $this->client()->refunds->create(['payment_intent' => $paymentIntent, 'amount' => $amount, 'metadata' => $metadata]);
+
+        return ['id' => $refund->id, 'status' => (string) $refund->status];
+    }
+
+    /**
+     * @return array{id: string, status: string, amount: int, currency: string, latest_charge: ?string}
+     */
+    public function retrievePaymentIntent(string $id): array
+    {
+        $intent = $this->client()->paymentIntents->retrieve($id);
+
+        return [
+            'id' => $intent->id,
+            'status' => $intent->status,
+            'amount' => (int) $intent->amount,
+            'currency' => strtoupper($intent->currency),
+            'latest_charge' => is_string($intent->latest_charge) ? $intent->latest_charge : null,
+        ];
+    }
+
     /**
      * Verifies the Stripe-Signature header and returns the event as an array.
      *

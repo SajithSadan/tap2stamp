@@ -1,8 +1,10 @@
-import { Head, Link, usePage } from "@inertiajs/react";
+import { Head, Link, router, usePage } from "@inertiajs/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import {
     LuArrowLeft,
+    LuClock,
+    LuLock,
     LuEllipsis,
     LuExternalLink,
     LuEye,
@@ -85,6 +87,51 @@ function ViewAsBanner({ viewAs, blocked }) {
 }
 
 /**
+ * Free trial / paid year: a red "please upgrade" banner once it has ended or
+ * the admin paused scanning (never automatic), an amber reminder in its last
+ * 7 days. Links to the Plan page.
+ */
+function SubscriptionBanner({ subscription }) {
+    if (!subscription) return null;
+    const ended = subscription.status === "expired";
+    const paused = Boolean(subscription.paused);
+    const daysLeft = subscription.status === "trial" ? subscription.trial_days_left : subscription.status === "active" ? subscription.paid_days_left : null;
+    if (!ended && !paused && (daysLeft === null || daysLeft > 7)) return null;
+
+    const what = subscription.paid ? "yearly plan" : "free trial";
+    const red = ended || paused;
+    const title = ended
+        ? `Your ${what} ended on ${subscription.ended_label}`
+        : paused
+          ? "Scanning is paused"
+          : daysLeft === 0
+            ? `Your ${what} ends today`
+            : `Your ${what} ends in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
+    return (
+        <div
+            role="status"
+            className={`mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border px-4 py-3 ${red ? "border-red-300 bg-red-50 text-red-950" : "border-amber-300 bg-amber-50 text-amber-950"}`}
+        >
+            <LuClock className="h-5 w-5 shrink-0" />
+            <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">{title}</span>
+                <span className="block text-sm opacity-80">
+                    {paused
+                        ? `${ended ? "Scanning is paused. " : ""}Please upgrade, or contact Tada Tap, to give stamps again.`
+                        : "Please upgrade to keep giving stamps without a break."}
+                </span>
+            </span>
+            <Link
+                href="/dashboard/plan"
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white ${red ? "bg-red-700 hover:bg-red-800" : "bg-amber-700 hover:bg-amber-800"}`}
+            >
+                {subscription.paid ? "Renew" : "Upgrade"}
+            </Link>
+        </div>
+    );
+}
+
+/**
  * Owner dashboard shell: fixed sidebar on desktop, top bar + bottom tabs on
  * phones. Every page passes the same `shop` summary prop it renders from.
  * The menu itself comes from App\Support\Navigation.
@@ -112,6 +159,9 @@ export default function OwnerLayout({
     const primaryItems = nav.main.filter((item) => item.mobile_primary);
     const moreItems = nav.main.filter((item) => !item.mobile_primary);
     const moreActive = moreItems.some((item) => item.active);
+    // Scanning paused by the admin: the Scan buttons go to the Plan page instead of the camera.
+    const scanPaused = Boolean(shop.subscription?.paused);
+    const openScanner = () => (scanPaused ? router.visit("/dashboard/plan") : setScannerOpen(true));
 
     // Owner opted in on the Theme page: the dashboard wears the shop's theme too.
     useDocumentTheme(shop.dashboard_theme);
@@ -145,11 +195,20 @@ export default function OwnerLayout({
                     <div className="px-3 pb-2">
                         <button
                             type="button"
-                            onClick={() => setScannerOpen(true)}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-accent px-3 py-3 text-sm font-semibold text-brand-accent-text shadow-sm transition hover:brightness-95"
+                            onClick={openScanner}
+                            className={`flex w-full items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold shadow-sm transition hover:brightness-95 ${
+                                scanPaused ? "bg-nav-text/10 text-nav-text" : "bg-brand-accent text-brand-accent-text"
+                            }`}
                         >
-                            <LuScanLine className="h-5 w-5" /> Scan customer
-                            card
+                            {scanPaused ? (
+                                <>
+                                    <LuLock className="h-5 w-5" /> Scanning paused
+                                </>
+                            ) : (
+                                <>
+                                    <LuScanLine className="h-5 w-5" /> Scan customer card
+                                </>
+                            )}
                         </button>
                     </div>
 
@@ -217,6 +276,7 @@ export default function OwnerLayout({
                         </div>
 
                         <StatusBanner />
+                        <SubscriptionBanner subscription={shop.subscription} />
 
                         {!shop.google_review_url && !reviewWarningDismissed && (
                             <div
@@ -287,18 +347,18 @@ export default function OwnerLayout({
                     <div className="relative flex min-w-14 flex-1 flex-col items-center justify-end pb-2.5">
                         <button
                             type="button"
-                            onClick={() => setScannerOpen(true)}
+                            onClick={openScanner}
                             aria-label="Scan customer card"
                             title="Scan customer card"
                             className="absolute -top-5 flex h-14 w-14 items-center justify-center rounded-full bg-brand-accent text-brand-accent-text shadow-lg ring-4 ring-brand-bg transition active:scale-95"
                         >
-                            <LuScanLine className="h-6 w-6" />
+                            {scanPaused ? <LuLock className="h-6 w-6" /> : <LuScanLine className="h-6 w-6" />}
                         </button>
                         <span
                             className="pb-2.5 text-[10px] font-medium text-nav-text/60"
                             aria-hidden="true"
                         >
-                            Scan
+                            {scanPaused ? "Paused" : "Scan"}
                         </span>
                     </div>
                     {primaryItems.slice(2).map((item) => {
