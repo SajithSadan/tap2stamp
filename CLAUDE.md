@@ -141,7 +141,10 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   `GET /api/deploy/migrate` in a browser (`routes/api.php`, the file for outward-facing
   routes; in-app routes stay in `web.php`). No token and no sign-in, by the user's choice:
   a pending migration can break admin login itself. Still only `migrate --force`,
-  throttled 5/min (`DeployController::browserMigrate()`). Locally, `DatabaseSeeder` creates a dev admin instead
+  throttled 5/min (`DeployController::browserMigrate()`). `GET /api/deploy/clear-cache`
+  (same rules, `clearCache()`) clears cached config / routes / events / views and resets
+  OPcache, so the server runs the PHP just uploaded. **Never `cache:clear`**: the data cache
+  holds rate-limit counters and one-time links, and the route is open. Locally, `DatabaseSeeder` creates a dev admin instead
   (`admin@loyaltyhub.test` / `password`).
 - **View as owner** (admin support): eye button on the Shops grid / "View as owner" on a shop's
   settings page → `POST /admin/shops/{shop}/view-as-owner` puts `view_as_shop_id` in the admin's

@@ -43,6 +43,37 @@ class DeployController extends Controller
         return $this->runMigrations($request);
     }
 
+    /**
+     * After a deploy (GET /api/deploy/clear-cache, no SSH on Hostinger): the
+     * cached config / routes / events / compiled views, and PHP's OPcache, so
+     * the server runs the PHP just uploaded rather than an older copy.
+     * Never `cache:clear`: the data cache holds rate-limit counters, one-time
+     * staff app links and paid address lookups - open to anyone, it would let
+     * them reset the PIN / scan throttles.
+     */
+    public function clearCache(Request $request): JsonResponse
+    {
+        $cleared = [];
+
+        try {
+            foreach (['config:clear', 'route:clear', 'event:clear', 'view:clear'] as $command) {
+                Artisan::call($command);
+                $cleared[] = $command;
+            }
+        } catch (Throwable $e) {
+            Log::error('Deploy cache clear failed', ['message' => $e->getMessage(), 'cleared' => $cleared]);
+
+            return response()->json(['status' => 'error', 'message' => 'Clearing the cache failed. Check the server logs.', 'cleared' => $cleared], 500);
+        }
+
+        // Off, or not allowed on this host = nothing to reset (not an error).
+        $opcache = function_exists('opcache_reset') && @opcache_reset();
+
+        Log::info('Deploy cache cleared via HTTP', ['ip' => $request->ip(), 'opcache' => $opcache]);
+
+        return response()->json(['status' => 'ok', 'cleared' => $cleared, 'opcache_reset' => $opcache]);
+    }
+
     private function runMigrations(Request $request): JsonResponse
     {
         try {

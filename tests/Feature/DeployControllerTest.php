@@ -52,6 +52,18 @@ test('migrations can be run from the browser with a plain GET, no token or sign-
         ->assertJsonStructure(['status', 'output']);
 });
 
+test('the cache can be cleared from the browser, but never the data cache', function () {
+    cache()->put('kept', 'yes');
+
+    $this->get('/api/deploy/clear-cache')
+        ->assertOk()
+        ->assertJson(['status' => 'ok', 'cleared' => ['config:clear', 'route:clear', 'event:clear', 'view:clear']])
+        ->assertJsonStructure(['opcache_reset']);
+
+    // Rate-limit counters and one-time links live there.
+    expect(cache('kept'))->toBe('yes');
+});
+
 test('seed-admin rejects an unauthenticated request the same way migrate does', function () {
     config(['deploy.migrate_token' => 'the-real-token']);
 

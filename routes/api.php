@@ -15,6 +15,12 @@ Route::get('/deploy/migrate', [DeployController::class, 'browserMigrate'])
     ->middleware('throttle:5,1')
     ->name('api.deploy.migrate');
 
+// Clear the cached config / routes / views and PHP's OPcache after a deploy, so
+// the server runs the PHP just uploaded. Open like migrate; never the data cache.
+Route::get('/deploy/clear-cache', [DeployController::class, 'clearCache'])
+    ->middleware('throttle:5,1')
+    ->name('api.deploy.clear-cache');
+
 // Meta's WhatsApp webhook: delivery / read ticks, customers' replies, template
 // approvals. GET is Meta's verify handshake; POST is trusted only with a valid
 // X-Hub-Signature-256 (our Meta app secret).
