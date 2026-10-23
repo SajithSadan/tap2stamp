@@ -152,6 +152,8 @@ class ShopOwnerController extends Controller
                     'open_tasks' => $shop->open_tasks,
                     // The admin's notes on the shop (the grid's notes icon shows the count).
                     'notes' => $shop->notes_count,
+                    // The admin's follow-up status: active / hot / warm / cold (null = not set).
+                    'lead_status' => $shop->lead_status,
                     'trial_ends_at' => $shop->trial_ends_at?->toIso8601String(),
                     'trial_ends_label' => $shop->trial_ends_at?->timezone('Europe/London')->format('j M Y'),
                     // Whole days left (negative = ended that many days ago).

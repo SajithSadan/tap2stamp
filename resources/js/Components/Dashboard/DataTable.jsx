@@ -32,6 +32,8 @@ import { inputClass, secondaryButton } from "@/Components/Dashboard/Ui";
  *   stickyRight - keep this column visible at the right edge while scrolling horizontally
  *   csv     - (row) => value, or false to leave the column out of the CSV
  *
+ * `rowTone` colours a whole row (opaque classes - sticky cells use them too).
+ *
  * `storageKey` remembers column visibility + page size per browser (a
  * convenience - fine if storage is unavailable).
  */
@@ -144,6 +146,8 @@ export default function DataTable({
     onClearAll = null,
     filteredExternally = false, // e.g. status chips outside the table narrowed `data`
     pageSizes = [10, 25, 50, 100],
+    rowTone = null, // (row) => cell background classes for the whole row (incl. hover), or null
+    resetKey, // when set, only a change of this (or search / sort) goes back to page 1, not every new `data`
 }) {
     const stored = storageKey ? readStored(storageKey) : null;
 
@@ -178,12 +182,16 @@ export default function DataTable({
         getSortedRowModel: getSortedRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
         globalFilterFn: "includesString",
-        autoResetPageIndex: true,
+        autoResetPageIndex: resetKey === undefined,
         enableMultiSort: true,
     });
 
     // New filters from outside (e.g. status chips) change `data` - go back to page 1.
-    useEffect(() => setPagination((p) => ({ ...p, pageIndex: 0 })), [data]);
+    // With `resetKey`, an edit to a row (new `data`, same filters) keeps the page.
+    useEffect(
+        () => setPagination((p) => ({ ...p, pageIndex: 0 })),
+        resetKey === undefined ? [data] : [resetKey, globalFilter, sorting],
+    );
 
     const filteredRows = table.getPrePaginationRowModel().rows;
     const total = filteredRows.length;
@@ -300,13 +308,13 @@ export default function DataTable({
         <div className="min-w-0 rounded-2xl border border-brand-border bg-brand-card shadow-sm">
             {/* Toolbar */}
             {filters ? (
-                // Search, dropdowns and actions on one row (dropdowns wrap under the
-                // search on phones); the chips (`toolbar`) get their own row below.
+                // Search + actions on the first row, the dropdowns on their own row (wrapping,
+                // so the search is never squeezed); the chips (`toolbar`) get a row below.
                 <div className="space-y-3 border-b border-brand-border px-4 py-3 sm:px-5">
                     <div className="flex flex-wrap items-center gap-2">
-                        {searchBox("order-1 flex-1 md:max-w-sm")}
-                        {actions("order-2 md:order-3 md:ml-auto")}
-                        <div className="order-3 grid w-full grid-cols-2 gap-2 md:order-2 md:flex md:w-auto md:items-center">
+                        {searchBox("flex-1 md:max-w-sm")}
+                        {actions("md:ml-auto")}
+                        <div className="grid w-full grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center">
                             {filters}
                         </div>
                     </div>
@@ -411,15 +419,17 @@ export default function DataTable({
                                 </td>
                             </tr>
                         ) : (
-                            table.getRowModel().rows.map((row) => (
+                            table.getRowModel().rows.map((row) => {
+                                const tone = rowTone?.(row.original);
+                                return (
                                 <tr key={row.id} className="group/row">
                                     {row.getVisibleCells().map((cell, i) => (
                                         <td
                                             key={cell.id}
-                                            className={`border-b border-brand-border px-4 py-3 align-middle transition-colors group-hover/row:bg-brand-bg ${alignClass(cell.column)} ${stickyFirst(
+                                            className={`border-b border-brand-border px-4 py-3 align-middle transition-colors ${tone ?? "group-hover/row:bg-brand-bg"} ${alignClass(cell.column)} ${stickyFirst(
                                                 i,
-                                                "z-[5] bg-brand-card",
-                                            )} ${stickyRight(cell.column, "z-10 bg-brand-card group-hover/row:bg-brand-bg")}`}
+                                                tone ? "z-[5]" : "z-[5] bg-brand-card",
+                                            )} ${stickyRight(cell.column, tone ? "z-10" : "z-10 bg-brand-card group-hover/row:bg-brand-bg")}`}
                                         >
                                             {flexRender(
                                                 cell.column.columnDef.cell,
@@ -428,7 +438,8 @@ export default function DataTable({
                                         </td>
                                     ))}
                                 </tr>
-                            ))
+                                );
+                            })
                         )}
                     </tbody>
                 </table>

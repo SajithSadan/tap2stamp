@@ -7,6 +7,7 @@ use App\Models\Shop;
 use App\Models\ShopNote;
 use App\Models\ShopTask;
 use App\Services\CrmAssistant;
+use App\Support\LeadStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,16 +25,36 @@ class ShopCrmController extends Controller
         return response()->json(['notes' => $this->latestNotes($shop)]);
     }
 
-    /** JSON callers (the Shops grid's dialog) get the fresh list; the Account tab is redirected back. */
+    /**
+     * JSON callers (the Shops grid's dialog) get the fresh list; the Account tab is redirected back.
+     * A note written with a follow-up status keeps it, and it becomes the shop's status too.
+     */
     public function storeNote(Request $request, Shop $shop): RedirectResponse|JsonResponse
     {
-        $input = $request->validate(['body' => ['required', 'string', 'max:'.ShopNote::MAX_LENGTH]]);
+        $input = $request->validate([
+            'body' => ['required', 'string', 'max:'.ShopNote::MAX_LENGTH],
+            'lead_status' => ['nullable', 'string', LeadStatus::rule()],
+        ]);
+        $lead = $input['lead_status'] ?? null;
 
-        $shop->notes()->create(['body' => trim($input['body']), 'user_id' => $request->user()->id]);
+        $shop->notes()->create(['body' => trim($input['body']), 'user_id' => $request->user()->id, 'lead_status' => $lead]);
+        if ($lead) {
+            $shop->forceFill(['lead_status' => $lead])->save();
+        }
 
         return $request->wantsJson()
-            ? response()->json(['notes' => $this->latestNotes($shop)], 201)
+            ? response()->json(['notes' => $this->latestNotes($shop), 'lead_status' => $shop->lead_status], 201)
             : back()->with('status', 'Note added.');
+    }
+
+    /** The Shops grid's follow-up dropdown (JSON). Null clears it. */
+    public function updateLead(Request $request, Shop $shop): JsonResponse
+    {
+        $input = $request->validate(['lead_status' => ['present', 'nullable', 'string', LeadStatus::rule()]]);
+
+        $shop->forceFill(['lead_status' => $input['lead_status']])->save();
+
+        return response()->json(['lead_status' => $shop->lead_status]);
     }
 
     public function destroyNote(Request $request, Shop $shop, ShopNote $note): RedirectResponse|JsonResponse
@@ -47,7 +68,7 @@ class ShopCrmController extends Controller
 
     private function latestNotes(Shop $shop): array
     {
-        return $shop->notes()->with('author:id,name')->latest()->limit(50)->get()
+        return $shop->notes()->with('author:id,name')->latest()->latest('id')->limit(50)->get()
             ->map(fn (ShopNote $note) => $note->toRow())->all();
     }
 

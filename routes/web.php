@@ -199,6 +199,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
         Route::post('/shops/{shop}/notes', [ShopCrmController::class, 'storeNote'])->name('shops.notes.store');
         Route::delete('/shops/{shop}/notes/{note}', [ShopCrmController::class, 'destroyNote'])->name('shops.notes.destroy');
         Route::put('/shops/{shop}/tags', [ShopCrmController::class, 'updateTags'])->name('shops.tags.update');
+        Route::put('/shops/{shop}/lead', [ShopCrmController::class, 'updateLead'])->name('shops.lead.update');
         Route::post('/shops/{shop}/tasks', [ShopCrmController::class, 'storeTask'])->name('shops.tasks.store');
         Route::put('/shops/{shop}/tasks/{task}', [ShopCrmController::class, 'updateTask'])->name('shops.tasks.update');
         Route::delete('/shops/{shop}/tasks/{task}', [ShopCrmController::class, 'destroyTask'])->name('shops.tasks.destroy');

@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\Shop;
 use App\Models\ShopNote;
 use App\Models\ShopTask;
+use App\Support\LeadStatus;
 use Illuminate\Support\Carbon;
 
 /**
@@ -47,7 +48,7 @@ class ShopTimeline
 
         // --- Notes and follow-ups ------------------------------------------------
         $shop->notes()->with('author:id,name')->latest()->limit($limit)->get()
-            ->each(fn (ShopNote $note) => $add($note->created_at, 'note', 'Note', $note->body, $note->author?->name));
+            ->each(fn (ShopNote $note) => $add($note->created_at, 'note', LeadStatus::label($note->lead_status) ? 'Note · '.LeadStatus::label($note->lead_status) : 'Note', $note->body, $note->author?->name));
 
         $shop->tasks()->with('creator:id,name')->latest()->limit($limit)->get()->each(function (ShopTask $task) use ($add) {
             $add($task->created_at, 'task', 'Follow-up added: '.$task->title, $task->due_on ? 'Due '.$task->due_on->format('j M Y') : null, $task->creator?->name);

@@ -16,7 +16,9 @@ import {
     LuX,
 } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
+import { LeadBadge, LeadChips } from "@/Components/Dashboard/ShopNotesButton";
 import { FieldError, inputClass, Panel, primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
+import { leadStatus } from "@/lib/leadStatus";
 
 /**
  * Admin → shop settings → Account, phase 2 (the light CRM): tags, follow-ups,
@@ -187,8 +189,8 @@ export function TasksPanel({ shop, tasks }) {
     );
 }
 
-export function NotesPanel({ shop, notes }) {
-    const form = useForm({ body: "" });
+export function NotesPanel({ shop, notes, lead = null }) {
+    const form = useForm({ body: "", lead_status: lead });
     const [confirm, confirmDialog] = useConfirm();
 
     async function remove(note) {
@@ -202,22 +204,26 @@ export function NotesPanel({ shop, notes }) {
             <form
                 onSubmit={(e) => {
                     e.preventDefault();
-                    form.post(`/admin/shops/${shop.id}/notes`, { preserveScroll: true, onSuccess: () => form.reset() });
+                    form.post(`/admin/shops/${shop.id}/notes`, { preserveScroll: true, onSuccess: () => form.reset("body") });
                 }}
                 noValidate
             >
                 <textarea rows={3} maxLength={2000} value={form.data.body} onChange={(e) => form.setData("body", e.target.value)} placeholder="What happened? e.g. Called Sam - staff keep forgetting to scan; sending a QR sticker." className={`${inputClass} resize-y`} />
                 <FieldError message={form.errors.body} />
-                <button type="submit" disabled={form.processing || !form.data.body.trim()} className={`${primaryButton} mt-2`}>
-                    <LuMessageSquare className="h-4 w-4" /> Add note
-                </button>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <LeadChips value={form.data.lead_status} onChange={(v) => form.setData("lead_status", v)} />
+                    <button type="submit" disabled={form.processing || !form.data.body.trim()} className={`${primaryButton} ml-auto`}>
+                        <LuMessageSquare className="h-4 w-4" /> Add note
+                    </button>
+                </div>
             </form>
             <ul className="mt-4 space-y-3">
                 {notes.map((note) => (
-                    <li key={note.id} className="group rounded-xl bg-brand-bg p-3">
+                    <li key={note.id} className={`group rounded-xl bg-brand-bg p-3 ${leadStatus(note.lead_status) ? `border-l-2 ${leadStatus(note.lead_status).edge}` : ""}`}>
                         <p className="whitespace-pre-line break-words text-sm text-brand-text">{note.body}</p>
                         <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-brand-muted">
-                            <span>
+                            <span className="flex flex-wrap items-center gap-1.5">
+                                <LeadBadge status={note.lead_status} />
                                 {note.author ?? "Admin"} · {note.at_label}
                             </span>
                             <button type="button" onClick={() => remove(note)} className="rounded p-0.5 hover:text-red-700" aria-label="Delete note">

@@ -1434,8 +1434,20 @@ Owners pay for a year of a plan on Billing & plan, in the shop's currency
 
 - **Per shop** (shop settings → Account, `ShopCrmPanels.jsx`, `Admin\ShopCrmController`):
   - **notes** (`shop_notes`, author, ≤ 2000, `ShopNote::toRow()`); also on the Shops grid: a
-    notes icon with the count (`ShopNotesButton.jsx`) opens a dialog to read / add / delete them,
+    notes icon, highlighted (mint, filled) when the shop has notes, no count, with a legend
+    under the grid (`ShopNotesButton.jsx`, `NotesLegend`), opens a dialog to read / add / delete them,
     through the same routes answering JSON (`GET /admin/shops/{shop}/notes` lists them);
+  - **follow-up status** (`shops.lead_status`: hot / warm / cold, null = not set, the start;
+    `App\Support\LeadStatus` ↔ `lib/leadStatus.js`, light rose / amber / sky — keep in sync):
+    the Shops grid's **Follow-up** column (`LeadStatusCell.jsx`; blank until set, double-click
+    opens the dropdown, `PUT /admin/shops/{shop}/lead`, JSON; changes are laid over the rows in
+    page state so sort / CSV and the notes popup agree). The **whole row** takes the colour
+    (DataTable `rowTone`, the `row` classes in `leadStatus.js`); the grid passes `resetKey` (its
+    filters) so a status change keeps the page instead of jumping back to page 1. An "All
+    follow-ups" dropdown (Hot / Warm / Cold / Not set, with counts) filters the grid.
+    A note can be written with a status (chips in both notes forms): the note keeps it
+    (`shop_notes.lead_status`, coloured edge + pill, "Note · Hot" on the timeline) and it
+    becomes the shop's status, so the notes read as the relationship's history;
   - **tags** (`shops.crm_tags`, `Shop::tidyCrmTags()`: ≤ 8, ≤ 30 chars, deduped, with one-tap
     suggestions; searchable on the Shops grid, plus a Tags column with "N to do");
   - **follow-ups** (`shop_tasks`: title, `due_on`, `done_at` / `done_by`; `ShopTask::toRow()`
@@ -1550,7 +1562,7 @@ Plus `users.welcome_sent_at` (the admin's first WhatsApp welcome; see "WhatsApp 
 Plus `shops.trial_ends_at` / `crm_stage` / `lost_reason` (see "Shop health & sales pipeline").
 Plus `plans`, `shops.plan_id` / `subscription_ends_at` (see "Plans & trial end") and
 `subscription_payments` (see "Plan payments").
-Plus `shop_notes`, `shop_tasks`, `shops.crm_tags` (see "Admin CRM & AI briefing").
+Plus `shop_notes`, `shop_tasks`, `shops.crm_tags`, `shops.lead_status` / `shop_notes.lead_status` (see "Admin CRM & AI briefing").
 Plus `shops.qr_page_viewed_at` / `qr_downloaded_at` / `qr_downloads` / `qr_download_failures` (see "Overseas shops").
 Plus `shops.shop_code`, `shop_code_attempts`, `shop_code_locks` (see "Shop code" under the staff scanner).
 Plus `customer_shop_cards.marketing_consent` (bool, default false) and `marketing_consent_at`

@@ -53,8 +53,9 @@ class ShopSettingsController extends Controller
             // Phase 2: notes, tags, follow-ups, the shop's timeline, AI "Brief me".
             'crm' => [
                 'tags' => $shop->crm_tags ?? [],
+                'lead_status' => $shop->lead_status,
                 'tag_suggestions' => self::TAG_SUGGESTIONS,
-                'notes' => $shop->notes()->with('author:id,name')->latest()->limit(50)->get()->map(fn (ShopNote $note) => $note->toRow()),
+                'notes' => $shop->notes()->with('author:id,name')->latest()->latest('id')->limit(50)->get()->map(fn (ShopNote $note) => $note->toRow()),
                 // Open first (soonest due), then the last 10 done.
                 'tasks' => $shop->tasks()->open()->orderByRaw('due_on IS NULL, due_on')->get()
                     ->concat($shop->tasks()->whereNotNull('done_at')->latest('done_at')->limit(10)->get())

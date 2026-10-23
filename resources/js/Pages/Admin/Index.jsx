@@ -1,5 +1,5 @@
 import { Link, usePage } from "@inertiajs/react";
-import { useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import {
     LuCheck,
@@ -10,6 +10,7 @@ import {
     LuCopy,
     LuDownload,
     LuExternalLink,
+    LuFlame,
     LuKeyRound,
     LuPackageCheck,
     LuPlus,
@@ -21,7 +22,8 @@ import {
 } from "react-icons/lu";
 import AdminLayout from "@/Components/Dashboard/AdminLayout";
 import DataTable from "@/Components/Dashboard/DataTable";
-import ShopNotesButton from "@/Components/Dashboard/ShopNotesButton";
+import LeadStatusCell from "@/Components/Dashboard/LeadStatusCell";
+import ShopNotesButton, { NotesLegend } from "@/Components/Dashboard/ShopNotesButton";
 import WhatsAppButton from "@/Components/Dashboard/WhatsAppButton";
 import {
     Avatar,
@@ -31,6 +33,7 @@ import {
 } from "@/Components/Dashboard/Ui";
 import { formatNumber } from "@/lib/charts";
 import { industryIcon } from "@/lib/industryIcons";
+import { LEAD_STATUSES, leadStatus } from "@/lib/leadStatus";
 
 /** One-time reveal of a new owner's generated password. Dismissible, never re-shown. */
 function CredentialsNotice({ password, email }) {
@@ -405,6 +408,23 @@ const num = (value) => (
 // `undefined` (not null) sorts last with TanStack's sortUndefined.
 const orUndefined = (value) => (value === null ? undefined : value);
 
+// Follow-up status changes made on this page (column or notes popup): (shopId, status) => void.
+const SetLeadContext = createContext(() => {});
+const LEAD_ORDER = { hot: 1, warm: 2, cold: 3 };
+
+/** The follow-up dropdown: "all", a status, or "none" = not set. */
+const inFollowUp = (s, value) => value === "all" || (value === "none" ? !s.lead_status : s.lead_status === value);
+
+function FollowUpCell({ s }) {
+    const setLead = useContext(SetLeadContext);
+    return <LeadStatusCell shopId={s.id} shopName={s.name} value={s.lead_status} onChange={(v) => setLead(s.id, v)} />;
+}
+
+function NotesCell({ s }) {
+    const setLead = useContext(SetLeadContext);
+    return <ShopNotesButton shopId={s.id} shopName={s.name} count={s.notes} lead={s.lead_status} onLeadChange={(v) => setLead(s.id, v)} />;
+}
+
 function buildColumns(origin) {
     return [
         {
@@ -462,6 +482,17 @@ function buildColumns(origin) {
                     </Link>
                 );
             },
+        },
+        {
+            // The admin's follow-up status: blank until set, double-click to change.
+            id: "follow_up",
+            accessorFn: (s) => orUndefined(s.lead_status),
+            header: "Follow-up",
+            enableGlobalFilter: false,
+            sortUndefined: "last",
+            sortingFn: (a, b) => LEAD_ORDER[a.original.lead_status] - LEAD_ORDER[b.original.lead_status],
+            meta: { label: "Follow-up", csv: (s) => s.lead_status ?? "" },
+            cell: ({ row: { original: s } }) => <FollowUpCell s={s} />,
         },
         {
             // Admin CRM tags + open follow-ups (shop settings → Account).
@@ -923,7 +954,7 @@ function buildColumns(origin) {
                         welcomeSentLabel={s.welcome_sent_label}
                         upgradeText={upgradeMessage(s, origin)}
                     />
-                    <ShopNotesButton shopId={s.id} shopName={s.name} count={s.notes} />
+                    <NotesCell s={s} />
                     <Link
                         href={`/admin/shops/${s.id}/settings`}
                         aria-label={`Configure ${s.name}`}
@@ -969,14 +1000,19 @@ function buildColumns(origin) {
 /** Not ordered the primary product, and not arranged with us either - the ones to call. */
 const needsDisplay = (s) => !s.product_ordered_at && !s.product_awaiting;
 
-export default function Index({ shops, quietDays, primaryProduct, segments = {}, stages = {} }) {
+export default function Index({ shops: shopRows, quietDays, primaryProduct, segments = {}, stages = {} }) {
     const { flash } = usePage().props;
+    // Follow-up statuses changed here, laid over the rows so sorting and CSV see them too.
+    const [leads, setLeads] = useState({});
+    const setLead = useCallback((id, status) => setLeads((m) => ({ ...m, [id]: status })), []);
+    const shops = useMemo(() => shopRows.map((s) => (s.id in leads ? { ...s, lead_status: leads[s.id] } : s)), [shopRows, leads]);
     const [status, setStatus] = useState("all");
     const [country, setCountry] = useState("all");
     const [industry, setIndustry] = useState("all");
     const [segment, setSegment] = useState("all");
     const [stage, setStage] = useState("all");
     const [trial, setTrial] = useState("all");
+    const [followUp, setFollowUp] = useState("all"); // hot / warm / cold, or "none" = not set
 
     // Blocked shops never mix with the rest: the main list (and every count, tile and dropdown)
     // is the active shops; the Blocked chip shows only the blocked ones.
@@ -986,10 +1022,11 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
         (country === "all" || (s.country_code ?? "") === country) &&
         (industry === "all" || (s.industry ?? "") === industry) &&
         (stage === "all" || s.stage === stage) &&
+        inFollowUp(s, followUp) &&
         inTrialWindow(s, trial);
 
     // The health tiles count within the dropdowns.
-    const base = useMemo(() => pool.filter(matchesDropdowns), [pool, country, industry, stage, trial]);
+    const base = useMemo(() => pool.filter(matchesDropdowns), [pool, country, industry, stage, trial, followUp]);
     const segmentCounts = useMemo(
         () => base.reduce((acc, s) => ({ ...acc, [s.health.segment]: (acc[s.health.segment] ?? 0) + 1 }), {}),
         [base],
@@ -1002,7 +1039,16 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
     // How many blocked shops the Blocked chip would show (same dropdowns + tile).
     const blockedCount = useMemo(
         () => shops.filter((s) => s.status === "blocked" && matchesDropdowns(s) && (segment === "all" || s.health.segment === segment)).length,
-        [shops, country, industry, stage, segment, trial],
+        [shops, country, industry, stage, segment, trial, followUp],
+    );
+    const followUpOptions = useMemo(
+        () =>
+            [...LEAD_STATUSES.map((s) => [s.key, s.label]), ["none", "Not set"]].map(([value, label]) => ({
+                value,
+                label,
+                count: pool.filter((s) => inFollowUp(s, value)).length,
+            })),
+        [pool],
     );
     const trialOptions = useMemo(
         () => TRIAL_WINDOWS.map(([value, label]) => ({ value, label, count: pool.filter((s) => inTrialWindow(s, value)).length })),
@@ -1042,7 +1088,7 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
             no_welcome: active.filter(needsWelcome).length,
             expired: active.filter(isExpired).length,
         };
-    }, [shops, country, industry, stage, segment, trial, blockedCount]);
+    }, [shops, country, industry, stage, segment, trial, followUp, blockedCount]);
 
     const rows = useMemo(() => {
         // "All" and "Blocked" are the whole pool (active shops, or the blocked ones).
@@ -1101,6 +1147,7 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
             ) : (
                 <>
                 <SegmentTiles segments={segments} counts={segmentCounts} value={segment} onChange={setSegment} />
+                <SetLeadContext.Provider value={setLead}>
                 <DataTable
                     data={rows}
                     columns={columns}
@@ -1139,6 +1186,15 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
                                 total={pool.length}
                             />
                             <SelectFilter
+                                label="Filter by follow-up status"
+                                icon={LuFlame}
+                                allLabel="All follow-ups"
+                                value={followUp}
+                                onChange={setFollowUp}
+                                options={followUpOptions}
+                                total={pool.length}
+                            />
+                            <SelectFilter
                                 label="Filter by when the free trial ends"
                                 icon={LuClock}
                                 allLabel="Any trial end"
@@ -1156,7 +1212,7 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
                             counts={counts}
                         />
                     }
-                    filteredExternally={status !== "all" || country !== "all" || industry !== "all" || segment !== "all" || stage !== "all" || trial !== "all"}
+                    filteredExternally={status !== "all" || country !== "all" || industry !== "all" || segment !== "all" || stage !== "all" || trial !== "all" || followUp !== "all"}
                     onClearAll={() => {
                         setStatus("all");
                         setCountry("all");
@@ -1164,9 +1220,14 @@ export default function Index({ shops, quietDays, primaryProduct, segments = {},
                         setSegment("all");
                         setStage("all");
                         setTrial("all");
+                        setFollowUp("all");
                     }}
                     empty={<EmptyState icon={LuStore} title="No shops match" />}
+                    rowTone={(s) => leadStatus(s.lead_status)?.row ?? null}
+                    resetKey={[status, country, industry, segment, stage, trial, followUp].join("|")}
                 />
+                </SetLeadContext.Provider>
+                <NotesLegend />
                 </>
             )}
         </AdminLayout>

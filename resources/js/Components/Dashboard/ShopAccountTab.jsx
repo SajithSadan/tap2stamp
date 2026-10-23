@@ -294,7 +294,7 @@ export default function ShopAccountTab({ shop, health, healthModel, pipeline, cr
                 <div className="space-y-4">
                     {crm.ai && <BriefMePanel shop={shop} />}
                     <TasksPanel shop={shop} tasks={crm.tasks} />
-                    <NotesPanel shop={shop} notes={crm.notes} />
+                    <NotesPanel shop={shop} notes={crm.notes} lead={crm.lead_status} />
                 </div>
                 <div className="space-y-4">
                     <PipelinePanel shop={shop} pipeline={pipeline} stages={crmStages} subscription={subscription} plans={plans} />

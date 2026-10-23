@@ -1,8 +1,41 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuLoaderCircle, LuMessageSquare, LuNotebookPen, LuTrash2, LuX } from "react-icons/lu";
+import { LuLoaderCircle, LuMessageSquare, LuNotebookPen, LuNotebookText, LuTrash2, LuX } from "react-icons/lu";
 import { useConfirm } from "@/Components/ConfirmDialog";
 import { FieldError, inputClass, primaryButton } from "@/Components/Dashboard/Ui";
+import { LEAD_STATUSES, leadStatus } from "@/lib/leadStatus";
+
+/** A note's follow-up status as a small pill (nothing when it has none). */
+export function LeadBadge({ status }) {
+    const s = leadStatus(status);
+    if (!s) return null;
+
+    return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${s.pill}`}>{s.label}</span>;
+}
+
+/** Pick the status a new note is written with; tapping the picked one again clears it. */
+export function LeadChips({ value, onChange }) {
+    return (
+        <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Follow-up status">
+            {LEAD_STATUSES.map((s) => {
+                const on = value === s.key;
+                return (
+                    <button
+                        key={s.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => onChange(on ? null : s.key)}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${on ? s.pill : "border-brand-border text-brand-muted hover:text-brand-text"}`}
+                    >
+                        <span className={`h-2 w-2 rounded-full ${s.dot}`} />
+                        {s.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
 
 /** One note: long ones show their first 4 lines, with "More" for the rest. */
 function NoteItem({ note, onRemove }) {
@@ -16,11 +49,16 @@ function NoteItem({ note, onRemove }) {
         if (el && !expanded) setLong(el.scrollHeight > el.clientHeight + 1);
     }, [note.body, expanded]);
 
+    const lead = leadStatus(note.lead_status);
+
     return (
-        <li className="py-3">
+        <li className={`py-3 ${lead ? `border-l-2 pl-3 ${lead.edge}` : ""}`}>
             <div className="flex items-center justify-between gap-2 text-xs text-brand-muted">
-                <span>
-                    <span className="font-medium text-brand-text">{note.author ?? "Admin"}</span> · {note.at_label}
+                <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <LeadBadge status={note.lead_status} />
+                    <span>
+                        <span className="font-medium text-brand-text">{note.author ?? "Admin"}</span> · {note.at_label}
+                    </span>
                 </span>
                 <button type="button" onClick={onRemove} className="rounded p-1 hover:text-red-700" aria-label="Delete note">
                     <LuTrash2 className="h-3.5 w-3.5" />
@@ -38,16 +76,48 @@ function NoteItem({ note, onRemove }) {
     );
 }
 
+const HAS_NOTES = "bg-brand-accent/10 text-brand-accent hover:bg-brand-accent/20";
+const NO_NOTES = "text-brand-muted hover:bg-brand-bg hover:text-brand-text";
+
+/** Explains the two looks of the notes icon, shown under the Shops grid. */
+export function NotesLegend() {
+    return (
+        <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-brand-muted">
+            <span className="inline-flex items-center gap-1.5">
+                <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md ${HAS_NOTES}`}>
+                    <LuNotebookText className="h-3.5 w-3.5" />
+                </span>
+                Has notes
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-md text-brand-muted">
+                    <LuNotebookPen className="h-3.5 w-3.5" />
+                </span>
+                No notes yet
+            </span>
+            {LEAD_STATUSES.map((s) => (
+                <span key={s.key} className="inline-flex items-center gap-1.5">
+                    <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} />
+                    {s.label}
+                </span>
+            ))}
+        </p>
+    );
+}
+
 /**
- * Admin Shops grid: the notes icon (with the shop's note count). Opens a dialog
+ * Admin Shops grid: the notes icon (highlighted when the shop has notes). Opens a dialog
  * with the shop's notes, newest first, and a box to add one - the same notes as
  * shop settings → Account, through the same routes answering JSON
  * (GET / POST / DELETE /admin/shops/{shop}/notes), so the grid isn't reloaded.
+ * A note can be written with a follow-up status (hot / warm / cold): it keeps it, and it
+ * becomes the shop's status - `onLeadChange` tells the grid's Follow-up column.
  */
-export default function ShopNotesButton({ shopId, shopName, count = 0 }) {
+export default function ShopNotesButton({ shopId, shopName, count = 0, lead = null, onLeadChange }) {
     const [open, setOpen] = useState(false);
     const [notes, setNotes] = useState(null); // null = not loaded yet
     const [total, setTotal] = useState(count);
+    const [noteLead, setNoteLead] = useState(lead);
     const [body, setBody] = useState("");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
@@ -59,6 +129,7 @@ export default function ShopNotesButton({ shopId, shopName, count = 0 }) {
     useEffect(() => {
         if (!open) return;
         setError(null);
+        setNoteLead(lead);
         window.axios
             .get(base)
             .then(({ data }) => show(data.notes))
@@ -79,8 +150,9 @@ export default function ShopNotesButton({ shopId, shopName, count = 0 }) {
         setSaving(true);
         setError(null);
         try {
-            const { data } = await window.axios.post(base, { body });
+            const { data } = await window.axios.post(base, { body, lead_status: noteLead });
             show(data.notes);
+            onLeadChange?.(data.lead_status);
             setBody("");
         } catch (err) {
             setError(err.response?.data?.errors?.body?.[0] ?? "Couldn't save the note - try again.");
@@ -108,14 +180,9 @@ export default function ShopNotesButton({ shopId, shopName, count = 0 }) {
                 onClick={() => setOpen(true)}
                 aria-label={total ? `${label} (${total})` : label}
                 title={total ? `Notes (${total})` : "Add a note"}
-                className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-muted transition-colors hover:bg-brand-bg hover:text-brand-text"
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${total > 0 ? HAS_NOTES : NO_NOTES}`}
             >
-                <LuNotebookPen className="h-4 w-4" />
-                {total > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-accent px-1 text-[10px] font-semibold leading-none text-brand-accent-text tabular-nums">
-                        {total > 99 ? "99+" : total}
-                    </span>
-                )}
+                {total > 0 ? <LuNotebookText className="h-4 w-4" /> : <LuNotebookPen className="h-4 w-4" />}
             </button>
 
             {open &&
@@ -150,12 +217,13 @@ export default function ShopNotesButton({ shopId, shopName, count = 0 }) {
                                         placeholder="What happened? e.g. Called - staff keep forgetting to scan."
                                         className={`${inputClass} resize-y`}
                                     />
-                                    <div className="mt-2 flex items-start justify-between gap-3">
-                                        <FieldError message={error} />
+                                    <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                                        <LeadChips value={noteLead} onChange={setNoteLead} />
                                         <button type="submit" disabled={saving || !body.trim()} className={`${primaryButton} ml-auto shrink-0`}>
                                             {saving ? <LuLoaderCircle className="h-4 w-4 animate-spin" /> : <LuMessageSquare className="h-4 w-4" />} Add note
                                         </button>
                                     </div>
+                                    <FieldError message={error} />
                                 </form>
 
                                 <div className="-mx-1 mt-4 min-h-0 flex-1 overflow-y-auto px-1">

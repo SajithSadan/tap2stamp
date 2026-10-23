@@ -138,6 +138,48 @@ test('the shops grid notes dialog lists, adds and deletes notes as JSON', functi
     $this->actingAs($admin)->deleteJson("/admin/shops/{$shop->id}/notes/{$note->id}")->assertOk()->assertJsonCount(1, 'notes');
 });
 
+test('the admin sets a shop follow-up status from the grid', function () {
+    $admin = crmAdmin();
+    $shop = Shop::factory()->create();
+
+    $this->actingAs($admin)->putJson("/admin/shops/{$shop->id}/lead", ['lead_status' => 'warm'])
+        ->assertOk()->assertJsonPath('lead_status', 'warm');
+    expect($shop->fresh()->lead_status)->toBe('warm');
+
+    $this->actingAs($admin)->get('/admin')->assertInertia(fn ($page) => $page->where('shops.0.lead_status', 'warm'));
+
+    $this->actingAs($admin)->putJson("/admin/shops/{$shop->id}/lead", ['lead_status' => 'boiling'])->assertJsonValidationErrors('lead_status');
+    $this->actingAs($admin)->putJson("/admin/shops/{$shop->id}/lead", ['lead_status' => 'active'])->assertJsonValidationErrors('lead_status');
+    $this->actingAs($admin)->putJson("/admin/shops/{$shop->id}/lead", ['lead_status' => null])->assertOk();
+    expect($shop->fresh()->lead_status)->toBeNull();
+
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $this->actingAs($owner)->putJson("/admin/shops/{$shop->id}/lead", ['lead_status' => 'hot'])->assertForbidden();
+});
+
+test('a note keeps the follow-up status it was written with and sets the shop status', function () {
+    $admin = crmAdmin();
+    $shop = Shop::factory()->create(['lead_status' => 'cold']);
+
+    $this->actingAs($admin)->postJson("/admin/shops/{$shop->id}/notes", ['body' => 'Keen, call back Friday', 'lead_status' => 'hot'])
+        ->assertCreated()
+        ->assertJsonPath('lead_status', 'hot')
+        ->assertJsonPath('notes.0.lead_status', 'hot');
+    expect($shop->fresh()->lead_status)->toBe('hot');
+
+    // No colour: the note has none, and the shop keeps its status.
+    $this->actingAs($admin)->postJson("/admin/shops/{$shop->id}/notes", ['body' => 'Left a voicemail'])
+        ->assertJsonPath('lead_status', 'hot')
+        ->assertJsonPath('notes.0.lead_status', null);
+
+    expect(collect(app(ShopTimeline::class)->for($shop->fresh()))->pluck('title'))->toContain('Note · Hot');
+
+    // A status no longer offered (e.g. the old "active") is shown as a plain note, never an error.
+    $shop->notes()->create(['body' => 'Old one', 'lead_status' => 'active']);
+    expect(collect(app(ShopTimeline::class)->for($shop->fresh()))->pluck('title'))->toContain('Note');
+    $this->actingAs($admin)->get("/admin/shops/{$shop->id}/settings")->assertOk();
+});
+
 test('the notes list is admin only and per shop', function () {
     $owner = User::factory()->create(['role' => UserRole::Owner]);
     $shop = Shop::factory()->create(['user_id' => $owner->id]);
