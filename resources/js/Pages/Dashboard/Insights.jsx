@@ -1,7 +1,8 @@
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { createContext, useContext, useState } from 'react';
-import { LuCalendarClock, LuGift, LuLightbulb, LuMessageCircle, LuRepeat, LuTrendingDown, LuTrophy, LuUserCheck } from 'react-icons/lu';
+import { LuArrowRight, LuCalendarClock, LuGift, LuLightbulb, LuMessageCircle, LuRepeat, LuTrendingDown, LuTrophy, LuUserCheck } from 'react-icons/lu';
 import { BarList, ColumnChart, Heatmap, KpiTile, PeakSummary, RangeTabs } from '@/Components/Dashboard/Charts';
+import CustomerWhatsApp from '@/Components/Dashboard/CustomerWhatsApp';
 import OwnerLayout from '@/Components/Dashboard/OwnerLayout';
 import { Avatar, EmptyState, Panel } from '@/Components/Dashboard/Ui';
 import { SERIES } from '@/lib/charts';
@@ -51,7 +52,7 @@ function SectionTitle({ children, hint }) {
 }
 
 /** One customer: name, opted-in mark, phone, a line about them, and a figure on the right. */
-function CustomerRow({ customer, rank, meta, figure, figureNote }) {
+function CustomerRow({ customer, rank, meta, figure, figureNote, action }) {
     return (
         <li className="flex items-center gap-3 px-5 py-3">
             {rank !== undefined && <span className="w-5 shrink-0 text-right text-sm font-semibold tabular-nums text-brand-muted">{rank}</span>}
@@ -79,6 +80,7 @@ function CustomerRow({ customer, rank, meta, figure, figureNote }) {
                     {figureNote && <p className="text-xs text-brand-muted">{figureNote}</p>}
                 </div>
             )}
+            {action}
         </li>
     );
 }
@@ -88,11 +90,27 @@ const FIRST_ROWS = 5;
 /**
  * A customer list that starts with the first few rows and opens to the
  * rest. `total` may be more than the rows sent (the server sends up to 25).
+ * With `moreHref`, it stays short and "View all" (always shown) goes to the Customers page.
  */
-function ShortList({ items, total = items.length, children, ordered = false }) {
+function ShortList({ items, total = items.length, children, ordered = false, moreHref }) {
     const [open, setOpen] = useState(false);
     const shown = open ? items : items.slice(0, FIRST_ROWS);
     const List = ordered ? 'ol' : 'ul';
+
+    if (moreHref) {
+        return (
+            <>
+                <List className="divide-y divide-brand-border">{shown.map(children)}</List>
+                {total > 0 && (
+                    <div className="border-t border-brand-border px-5 py-2.5 text-xs">
+                        <Link href={moreHref} className="inline-flex items-center gap-1 font-semibold text-brand-accent hover:underline">
+                            View all {total} <LuArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                    </div>
+                )}
+            </>
+        );
+    }
 
     return (
         <>
@@ -218,7 +236,7 @@ function DueBack({ dueBack }) {
                         Good news - your regulars are keeping to their usual rhythm.
                     </EmptyState>
                 ) : (
-                    <ShortList items={dueBack.drifting} total={dueBack.drifting_count}>
+                    <ShortList items={dueBack.drifting} total={dueBack.drifting_count} moreHref="/dashboard/customers?group=drifting">
                         {(c) => (
                             <CustomerRow
                                 key={c.id}
@@ -226,6 +244,7 @@ function DueBack({ dueBack }) {
                                 meta={`usually ${rhythm(c.every_days)} · ${plural(c.visits, 'visit')}`}
                                 figure={`${c.away_days} days`}
                                 figureNote="away"
+                                action={<CustomerWhatsApp customer={c} />}
                             />
                         )}
                     </ShortList>

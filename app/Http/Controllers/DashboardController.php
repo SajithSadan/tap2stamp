@@ -39,6 +39,7 @@ use App\Support\ShopContact;
 use App\Support\SignupIcons;
 use App\Support\StampIcons;
 use App\Support\ThemeCatalog;
+use App\Support\WhatsApp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -94,13 +95,15 @@ class DashboardController extends Controller
     {
         $shop = $request->user()->shop;
         $search = trim((string) $request->query('q', ''));
+        $group = $this->customerGroup($request);
 
         return Inertia::render('Dashboard/Customers', [
             'shop' => $this->shopSummary($shop),
             'search' => $search,
+            // From Insights' "View all" (?group=drifting): only that list's customers.
+            'group' => $group ? ['key' => $group, 'label' => ShopInsights::CUSTOMER_GROUPS[$group]] : null,
             'maxStamps' => $shop->max_stamps,
-            // No phone numbers here - same stance as the activity feed.
-            'customers' => $this->customersQuery($shop, $search)
+            'customers' => $this->customersQuery($shop, $search, $group)
                 ->with('customer:id,name,phone')
                 ->orderByDesc('last_stamped_at')->orderByDesc('id')
                 ->paginate(15)
@@ -109,6 +112,8 @@ class DashboardController extends Controller
                     'id' => $card->id,
                     'name' => $card->customer->name,
                     'phone' => $card->customer->phone,
+                    // wa.me digits: the owner messages them from their own WhatsApp.
+                    'whatsapp' => WhatsApp::number(null, $card->customer->phone),
                     'stamps' => $card->current_stamps,
                     'rewards_claimed' => $card->rewards_claimed,
                     'last_visit' => $card->last_stamped_at?->timezone('Europe/London')->format('j M Y'),
@@ -122,12 +127,15 @@ class DashboardController extends Controller
     {
         $shop = $request->user()->shop;
         $search = trim((string) $request->query('q', ''));
-        $query = $this->customersQuery($shop, $search)
+        $group = $this->customerGroup($request);
+        $query = $this->customersQuery($shop, $search, $group)
             ->with('customer:id,name,phone')
             ->orderByDesc('last_stamped_at')->orderByDesc('id');
 
         // Phone numbers leave the app here, so who downloaded them is on record.
-        ActivityLogger::record('customers.exported', 'Downloaded the customer list'.($search !== '' ? " (search: {$search})" : ''), $shop->id);
+        ActivityLogger::record('customers.exported', 'Downloaded the customer list'
+            .($group ? ' ('.ShopInsights::CUSTOMER_GROUPS[$group].')' : '')
+            .($search !== '' ? " (search: {$search})" : ''), $shop->id);
 
         return response()->streamDownload(function () use ($query, $shop) {
             $output = fopen('php://output', 'w');
@@ -155,11 +163,22 @@ class DashboardController extends Controller
         ]);
     }
 
-    private function customersQuery(Shop $shop, string $search)
+    private function customersQuery(Shop $shop, string $search, ?string $group = null)
     {
-        return $shop->cards()->when($search !== '', fn ($q) => $q->whereHas('customer', fn ($customer) => $customer
-            ->where('name', 'like', '%'.$search.'%')
-            ->orWhere('phone', 'like', '%'.$search.'%')));
+        return $shop->cards()
+            // The group is worked out again here from the shop's own logs - never a list of ids from the URL.
+            ->when($group, fn ($q) => $q->whereIn('customer_id', (new ShopInsights($shop))->groupCustomerIds($group)))
+            ->when($search !== '', fn ($q) => $q->whereHas('customer', fn ($customer) => $customer
+                ->where('name', 'like', '%'.$search.'%')
+                ->orWhere('phone', 'like', '%'.$search.'%')));
+    }
+
+    /** ?group= when it's one of the Insights lists, else null (unknown values are ignored). */
+    private function customerGroup(Request $request): ?string
+    {
+        $group = (string) $request->query('group', '');
+
+        return array_key_exists($group, ShopInsights::CUSTOMER_GROUPS) ? $group : null;
     }
 
     private function spreadsheetSafe(string $value): string

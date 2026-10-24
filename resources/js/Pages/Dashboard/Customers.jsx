@@ -1,6 +1,7 @@
 import { router } from "@inertiajs/react";
 import { useEffect, useRef, useState } from "react";
-import { LuDownload, LuSearch, LuUsers } from "react-icons/lu";
+import { LuDownload, LuSearch, LuUsers, LuX } from "react-icons/lu";
+import CustomerWhatsApp from "@/Components/Dashboard/CustomerWhatsApp";
 import OwnerLayout from "@/Components/Dashboard/OwnerLayout";
 import {
     Avatar,
@@ -41,9 +42,22 @@ function ConsentBadge({ on }) {
     );
 }
 
-export default function Customers({ shop, search, customers, maxStamps }) {
+/** The URL params for a search within the current group (?group=drifting from Insights). */
+const params = (q, group) => ({
+    ...(q ? { q } : {}),
+    ...(group ? { group: group.key } : {}),
+});
+
+export default function Customers({
+    shop,
+    search,
+    group,
+    customers,
+    maxStamps,
+}) {
     const [query, setQuery] = useState(search);
     const firstRun = useRef(true);
+    const exportQuery = new URLSearchParams(params(query, group)).toString();
 
     // Debounced live search - keeps the URL (?q=) in sync so it survives a refresh.
     useEffect(() => {
@@ -53,7 +67,7 @@ export default function Customers({ shop, search, customers, maxStamps }) {
         }
 
         const timeout = setTimeout(() => {
-            router.get("/dashboard/customers", query ? { q: query } : {}, {
+            router.get("/dashboard/customers", params(query, group), {
                 preserveState: true,
                 preserveScroll: true,
                 replace: true,
@@ -63,6 +77,12 @@ export default function Customers({ shop, search, customers, maxStamps }) {
         return () => clearTimeout(timeout);
     }, [query]);
 
+    function clearGroup() {
+        router.get("/dashboard/customers", params(query, null), {
+            preserveScroll: true,
+        });
+    }
+
     return (
         <OwnerLayout
             shop={shop}
@@ -71,7 +91,24 @@ export default function Customers({ shop, search, customers, maxStamps }) {
         >
             <Panel
                 bodyClassName=""
-                title={`${customers.total} ${customers.total === 1 ? "customer" : "customers"}`}
+                title={
+                    <span className="flex flex-wrap items-center gap-2">
+                        {`${customers.total} ${customers.total === 1 ? "customer" : "customers"}`}
+                        {group && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-brand-accent/10 py-0.5 pl-2.5 pr-1 text-xs font-medium text-brand-text">
+                                {group.label}
+                                <button
+                                    type="button"
+                                    onClick={clearGroup}
+                                    aria-label={`Show all customers, not just ${group.label.toLowerCase()}`}
+                                    className="rounded-full p-0.5 text-brand-muted hover:bg-brand-accent/20 hover:text-brand-text"
+                                >
+                                    <LuX className="h-3.5 w-3.5" />
+                                </button>
+                            </span>
+                        )}
+                    </span>
+                }
                 action={
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                         <div className="relative w-full sm:w-64">
@@ -86,7 +123,7 @@ export default function Customers({ shop, search, customers, maxStamps }) {
                             />
                         </div>
                         <a
-                            href={`/dashboard/customers/export${query ? `?q=${encodeURIComponent(query)}` : ""}`}
+                            href={`/dashboard/customers/export${exportQuery ? `?${exportQuery}` : ""}`}
                             className={`${secondaryButton} shrink-0`}
                         >
                             <LuDownload className="h-4 w-4" /> Download CSV
@@ -100,12 +137,16 @@ export default function Customers({ shop, search, customers, maxStamps }) {
                         title={
                             search
                                 ? "No customers match that search"
-                                : "No customers yet"
+                                : group
+                                  ? `No customers ${group.label.toLowerCase()}`
+                                  : "No customers yet"
                         }
                     >
                         {search
                             ? "Try a different name."
-                            : "Customers appear here after they scan your counter QR code and sign up."}
+                            : group
+                              ? "Good news - nobody's in this list right now."
+                              : "Customers appear here after they scan your counter QR code and sign up."}
                     </EmptyState>
                 ) : (
                     <>
@@ -134,6 +175,11 @@ export default function Customers({ shop, search, customers, maxStamps }) {
                                         </th>
                                         <th className="px-5 py-3 font-medium">
                                             Texts
+                                        </th>
+                                        <th className="px-5 py-3">
+                                            <span className="sr-only">
+                                                WhatsApp
+                                            </span>
                                         </th>
                                     </tr>
                                 </thead>
@@ -174,6 +220,9 @@ export default function Customers({ shop, search, customers, maxStamps }) {
                                                     on={c.marketing_consent}
                                                 />
                                             </td>
+                                            <td className="px-3 py-2 text-right">
+                                                <CustomerWhatsApp customer={c} />
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -208,6 +257,7 @@ export default function Customers({ shop, search, customers, maxStamps }) {
                                         stamps={c.stamps}
                                         max={maxStamps}
                                     />
+                                    <CustomerWhatsApp customer={c} />
                                 </li>
                             ))}
                         </ul>

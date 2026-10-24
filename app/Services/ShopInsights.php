@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\ActionType;
 use App\Models\CustomerShopCard;
 use App\Models\Shop;
+use App\Support\WhatsApp;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -47,6 +48,11 @@ class ShopInsights
 
     /** A part-filled card untouched this long has stalled. */
     public const STALLED_AFTER_DAYS = 60;
+
+    /** Insights lists the Customers page can be filtered to (?group=drifting), with their heading. */
+    public const CUSTOMER_GROUPS = [
+        'drifting' => 'Drifting away',
+    ];
 
     private const TOP_LIMIT = 10;
 
@@ -126,6 +132,41 @@ class ShopInsights
      */
     public function dueBack(): array
     {
+        ['due' => $due, 'drifting' => $drifting] = $this->rhythms();
+
+        $cards = $this->cards($due->take(self::LIST_LIMIT)->concat($drifting->take(self::LIST_LIMIT))->pluck('customer_id')->all());
+        $rows = fn (Collection $list) => $list->take(self::LIST_LIMIT)
+            ->filter(fn ($row) => isset($cards[$row['customer_id']]))
+            ->map(fn ($row) => [...$this->person($cards[$row['customer_id']]), ...collect($row)->except('customer_id')->all()])
+            ->values()->all();
+
+        return [
+            'due' => $rows($due),
+            'due_count' => $due->count(),
+            'drifting' => $rows($drifting),
+            'drifting_count' => $drifting->count(),
+        ];
+    }
+
+    /**
+     * Every customer in one of the groups above (a CUSTOMER_GROUPS key), for
+     * the Customers page's "View all" filter. Most important first.
+     *
+     * @return list<int> customer ids
+     */
+    public function groupCustomerIds(string $group): array
+    {
+        return $this->rhythms()[$group]->pluck('customer_id')->all();
+    }
+
+    /**
+     * Each regular's pattern sorted into due back (soonest first) and
+     * drifting away (most loyal first - they matter most).
+     *
+     * @return array{due: Collection, drifting: Collection}
+     */
+    private function rhythms(): array
+    {
         $due = collect();
         $drifting = collect();
 
@@ -154,20 +195,9 @@ class ShopInsights
             }
         }
 
-        // Due soonest first; drifting: the most loyal first - they matter most.
-        $due = $due->sortBy('due_in_days')->values();
-        $drifting = $drifting->sortByDesc('visits')->values();
-        $cards = $this->cards($due->take(self::LIST_LIMIT)->concat($drifting->take(self::LIST_LIMIT))->pluck('customer_id')->all());
-        $rows = fn (Collection $list) => $list->take(self::LIST_LIMIT)
-            ->filter(fn ($row) => isset($cards[$row['customer_id']]))
-            ->map(fn ($row) => [...$this->person($cards[$row['customer_id']]), ...collect($row)->except('customer_id')->all()])
-            ->values()->all();
-
         return [
-            'due' => $rows($due),
-            'due_count' => $due->count(),
-            'drifting' => $rows($drifting),
-            'drifting_count' => $drifting->count(),
+            'due' => $due->sortBy('due_in_days')->values(),
+            'drifting' => $drifting->sortByDesc('visits')->values(),
         ];
     }
 
@@ -421,6 +451,8 @@ class ShopInsights
             'id' => $card->id,
             'name' => $card->customer->name,
             'phone' => $card->customer->phone,
+            // wa.me digits for the WhatsApp button (the owner's own WhatsApp).
+            'whatsapp' => WhatsApp::number(null, $card->customer->phone),
             // Opted in to messages from this shop (for WhatsApp later).
             'marketing_consent' => (bool) $card->marketing_consent,
             'stamps' => $card->current_stamps,

@@ -520,6 +520,11 @@ figures are grouped in SQL - one row per customer, never per scan.
   only with 20+ customers, < 25% ever earning and most stalls in the first half.
 - Every customer row shows the phone (as on Customers) and marks **marketing opt-in**
   (`marketing_consent`) - the list a future WhatsApp Business feature should message.
+- **Drifting away** shows 5 rows + **View all N** (whenever anyone is drifting) → `/dashboard/customers?group=drifting`.
+  The group (`ShopInsights::CUSTOMER_GROUPS`) is recomputed server-side
+  (`groupCustomerIds()`), never ids in the URL; search and CSV keep it, the chip's ✕ clears it.
+- **Customers page WhatsApp**: each row has a `wa.me/{digits}` button (`whatsapp`, from
+  `WhatsApp::number()`) that opens the owner's own WhatsApp - nothing is sent or tracked by us.
 
 ## Per-shop themes (additive)
 

@@ -112,7 +112,9 @@ test('regulars are due back or drifting away by their own rhythm', function () {
     [$owner, $shop] = insightsOwner();
     visits(insightsCard($shop, 'Weekly'), [26, 19, 12, 5]);        // every 7 days, last 5 days ago → due in 2
     visits(insightsCard($shop, 'Late'), [17, 13, 9]);               // every 4 days, 9 away → 5 days late, not yet drifting (< 14)
-    visits(insightsCard($shop, 'Drifter', ['marketing_consent' => true]), [45, 40, 35, 30]); // every 5 days, 30 away → drifting
+    $drifter = insightsCard($shop, 'Drifter', ['marketing_consent' => true]);
+    $drifter->customer->update(['phone' => '+447911123456']);
+    visits($drifter, [45, 40, 35, 30]); // every 5 days, 30 away → drifting
     visits(insightsCard($shop, 'Gone'), [215, 210, 205, 200]);      // away 200 days → gone, not listed
     visits(insightsCard($shop, 'Rare'), [300, 200, 100, 3]);        // every ~99 days → not a regular
     visits(insightsCard($shop, 'Twice'), [10, 3]);                  // too few visits to judge
@@ -122,9 +124,48 @@ test('regulars are due back or drifting away by their own rhythm', function () {
 
     expect(collect($dueBack['due'])->pluck('due_in_days', 'name')->all())->toBe(['Late' => -5, 'Weekly' => 2])
         ->and(collect($dueBack['drifting'])->pluck('name')->all())->toBe(['Drifter'])
-        ->and($dueBack['drifting'][0])->toMatchArray(['away_days' => 30, 'every_days' => 5.0, 'visits' => 4, 'marketing_consent' => true])
+        ->and($dueBack['drifting'][0])->toMatchArray(['away_days' => 30, 'every_days' => 5.0, 'visits' => 4, 'marketing_consent' => true, 'whatsapp' => '447911123456'])
         ->and($dueBack['due_count'])->toBe(2)
         ->and($dueBack['drifting_count'])->toBe(1);
+});
+
+test('"View all" on drifting away opens the Customers page with only those customers', function () {
+    [$owner, $shop] = insightsOwner();
+    visits(insightsCard($shop, 'Drifter'), [45, 40, 35, 30]);
+    visits(insightsCard($shop, 'Weekly'), [26, 19, 12, 5]);
+    insightsCard($shop, 'New');
+    // Another shop's drifter never shows up here.
+    [, $other] = insightsOwner();
+    visits(insightsCard($other, 'Elsewhere'), [45, 40, 35, 30]);
+
+    $this->actingAs($owner)->get('/dashboard/customers?group=drifting')->assertInertia(fn ($page) => $page
+        ->component('Dashboard/Customers')
+        ->where('group', ['key' => 'drifting', 'label' => 'Drifting away'])
+        ->has('customers.data', 1)
+        ->where('customers.data.0.name', 'Drifter'));
+
+    // An unknown group is ignored: everyone.
+    $this->actingAs($owner)->get('/dashboard/customers?group=nope')->assertInertia(fn ($page) => $page
+        ->where('group', null)
+        ->has('customers.data', 3));
+
+    $response = $this->actingAs($owner)->get('/dashboard/customers/export?group=drifting');
+    ob_start();
+    $response->baseResponse->sendContent();
+    $csv = ob_get_clean();
+
+    expect($csv)->toContain('Drifter')->not->toContain('Weekly')->not->toContain('New');
+});
+
+test('each customer has a WhatsApp number for the owner to message them', function () {
+    [$owner, $shop] = insightsOwner();
+    CustomerShopCard::factory()->create([
+        'shop_id' => $shop->id,
+        'customer_id' => Customer::factory()->create(['phone' => '+447911123456'])->id,
+    ]);
+
+    $this->actingAs($owner)->get('/dashboard/customers')
+        ->assertInertia(fn ($page) => $page->where('customers.data.0.whatsapp', '447911123456'));
 });
 
 /* ---------- Is the card working? ---------- */
