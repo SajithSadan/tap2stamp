@@ -117,7 +117,7 @@ function ShopCodeJoin() {
 
     if (lockedId !== null) {
         return (
-            <CenteredMessage icon={LuLock} title="This device is locked">
+            <CenteredMessage icon={LuLock} title="This phone is locked">
                 <p className="mt-2 text-sm text-brand-muted">
                     Too many wrong shop codes. Ask Tada Tap support to unlock it.
                 </p>
@@ -131,7 +131,7 @@ function ShopCodeJoin() {
     }
 
     return (
-        <CenteredMessage icon={LuStore} title="Set up this device">
+        <CenteredMessage icon={LuStore} title="Set up this location">
             <p className="mt-2 text-sm text-brand-muted">
                 Enter your shop code. The owner finds it in Dashboard → Staff.
             </p>
@@ -162,7 +162,7 @@ function ShopCodeJoin() {
                 </button>
             </form>
             <p className="mt-4 text-xs text-brand-muted">
-                Or ask the owner to scan this device's setup QR.
+                Or ask the owner for this location's setup QR.
             </p>
         </CenteredMessage>
     );

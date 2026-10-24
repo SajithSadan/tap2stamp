@@ -31,6 +31,7 @@ import {
 import { useConfirm } from "@/Components/ConfirmDialog";
 import { FieldError, primaryButton, secondaryButton } from "@/Components/Dashboard/Ui";
 import AiStockCommand from "@/Components/Menu/AiStockCommand";
+import BannerManager from "@/Components/Menu/BannerManager";
 import PhotoCropper from "@/Components/Menu/PhotoCropper";
 import PhotoFinder from "@/Components/Menu/PhotoFinder";
 import MenuView, { LAYOUT_LABELS } from "@/Components/MenuView";
@@ -1230,8 +1231,10 @@ function writeDraft(shopId, sections) {
  * `urls.base` is where the menu is saved (+ /read, /theme), `urls.back` the
  * optional "Back to shop" link.
  */
-export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sections: saved, menuUrl, urls, aiEnabled, imagesEnabled = false, photoCheck = "ai", menuOff = false, maxFiles, themes, currentTheme }) {
+export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sections: saved, menuUrl, urls, aiEnabled, imagesEnabled = false, photoCheck = "ai", menuOff = false, maxFiles, themes, currentTheme, banners: savedBanners = [], maxBanners = 5 }) {
     const [draft] = useState(() => readDraft(shop.id));
+    // Saved straight away by BannerManager, not by the menu's Save.
+    const [banners, setBanners] = useState(savedBanners);
     const [sections, setSections] = useState(() => withKeys(draft ?? saved));
     const [dirty, setDirty] = useState(draft !== null);
     const [errors, setErrors] = useState({});
@@ -1703,6 +1706,7 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                     </span>
                 </p>
             )}
+            <BannerManager base={urls.base} banners={banners} max={maxBanners} onChange={setBanners} confirm={confirm} />
             {/* Quick "what's sold out" by text or voice (needs Gemini and a saved menu). */}
             {aiEnabled && savedItems.length > 0 && <AiStockCommand parse={parseCommand} apply={applyCommand} className="mb-4" />}
             {confirmDialog}
@@ -1882,7 +1886,7 @@ export default function MenuEditor({ layout: Layout, isAdmin = false, shop, sect
                             </button>
                         </div>
                         <div className="h-[680px] overflow-y-auto overflow-x-hidden rounded-[2rem] border-[6px] border-neutral-900 [scrollbar-width:thin]">
-                            <MenuView shop={shop} sections={withoutKeys(sections)} theme={theme} embedded />
+                            <MenuView shop={shop} sections={withoutKeys(sections)} theme={theme} banners={banners} embedded />
                         </div>
                     </aside>
                 </div>

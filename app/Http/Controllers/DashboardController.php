@@ -255,11 +255,12 @@ class DashboardController extends Controller
     public function staff(Request $request): Response
     {
         $shop = $request->user()->shop;
-        $devices = $shop->staffDevices()->with('staffMember')->latest()->get();
+        // Live locations only. Removed ones stay in the table (admin, activity log) but not on this page.
+        $devices = $shop->staffDevices()->whereNull('revoked_at')->with('staffMember')->latest()->get();
 
         // Which device (if any) each staff member is signed in on right now.
         $signedInOn = $devices
-            ->filter(fn (StaffDevice $device) => ! $device->revoked_at && $device->activeStaffMember())
+            ->filter(fn (StaffDevice $device) => $device->activeStaffMember())
             ->mapWithKeys(fn (StaffDevice $device) => [$device->staff_member_id => $device->name]);
 
         return Inertia::render('Dashboard/Staff', [
@@ -288,8 +289,7 @@ class DashboardController extends Controller
             'staffDevices' => $devices->map(fn (StaffDevice $device) => [
                 'id' => $device->id,
                 'name' => $device->name,
-                'revoked' => $device->revoked_at !== null,
-                'signed_in' => $device->revoked_at ? null : $device->activeStaffMember()?->name,
+                'signed_in' => $device->activeStaffMember()?->name,
                 'last_used_at' => $device->last_used_at?->diffForHumans(),
                 'created_at' => $device->created_at->diffForHumans(),
             ]),

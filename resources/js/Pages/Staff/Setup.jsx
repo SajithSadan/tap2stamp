@@ -20,13 +20,13 @@ export default function Setup({ valid, blocked = false, token, shopName, deviceN
 
     return (
         <>
-            <Head title="Device setup" />
+            <Head title="Location setup" />
             <div className="flex min-h-screen items-center justify-center bg-brand-bg px-5">
                 <div className="w-full max-w-sm rounded-brand border border-brand-border bg-brand-card p-6 text-center shadow-sm">
                     {valid ? (
                         <>
                             <LuCircleCheck className="mx-auto h-10 w-10 text-brand-accent" />
-                            <h1 className="mt-3 font-heading text-lg font-bold text-brand-text">Device connected</h1>
+                            <h1 className="mt-3 font-heading text-lg font-bold text-brand-text">Location connected</h1>
                             <p className="mt-1 text-sm text-brand-muted">
                                 {deviceName} is now set up for <span className="text-brand-text">{shopName}</span>.
                             </p>
@@ -36,14 +36,14 @@ export default function Setup({ valid, blocked = false, token, shopName, deviceN
                         <>
                             <LuStore className="mx-auto h-10 w-10 text-brand-muted" />
                             <h1 className="mt-3 font-heading text-lg font-bold text-brand-text">{shopName} is paused</h1>
-                            <p className="mt-1 text-sm text-brand-muted">This shop's account is paused, so devices can't be set up right now. Please ask the shop owner.</p>
+                            <p className="mt-1 text-sm text-brand-muted">This shop's account is paused, so locations can't be set up right now. Please ask the shop owner.</p>
                         </>
                     ) : (
                         <>
                             <LuStore className="mx-auto h-10 w-10 text-brand-muted" />
                             <h1 className="mt-3 font-heading text-lg font-bold text-brand-text">This link isn't valid</h1>
                             <p className="mt-1 text-sm text-brand-muted">
-                                It may have already been used, or the device was revoked. Ask the shop owner for a new setup link.
+                                It may have already been used, or the location was removed. Ask the shop owner for a new setup link.
                             </p>
                         </>
                     )}

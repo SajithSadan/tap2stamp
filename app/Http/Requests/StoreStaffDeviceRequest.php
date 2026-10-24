@@ -17,4 +17,10 @@ class StoreStaffDeviceRequest extends FormRequest
             'name' => ['required', 'string', 'max:100'],
         ];
     }
+
+    /** Owners see each device as one of their shop's locations. */
+    public function attributes(): array
+    {
+        return ['name' => 'location name'];
+    }
 }

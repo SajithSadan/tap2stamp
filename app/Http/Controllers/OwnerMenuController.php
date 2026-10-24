@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Admin\ShopMenuController;
 use App\Http\Requests\Admin\ReadMenuRequest;
 use App\Http\Requests\Admin\SaveShopMenuRequest;
+use App\Services\MenuBanners;
 use App\Services\MenuCommandParser;
 use App\Services\MenuItemImages;
 use App\Services\MenuReader;
@@ -90,6 +91,21 @@ class OwnerMenuController extends Controller
     public function uploadPhoto(Request $request, MenuItemImages $images): JsonResponse
     {
         return ShopMenuController::storeUpload($request, $request->user()->shop, $images);
+    }
+
+    public function addBanner(Request $request, MenuBanners $banners): JsonResponse
+    {
+        return ShopMenuController::storeBanner($request, $request->user()->shop, $banners);
+    }
+
+    public function removeBanner(Request $request, MenuBanners $banners): JsonResponse
+    {
+        return ShopMenuController::deleteBanner($request, $request->user()->shop, $banners);
+    }
+
+    public function orderBanners(Request $request, MenuBanners $banners): JsonResponse
+    {
+        return ShopMenuController::saveBannerOrder($request, $request->user()->shop, $banners);
     }
 
     public function updateTheme(Request $request): RedirectResponse

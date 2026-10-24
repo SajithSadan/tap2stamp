@@ -410,6 +410,12 @@ owner-approved device.
   without forgetting the device token.
 - **Attribution**: `StampService::scan()` takes the signed-in `StaffMember` and writes
   `stamp_logs.staff_member_id`. It's nullable, because older logs have no staff member.
+- **Owners see devices as "Shop locations"** (Staff page: "Add location", "Remove", map-pin
+  icon; the request's `name` attribute is "location name"), and so does the staff app ("Set
+  up this location", "Location connected"; a locked one is "This phone is locked", since the
+  lock is per phone). Removed (revoked) locations are hidden from the owner's list, kept in the
+  table. Only the wording changed - each location is still one `staff_devices` row, so code
+  and the admin keep saying device.
 - **Owner manages staff** at `/dashboard/staff` (`StaffMemberController`): add (name unique
   per shop + PIN), reset PIN, remove. Removing sets `deactivated_at` (a soft delete, so past
   stamps keep the name) and signs them out of every device. PINs are hashed (`pin_hash`); the
@@ -832,6 +838,17 @@ param). Both pages are thin wrappers around one editor, `Components/Menu/MenuEdi
   batch. Every id must belong to the shop **before** anything is saved (otherwise a 404, and
   nothing changes); the batch is logged as one entry. The bar shows only with a Gemini key
   (editor `aiEnabled`, staff `/me` `menu_ai`).
+- **Promotion banners** (`menu_banners`: `shop_id`, `image_path`, `position`; `App\Services\MenuBanners`,
+  `MAX` = 5): a carousel above the menu (under the header, above search / chips) on the public
+  page and the editor preview, drawn by `Components/Menu/PromoCarousel.jsx` (scroll-snap swipe,
+  dots, next slide every 5 s, waits 8 s after a touch, none with reduced motion; 16:9 slides
+  (`aspect-video`, `object-cover`; best uploaded at 1600 × 900)). Managed in the editor's **Promotion banners** panel (`BannerManager.jsx`),
+  **saved straight away**, not part of the menu's Save, and kept when the menu is cleared:
+  `POST {base}/banners {image}` (JPG/PNG/WebP ≤ 5 MB, ≥ 600 × 200, re-encoded as WebP ≤ 1600 px
+  on the `uploads` disk under `menu-banners/{shop}/`, no EXIF), `DELETE {base}/banners {banner}`
+  (file deleted), `PUT {base}/banners {ids}` (must be exactly the shop's banners). Ids go in
+  the body, never the URL, and are looked up through the shop (404 otherwise). Logged
+  `menu.banner_added` / `menu.banner_removed`.
 - **"View menu" on the card page**: a tile (first of the quick actions in `Card.jsx`) linking
   to the public menu. It's sent as `shop.menu_url` = `Shop::cardMenuUrl()`, which is non-null
   only with Menu on for the shop **and** `shops.show_menu_on_card` (default true) **and** at
@@ -1560,7 +1577,7 @@ Plus `shops.header_style` (nullable JSON, card page header text/tint/shadow).
 Plus `shops.country` (char 2, default GB), `shops.qr_design_id` (nullable FK) and
 `shops.contact_phone_code` (dialling code; `contact_phone` is now the number without it) (see "Shop country").
 Plus `products`, `orders`, `shops.product_ordered_at`, `coupons` and `orders.coupon_id/coupon_code` (see "Products & orders").
-Plus `menu_sections` / `menu_items`, `shops.menu_theme` and `shops.menu_slug` (see "Shop menus").
+Plus `menu_sections` / `menu_items`, `shops.menu_theme`, `shops.menu_slug` and `menu_banners` (see "Shop menus").
 Plus `activity_logs` (see "Admin activity & logs").
 Plus `shops.industry` / `industry_other` (see "Shop industry").
 Plus `users.welcome_sent_at` (the admin's first WhatsApp welcome; see "WhatsApp contact").

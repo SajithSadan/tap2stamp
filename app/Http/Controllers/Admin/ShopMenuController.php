@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\ReadMenuRequest;
 use App\Http\Requests\Admin\SaveShopMenuRequest;
 use App\Models\MenuItem;
 use App\Models\Shop;
+use App\Services\MenuBanners;
 use App\Services\MenuCommandParser;
 use App\Services\MenuItemImages;
 use App\Services\MenuReader;
@@ -60,6 +61,9 @@ class ShopMenuController extends Controller
             'maxFiles' => MenuReader::MAX_FILES,
             'themes' => collect(MenuThemes::all())->map(fn ($theme, $key) => ['key' => $key, ...$theme])->values(),
             'currentTheme' => $shop->menuTheme()['key'],
+            // The promotion carousel above the menu ({base}/banners), saved straight away.
+            'banners' => app(MenuBanners::class)->forClient($shop),
+            'maxBanners' => MenuBanners::MAX,
         ];
     }
 
@@ -202,6 +206,64 @@ class ShopMenuController extends Controller
         abort_if($outcome === null, 422, "That photo couldn't be read - try another one.");
 
         return response()->json(['items' => [['id' => $item->id] + MenuItemImages::summary($item->fresh('section'), $outcome)]]);
+    }
+
+    public function addBanner(Request $request, Shop $shop, MenuBanners $banners): JsonResponse
+    {
+        return self::storeBanner($request, $shop, $banners);
+    }
+
+    public function removeBanner(Request $request, Shop $shop, MenuBanners $banners): JsonResponse
+    {
+        return self::deleteBanner($request, $shop, $banners);
+    }
+
+    public function orderBanners(Request $request, Shop $shop, MenuBanners $banners): JsonResponse
+    {
+        return self::saveBannerOrder($request, $shop, $banners);
+    }
+
+    /** {image}: a promotion banner for the carousel above the menu, saved straight away. */
+    public static function storeBanner(Request $request, Shop $shop, MenuBanners $banners): JsonResponse
+    {
+        $request->validate([
+            'image' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=600,min_height=200'],
+        ], [
+            'image.mimes' => 'Choose a JPG, PNG or WebP image.',
+            'image.max' => 'That image is too big - choose one under 5 MB.',
+            'image.dimensions' => 'That image is too small - choose one at least 600 x 200.',
+        ]);
+        abort_if($shop->menuBanners()->count() >= MenuBanners::MAX, 422, 'You already have '.MenuBanners::MAX.' banners - remove one first.');
+
+        abort_unless($banners->add($shop, $request->file('image')->get()), 422, "That image couldn't be added - try another one.");
+
+        return response()->json(['banners' => $banners->forClient($shop)]);
+    }
+
+    /** {banner}: the id in the body, found through the shop (404 for anyone else's). */
+    public static function deleteBanner(Request $request, Shop $shop, MenuBanners $banners): JsonResponse
+    {
+        $validated = $request->validate(['banner' => ['required', 'integer']]);
+
+        $banners->remove($shop, $shop->menuBanners()->findOrFail($validated['banner']));
+
+        return response()->json(['banners' => $banners->forClient($shop)]);
+    }
+
+    /** {ids}: every one of the shop's banners, in the new order. */
+    public static function saveBannerOrder(Request $request, Shop $shop, MenuBanners $banners): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'max:'.MenuBanners::MAX],
+            'ids.*' => ['integer', 'distinct'],
+        ]);
+        $own = $shop->menuBanners()->pluck('id')->sort()->values()->all();
+        $sent = collect($validated['ids'])->map(fn ($id) => (int) $id)->sort()->values()->all();
+        abort_unless($own === $sent, 404);
+
+        $banners->reorder($shop, $validated['ids']);
+
+        return response()->json(['banners' => $banners->forClient($shop)]);
     }
 
     public function cardButton(Request $request, Shop $shop): RedirectResponse

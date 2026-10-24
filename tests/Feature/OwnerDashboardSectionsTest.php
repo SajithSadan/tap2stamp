@@ -215,3 +215,18 @@ test('the staff page shows who is signed in on which device', function () {
             ->where('staffDevices.0.signed_in', $name)
         );
 });
+
+test('removed locations leave the staff page but stay in the database', function () {
+    [$owner, $shop] = ownerWithShop();
+    StaffDevice::factory()->create(['shop_id' => $shop->id, 'name' => 'High Street']);
+    $old = StaffDevice::factory()->create(['shop_id' => $shop->id, 'name' => 'Old counter']);
+
+    $this->actingAs($owner)->delete("/dashboard/staff-devices/{$old->id}")->assertRedirect('/dashboard/staff');
+
+    $this->actingAs($owner)->get('/dashboard/staff')
+        ->assertInertia(fn ($page) => $page
+            ->has('staffDevices', 1)
+            ->where('staffDevices.0.name', 'High Street')
+        );
+    expect($old->fresh()->revoked_at)->not->toBeNull();
+});

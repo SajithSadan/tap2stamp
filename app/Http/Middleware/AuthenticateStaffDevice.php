@@ -28,7 +28,7 @@ class AuthenticateStaffDevice
             return response()->json([
                 'status' => 'error',
                 'code' => 'unauthenticated',
-                'message' => 'This device is not set up or has been revoked.',
+                'message' => 'This location is not set up or has been removed.',
             ], 401);
         }
 

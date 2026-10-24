@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { LuSearch, LuUtensils, LuX } from "react-icons/lu";
 import { PiStorefrontFill } from "react-icons/pi";
+import PromoCarousel from "@/Components/Menu/PromoCarousel";
 import { headerTextStyle, headerTintStyle } from "@/lib/headerStyle";
 import { StampIcon } from "@/lib/stampIcons";
 import { themeVars, useThemeFonts } from "@/lib/theme";
@@ -173,7 +174,7 @@ export const LAYOUT_LABELS = { list: "List", classic: "Classic", cards: "Cards" 
  * renders it full-size; `embedded` is the admin's live preview / theme picker
  * card: scoped theme, smaller header, no search or scroll tracking.
  */
-export default function MenuView({ shop, sections, theme, embedded = false }) {
+export default function MenuView({ shop, sections, theme, banners = [], embedded = false }) {
     useThemeFonts(theme);
     const idPrefix = useId().replace(/:/g, "");
     const navRef = useRef(null);
@@ -237,6 +238,7 @@ export default function MenuView({ shop, sections, theme, embedded = false }) {
             className="min-h-full bg-brand-bg font-sans text-brand-text [overflow-wrap:anywhere]"
         >
             <Header shop={shop} embedded={embedded} />
+            <PromoCarousel banners={banners} />
 
             {(showSearch || showChips) && (
                 <div className={`${embedded ? "" : "sticky top-0"} z-10 border-b border-brand-border bg-brand-bg`}>

@@ -236,6 +236,10 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::put('/shops/{shop}/menu/availability', [ShopMenuController::class, 'availability'])->middleware('throttle:120,1')->name('shops.menu.availability');
     Route::post('/shops/{shop}/menu/ai-toggle', [ShopMenuController::class, 'aiToggle'])->middleware('throttle:20,1')->name('shops.menu.ai-toggle');
     Route::put('/shops/{shop}/menu/card-button', [ShopMenuController::class, 'cardButton'])->name('shops.menu.card-button');
+    // Promotion banners above the menu (≤ 5), saved straight away.
+    Route::post('/shops/{shop}/menu/banners', [ShopMenuController::class, 'addBanner'])->middleware('throttle:30,1')->name('shops.menu.banners.store');
+    Route::delete('/shops/{shop}/menu/banners', [ShopMenuController::class, 'removeBanner'])->name('shops.menu.banners.destroy');
+    Route::put('/shops/{shop}/menu/banners', [ShopMenuController::class, 'orderBanners'])->name('shops.menu.banners.order');
 
     // Product orders (to post out) and the products shops can order.
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
@@ -372,6 +376,10 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
         Route::put('/menu/availability', [OwnerMenuController::class, 'availability'])->middleware('throttle:120,1')->name('menu.availability');
         Route::post('/menu/ai-toggle', [OwnerMenuController::class, 'aiToggle'])->middleware('throttle:20,1')->name('menu.ai-toggle');
         Route::put('/menu/card-button', [OwnerMenuController::class, 'cardButton'])->name('menu.card-button');
+        // Promotion banners: the banner id goes in the body, never the URL (found through the shop).
+        Route::post('/menu/banners', [OwnerMenuController::class, 'addBanner'])->middleware('throttle:30,1')->name('menu.banners.store');
+        Route::delete('/menu/banners', [OwnerMenuController::class, 'removeBanner'])->name('menu.banners.destroy');
+        Route::put('/menu/banners', [OwnerMenuController::class, 'orderBanners'])->name('menu.banners.order');
     });
 
     // WhatsApp offers to this shop's opted-in customers, sent in batches by the open page.

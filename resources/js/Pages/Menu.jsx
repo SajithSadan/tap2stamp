@@ -3,13 +3,13 @@ import MenuView from "@/Components/MenuView";
 import { useDocumentTheme } from "@/lib/theme";
 
 /** The public menu page (/menu/{shop}), in the menu theme the admin chose. */
-export default function Menu({ shop, sections, theme }) {
+export default function Menu({ shop, sections, theme, banners }) {
     useDocumentTheme(theme);
 
     return (
         <>
             <Head title={`${shop.name} · Menu`} />
-            <MenuView shop={shop} sections={sections} theme={theme} />
+            <MenuView shop={shop} sections={sections} theme={theme} banners={banners} />
         </>
     );
 }

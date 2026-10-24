@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Middleware\EnsureShopActive;
 use App\Models\Shop;
+use App\Services\MenuBanners;
 use App\Services\ShopMenu;
 use App\Support\Features;
 use App\Support\StampIcons;
@@ -45,6 +46,8 @@ class MenuController extends Controller
             'sections' => $menu->publicSections($shop),
             // The menu theme the admin chose (colours, fonts and layout).
             'theme' => $shop->menuTheme(),
+            // The promotion carousel above the menu.
+            'banners' => app(MenuBanners::class)->forClient($shop),
         ]);
     }
 

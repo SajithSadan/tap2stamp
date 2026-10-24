@@ -319,6 +319,12 @@ class Shop extends Model
         return $this->hasManyThrough(MenuItem::class, MenuSection::class);
     }
 
+    /** The promotion carousel above the menu, in order. */
+    public function menuBanners(): HasMany
+    {
+        return $this->hasMany(MenuBanner::class)->orderBy('position')->orderBy('id');
+    }
+
     /**
      * Where an order gets posted: the separate delivery address if given,
      * else the shop address. Null when neither is filled in (older shops).

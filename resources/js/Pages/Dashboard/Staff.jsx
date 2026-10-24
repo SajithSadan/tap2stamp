@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import {
     LuKeyRound,
     LuLink,
+    LuMapPin,
     LuPlus,
     LuRefreshCw,
-    LuSmartphone,
     LuTrash2,
     LuUserCog,
 } from "react-icons/lu";
@@ -114,7 +114,7 @@ function StaffMembers({ members, confirm }) {
     return (
         <Panel
             title="Staff members"
-            description="Each person signs in on a shop device with their name and PIN, so every stamp shows who gave it."
+            description="Each person signs in at a shop location with their name and PIN, so every stamp shows who gave it."
         >
             <form
                 onSubmit={submit}
@@ -232,7 +232,7 @@ function StaffDevices({ devices, confirm }) {
     const setupUrl = flash?.staffToken
         ? `${window.location.origin}/staff/setup/${flash.staffToken}`
         : "";
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Set up the shop's staff scanner by opening this link on the device: ${setupUrl}`)}`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Set up the staff scanner for ${flash?.staffDeviceName ?? "this location"} by opening this link on its phone or tablet: ${setupUrl}`)}`;
 
     useEffect(() => {
         if (!flash?.staffToken) {
@@ -258,10 +258,10 @@ function StaffDevices({ devices, confirm }) {
 
     async function revoke(device) {
         const ok = await confirm({
-            title: `Revoke ${device.name}?`,
+            title: `Remove ${device.name}?`,
             message:
-                "It will stop working straight away. You can add it again later with a new setup QR.",
-            confirmLabel: "Revoke",
+                "Its scanner stops working straight away and it leaves this list. You can add the location again later.",
+            confirmLabel: "Remove",
             danger: true,
         });
         if (!ok) return;
@@ -275,7 +275,7 @@ function StaffDevices({ devices, confirm }) {
         const ok = await confirm({
             title: `Create a new setup link for ${device.name}?`,
             message:
-                "This replaces the current device token and signs out the scanner currently using it. The device must be opened with the new link before staff can scan again.",
+                "This signs out the scanner at this location. Open the new link on its phone or tablet before staff scan again.",
             confirmLabel: "Create new link",
         });
         if (!ok) return;
@@ -289,20 +289,20 @@ function StaffDevices({ devices, confirm }) {
 
     return (
         <Panel
-            title="Shop devices"
-            description="Approve each shop phone or tablet once. Staff then sign in on it with their PIN."
+            title="Shop locations"
+            description="Add each place your staff scan cards, like a branch or a counter. Staff sign in there with their PIN."
         >
             {flash?.staffToken && (
                 <div className="mb-4 rounded-xl border border-brand-accent/40 bg-brand-accent/5 p-4 text-center">
                     <p className="text-sm font-semibold text-brand-text">
                         {flash.staffDeviceName
                             ? `Setup link for ${flash.staffDeviceName}. It won't be shown again.`
-                            : "Scan this with the new device now. It won't be shown again."}
+                            : "Scan this with the phone or tablet at this location now. It won't be shown again."}
                     </p>
                     {setupQr && (
                         <img
                             src={setupQr}
-                            alt="Device setup QR code"
+                            alt="Location setup QR code"
                             className="mx-auto mt-3 h-44 w-44 rounded-lg border border-brand-border bg-white"
                         />
                     )}
@@ -312,7 +312,7 @@ function StaffDevices({ devices, confirm }) {
                         </p>
                         <CopyButton
                             text={setupUrl}
-                            label="Copy device setup link"
+                            label="Copy location setup link"
                         />
                     </div>
                     <a
@@ -338,8 +338,8 @@ function StaffDevices({ devices, confirm }) {
                     type="text"
                     value={form.data.name}
                     onChange={(e) => form.setData("name", e.target.value)}
-                    placeholder="Device name, e.g. Counter iPad"
-                    aria-label="Device name"
+                    placeholder="Location name, e.g. High Street branch"
+                    aria-label="Location name"
                     className={inputClass}
                 />
                 <button
@@ -347,63 +347,57 @@ function StaffDevices({ devices, confirm }) {
                     disabled={form.processing}
                     className={`${primaryButton} shrink-0 sm:h-[42px]`}
                 >
-                    <LuPlus className="h-4 w-4" /> Add device
+                    <LuPlus className="h-4 w-4" /> Add location
                 </button>
             </form>
             <FieldError message={form.errors.name} />
 
             {devices.length === 0 ? (
-                <EmptyState icon={LuSmartphone} title="No devices yet">
-                    Add the phone or tablet your staff scan cards with.
+                <EmptyState icon={LuMapPin} title="No locations yet">
+                    Add each place your staff scan cards.
                 </EmptyState>
             ) : (
                 <ul className="mt-4 divide-y divide-brand-border rounded-xl border border-brand-border">
                     {devices.map((device) => (
                         <li
                             key={device.id}
-                            className={`flex flex-wrap items-center gap-3 px-4 py-3 ${device.revoked ? "opacity-60" : ""}`}
+                            className="flex flex-wrap items-center gap-3 px-4 py-3"
                         >
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bg text-brand-muted">
-                                <LuSmartphone className="h-4 w-4" />
+                                <LuMapPin className="h-4 w-4" />
                             </span>
                             <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-medium text-brand-text">
                                     {device.name}
                                 </p>
                                 <p className="truncate text-xs text-brand-muted">
-                                    {device.revoked
-                                        ? "Revoked"
-                                        : [
-                                              device.signed_in
-                                                  ? `${device.signed_in} signed in`
-                                                  : "Nobody signed in",
-                                              device.last_used_at
-                                                  ? `used ${device.last_used_at}`
-                                                  : `added ${device.created_at}`,
-                                          ].join(" · ")}
+                                    {[
+                                        device.signed_in
+                                            ? `${device.signed_in} signed in`
+                                            : "Nobody signed in",
+                                        device.last_used_at
+                                            ? `used ${device.last_used_at}`
+                                            : `added ${device.created_at}`,
+                                    ].join(" · ")}
                                 </p>
                             </div>
-                            {!device.revoked && (
-                                <div className="flex shrink-0 items-center gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            generateSetupLink(device)
-                                        }
-                                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-text hover:bg-brand-bg"
-                                    >
-                                        <LuLink className="h-3.5 w-3.5" /> New
-                                        setup link
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => revoke(device)}
-                                        className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
-                                    >
-                                        Revoke
-                                    </button>
-                                </div>
-                            )}
+                            <div className="flex shrink-0 items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => generateSetupLink(device)}
+                                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-text hover:bg-brand-bg"
+                                >
+                                    <LuLink className="h-3.5 w-3.5" /> New
+                                    setup link
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => revoke(device)}
+                                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                                >
+                                    Remove
+                                </button>
+                            </div>
                         </li>
                     ))}
                 </ul>
@@ -467,7 +461,7 @@ function ShopCode({ code, confirm }) {
                     <span className={step}>3</span>
                     <p className="text-sm text-brand-text">
                         They pick their name and enter their PIN. The phone
-                        then shows in Shop devices below.
+                        then shows in Shop locations below.
                     </p>
                 </li>
             </ol>
@@ -494,7 +488,7 @@ export default function Staff({ shop, shopCode, staffMembers, staffDevices }) {
         <OwnerLayout
             shop={shop}
             title="Staff"
-            description="Your team and the devices they scan cards on."
+            description="Your team and the locations they scan cards at."
         >
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <StaffMembers members={staffMembers} confirm={confirm} />
