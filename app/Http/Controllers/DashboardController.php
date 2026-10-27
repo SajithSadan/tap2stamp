@@ -40,6 +40,7 @@ use App\Support\SignupIcons;
 use App\Support\StampIcons;
 use App\Support\ThemeCatalog;
 use App\Support\WhatsApp;
+use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -386,6 +387,12 @@ class DashboardController extends Controller
             'bannerUrl' => $shop->bannerUrl(),
             'logoUrl' => $shop->logoUrl(),
             'themes' => ThemeCatalog::all(),
+            // null = every theme is open to this shop; else the free ones + the plan that opens the rest.
+            'themeLock' => $shop->hasAllThemes() ? null : [
+                'free' => ThemeCatalog::freeThemes(),
+                'stampIcons' => StampIcons::FREE,
+                'plan' => Plan::active()->where('all_themes', true)->ordered()->value('name'),
+            ],
             'availableFonts' => CuratedFonts::all(),
             'radiusPresets' => CustomTheme::RADIUS_PRESETS,
         ]);
@@ -432,9 +439,18 @@ class DashboardController extends Controller
 
     public function updateStampIcon(Request $request): RedirectResponse
     {
-        $validated = $request->validate(['stamp_icon' => ['required', 'string', Rule::in(StampIcons::KEYS)]]);
+        $shop = $request->user()->shop;
+        $validated = $request->validate(['stamp_icon' => [
+            'required', 'string', Rule::in(StampIcons::KEYS),
+            // Locked icons need a plan with all themes; the current one may be re-picked.
+            function (string $attribute, mixed $value, Closure $fail) use ($shop) {
+                if ($value !== $shop->stamp_icon && ! $shop->hasAllThemes() && ! in_array($value, StampIcons::FREE, true)) {
+                    $fail(ThemeCatalog::LOCKED_MESSAGE);
+                }
+            },
+        ]]);
 
-        $request->user()->shop->update(['stamp_icon' => $validated['stamp_icon']]);
+        $shop->update(['stamp_icon' => $validated['stamp_icon']]);
 
         return redirect()->route('dashboard.theme');
     }

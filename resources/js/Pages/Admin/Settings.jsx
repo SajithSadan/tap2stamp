@@ -165,6 +165,64 @@ function SidebarColors({ saved, errors }) {
     );
 }
 
+/** The card themes every shop may pick; the rest open with a plan that has "All themes". */
+function FreeThemes({ settings, errors }) {
+    const [chosen, setChosen] = useState(settings.chosen);
+    const [saving, setSaving] = useState(false);
+    const dirty = [...chosen].sort().join() !== [...settings.chosen].sort().join();
+    const toggle = (slug) => setChosen((c) => (c.includes(slug) ? c.filter((s) => s !== slug) : [...c, slug]));
+
+    return (
+        <Panel
+            title="Free themes"
+            description={
+                settings.plans.length
+                    ? `Every shop can pick these. The rest open with ${settings.plans.join(' / ')}. Shops keep a theme they already use.`
+                    : 'Every shop can pick these. No plan has "All themes" yet (Landing & plans), so the rest are locked for everyone.'
+            }
+        >
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {settings.themes.map((t) => {
+                    const on = chosen.includes(t.slug);
+                    const fixed = t.slug === settings.default;
+
+                    return (
+                        <button
+                            key={t.slug}
+                            type="button"
+                            aria-pressed={on}
+                            disabled={fixed}
+                            title={fixed ? 'The default look is always free' : undefined}
+                            onClick={() => toggle(t.slug)}
+                            className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left text-sm transition-colors disabled:cursor-default ${
+                                on ? 'border-brand-accent bg-brand-accent/5 ring-1 ring-brand-accent' : 'border-brand-border hover:border-brand-accent/60'
+                            }`}
+                        >
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border" style={{ background: t.page_bg, borderColor: t.border }}>
+                                <span className="h-4 w-4 rounded-full" style={{ background: t.accent }} />
+                            </span>
+                            <span className="min-w-0 flex-1 truncate font-medium text-brand-text">{t.name}</span>
+                            {on ? <LuLockOpen className="h-4 w-4 shrink-0 text-brand-accent" /> : <LuLock className="h-4 w-4 shrink-0 text-brand-muted" />}
+                        </button>
+                    );
+                })}
+            </div>
+            <FieldError message={errors?.themes} />
+            <div className="mt-4 flex items-center gap-3">
+                <button
+                    type="button"
+                    disabled={!dirty || saving}
+                    onClick={() => router.put('/admin/settings/free-themes', { themes: chosen }, { preserveScroll: true, onStart: () => setSaving(true), onFinish: () => setSaving(false) })}
+                    className={primaryButton}
+                >
+                    {saving ? 'Saving…' : 'Save free themes'}
+                </button>
+                <span className="text-sm text-brand-muted">{chosen.length} free</span>
+            </div>
+        </Panel>
+    );
+}
+
 /** Where shops send bank transfers for orders we arrange (shown on their unpaid orders). */
 function BankDetails({ saved }) {
     const form = useForm({
@@ -413,7 +471,7 @@ const TABS = [
     { key: 'payments', label: 'Payments', icon: LuLandmark, fields: ['account_name', 'bank_name', 'sort_code', 'account_number'] },
     { key: 'whatsapp', label: 'WhatsApp', icon: FaWhatsapp, fields: ['message', 'video_url'] },
     { key: 'legal', label: 'Legal', icon: LuScale, fields: ['company_name', 'company_number', 'registered_address', 'email', 'phones', 'governing_law', 'markdown'] },
-    { key: 'appearance', label: 'Appearance', icon: LuPalette, fields: ['bg', 'text'] },
+    { key: 'appearance', label: 'Appearance', icon: LuPalette, fields: ['bg', 'text', 'themes'] },
     { key: 'menu', label: 'Menu photos', icon: LuImage, fields: ['mode'] },
     { key: 'features', label: 'Features', icon: LuToggleRight, fields: ['feature', 'enabled'] },
     { key: 'shop-codes', label: 'Locked phones', icon: LuLock, fields: [] },
@@ -614,7 +672,7 @@ function initialTab() {
     return TABS.some((t) => t.key === hash) ? hash : 'signin';
 }
 
-export default function Settings({ google, sidebar, bank, menuPhotos, features, welcome, shopCodeLocks = [], legal }) {
+export default function Settings({ google, sidebar, freeThemes, bank, menuPhotos, features, welcome, shopCodeLocks = [], legal }) {
     const { errors } = usePage().props;
     const [tab, setTab] = useState(initialTab);
     const [saving, setSaving] = useState(false);
@@ -721,7 +779,12 @@ export default function Settings({ google, sidebar, bank, menuPhotos, features, 
             {tab === 'payments' && <BankDetails saved={bank} />}
             {tab === 'whatsapp' && <WelcomeMessage saved={welcome} />}
             {tab === 'legal' && <LegalSettings legal={legal} />}
-            {tab === 'appearance' && <SidebarColors saved={sidebar} errors={errors} />}
+            {tab === 'appearance' && (
+                <div className="space-y-6">
+                    <SidebarColors saved={sidebar} errors={errors} />
+                    <FreeThemes settings={freeThemes} errors={errors} />
+                </div>
+            )}
             {tab === 'menu' && <MenuPhotos settings={menuPhotos} error={errors?.mode} />}
             {tab === 'features' && <FeatureDefaults features={features} errors={errors} />}
             {tab === 'shop-codes' && <ShopCodeLocks locks={shopCodeLocks} confirm={confirm} />}

@@ -21,7 +21,7 @@ class ViewAsOwnerController extends Controller
 
         // Always starts read-only; changes are switched on from the banner.
         $request->session()->put(ViewAsOwner::SESSION_KEY, $shop->id);
-        $request->session()->forget(ViewAsOwner::EDIT_KEY);
+        $request->session()->forget([ViewAsOwner::EDIT_KEY, ViewAsOwner::ENDED_KEY]);
         ActivityLogger::record('view_as.started', "Started viewing {$shop->name} as its owner", $shop->id, $shop);
 
         return redirect()->route('dashboard.index');
@@ -43,6 +43,7 @@ class ViewAsOwnerController extends Controller
         $request->session()->forget(ViewAsOwner::EDIT_KEY);
         $shopId = $request->session()->pull(ViewAsOwner::SESSION_KEY);
         if ($shopId) {
+            $request->session()->put(ViewAsOwner::ENDED_KEY, $shopId);
             ActivityLogger::record('view_as.stopped', 'Stopped viewing as owner', Shop::whereKey($shopId)->value('id'));
         }
 

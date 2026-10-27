@@ -28,6 +28,9 @@ class ViewAsOwner
 
     public const EDIT_KEY = 'view_as_editing';
 
+    /** The shop last viewed, kept after "Back to admin" so a stale owner page leads back to it. */
+    public const ENDED_KEY = 'view_as_ended_shop_id';
+
     /**
      * Never as the owner, even with changes allowed: the owner would be
      * charged (Stripe checkout - use Admin → Record order instead) or
@@ -55,8 +58,18 @@ class ViewAsOwner
     {
         $shopId = $request->session()->get(self::SESSION_KEY);
 
-        if (! $shopId || ! $request->routeIs('dashboard.*')) {
+        if (! $request->routeIs('dashboard.*')) {
             return $next($request);
+        }
+
+        // An owner page opened after "Back to admin" (browser Back, another tab):
+        // back to that shop's settings rather than role:owner's bare 403.
+        if (! $shopId) {
+            $ended = $request->session()->get(self::ENDED_KEY);
+
+            return $ended && $request->user()?->role === UserRole::Admin && $request->isMethodSafe() && ! $request->expectsJson()
+                ? redirect()->route('admin.shops.settings.edit', $ended)->with('status', "You're no longer viewing as the owner. Choose View as owner to open their dashboard again.")
+                : $next($request);
         }
 
         $admin = $request->user();

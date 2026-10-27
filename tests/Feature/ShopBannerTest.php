@@ -10,7 +10,7 @@ beforeEach(function () {
     Storage::fake('uploads');
 
     $this->owner = User::factory()->create(['role' => UserRole::Owner]);
-    $this->shop = Shop::factory()->create(['user_id' => $this->owner->id]);
+    $this->shop = Shop::factory()->allThemes()->create(['user_id' => $this->owner->id]);
 });
 
 test('a guest cannot upload a banner', function () {

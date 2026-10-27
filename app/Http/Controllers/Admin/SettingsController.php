@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\UserRole;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Controller;
+use App\Models\Plan;
 use App\Models\Setting;
 use App\Models\Shop;
 use App\Models\ShopCodeAttempt;
@@ -14,6 +15,7 @@ use App\Services\MenuItemImages;
 use App\Services\ShopCodeJoin;
 use App\Support\Features;
 use App\Support\LegalPages;
+use App\Support\ThemeCatalog;
 use App\Support\WelcomeMessage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -45,6 +47,15 @@ class SettingsController extends Controller
                     ->count(),
             ],
             'sidebar' => Setting::get(Setting::SIDEBAR_COLORS),
+            'freeThemes' => [
+                'chosen' => ThemeCatalog::freeThemes(),
+                'default' => ThemeCatalog::DEFAULT,
+                'themes' => collect(ThemeCatalog::all())->map(fn (array $t, string $slug) => [
+                    'slug' => $slug,
+                    ...collect($t)->only(['name', 'page_bg', 'card_bg', 'accent', 'text', 'border'])->all(),
+                ])->values(),
+                'plans' => Plan::where('all_themes', true)->ordered()->pluck('name'),
+            ],
             'bank' => Setting::get(Setting::BANK_DETAILS),
             'legal' => [
                 'details' => LegalPages::details(),
@@ -173,6 +184,23 @@ class SettingsController extends Controller
         Setting::set(Setting::SIDEBAR_COLORS, $colors);
 
         return back()->with('status', 'Sidebar colours saved.');
+    }
+
+    /**
+     * The card themes every shop may pick. The others open with a plan that
+     * has "All themes" (Admin → Landing page). Shops keep a theme they
+     * already use, even if it's taken off this list.
+     */
+    public function updateFreeThemes(Request $request): RedirectResponse
+    {
+        $themes = $request->validate([
+            'themes' => ['present', 'array'],
+            'themes.*' => ['string', Rule::in(array_keys(ThemeCatalog::all()))],
+        ])['themes'];
+
+        Setting::set(Setting::FREE_THEMES, array_values(array_unique([ThemeCatalog::DEFAULT, ...$themes])));
+
+        return back()->with('status', 'Free themes saved.');
     }
 
     /** @return list<array{key: string, label: string, description: string, default: bool, forced_on: int, forced_off: int}> */

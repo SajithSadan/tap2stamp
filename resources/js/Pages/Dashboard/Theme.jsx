@@ -1,9 +1,10 @@
-import { router, usePage } from "@inertiajs/react";
+import { Link, router, usePage } from "@inertiajs/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
     LuCheck,
     LuImage,
     LuImagePlus,
+    LuLock,
     LuMoon,
     LuPaintbrush,
     LuPalette,
@@ -28,7 +29,7 @@ import {
 } from "@/Components/Dashboard/Ui";
 import { SIGNUP_ICON_GROUPS, SignupIcon } from "@/lib/signupIcons";
 import StampGrid from "@/Components/StampGrid";
-import { STAMP_ICONS } from "@/lib/stampIcons";
+import { STAMP_ICON_GROUPS } from "@/lib/stampIcons";
 import {
     CUSTOM_COLOR_FIELDS,
     fontNameOf,
@@ -155,6 +156,7 @@ function ThemeOption({
     current,
     customised,
     isDefault,
+    locked,
     onSelect,
 }) {
     return (
@@ -169,7 +171,11 @@ function ThemeOption({
             }`}
         >
             {/* Swatch: page background, card with a filled stamp, accent + text colours. */}
-            <div className="flex h-16" style={{ background: theme.page_bg }}>
+            <div
+                className="relative flex h-16"
+                style={{ background: theme.page_bg }}
+            >
+                {locked && !current && <LockOverlay />}
                 <div
                     className="flex flex-1 items-center justify-center border-r"
                     style={{
@@ -202,7 +208,7 @@ function ThemeOption({
                     <p className="truncate text-sm font-semibold text-brand-text">
                         {theme.name}
                     </p>
-                    {!current && isDefault && (
+                    {!current && !locked && isDefault && (
                         <span className="shrink-0 rounded-full bg-brand-bg px-2 py-0.5 text-[10px] font-semibold text-brand-muted">
                             Default
                         </span>
@@ -256,6 +262,7 @@ function ThemesTab({
     currentTheme,
     customised,
     defaultTheme,
+    lock,
 }) {
     const [category, setCategory] = useState("all");
     const [mood, setMood] = useState("all");
@@ -264,14 +271,37 @@ function ThemesTab({
         () => [...new Set(Object.values(themes).map((t) => t.category))],
         [themes],
     );
-    const visible = Object.entries(themes).filter(
-        ([, t]) =>
-            (category === "all" || t.category === category) &&
-            (mood === "all" || t.mood === mood),
-    );
+    const isLocked = (slug) => Boolean(lock) && !lock.free.includes(slug);
+    // Free themes first while the rest are locked (sort is stable, so the catalog order stays within each).
+    const visible = Object.entries(themes)
+        .filter(
+            ([, t]) =>
+                (category === "all" || t.category === category) &&
+                (mood === "all" || t.mood === mood),
+        )
+        .sort(([a], [b]) => isLocked(a) - isLocked(b));
 
     return (
         <>
+            {lock && (
+                <div className="mb-4 flex items-center gap-3 rounded-xl border border-brand-border bg-brand-card px-4 py-3">
+                    <LuLock className="h-4 w-4 shrink-0 text-brand-accent" />
+                    <p className="min-w-0 flex-1 text-sm text-brand-text">
+                        {lock.free.length} free themes.{" "}
+                        <span className="text-brand-muted">
+                            All {Object.keys(themes).length} come with{" "}
+                            {lock.plan ? `the ${lock.plan} plan` : "an upgrade"}
+                            .
+                        </span>
+                    </p>
+                    <Link
+                        href="/dashboard/plan"
+                        className="shrink-0 text-sm font-semibold text-brand-accent"
+                    >
+                        Upgrade
+                    </Link>
+                </div>
+            )}
             <div className="space-y-3">
                 <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
                     <Chip
@@ -330,6 +360,7 @@ function ThemesTab({
                             current={slug === currentTheme}
                             customised={customised}
                             isDefault={slug === defaultTheme}
+                            locked={isLocked(slug)}
                             onSelect={() => onSelect(slug)}
                         />
                     ))}
@@ -488,46 +519,118 @@ function CustomiseTab({
 
 /* ---------- Stamp icon tab ---------- */
 
-function StampTab({ icon, onSelect, currentIcon }) {
+/** The lock shown over locked themes, stamp icons and the banner: a dark tint with a white lock in the middle. */
+function LockOverlay({ className = "" }) {
+    return (
+        <span
+            className={`absolute inset-0 z-10 flex items-center justify-center bg-neutral-900/45 transition-colors group-hover:bg-neutral-900/30 ${className}`}
+        >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-neutral-900 ring-4 ring-white/25">
+                <LuLock className="h-4 w-4" />
+            </span>
+        </span>
+    );
+}
+
+function StampTab({ icon, onSelect, currentIcon, freeIcons }) {
+    const isLocked = (key) => Boolean(freeIcons) && !freeIcons.includes(key);
+    const [onlyUnlocked, setOnlyUnlocked] = useState(false);
+    // "Unlocked": the free icons and the shop's current one; groups left empty are dropped.
+    const groups = STAMP_ICON_GROUPS.map(({ group, icons }) => ({
+        group,
+        icons: onlyUnlocked
+            ? icons.filter(
+                  ({ key }) => !isLocked(key) || key === currentIcon,
+              )
+            : icons,
+    })).filter(({ icons }) => icons.length > 0);
+
     return (
         <Panel
             title="Stamp icon"
             description="What customers see inside each stamp they collect."
         >
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-6">
-                {STAMP_ICONS.map(({ key, label, Icon }) => {
-                    const selected = key === icon;
+            {freeIcons && (
+                <div className="mb-4 flex gap-2">
+                    <Chip
+                        active={!onlyUnlocked}
+                        onClick={() => setOnlyUnlocked(false)}
+                    >
+                        All
+                    </Chip>
+                    <Chip
+                        active={onlyUnlocked}
+                        onClick={() => setOnlyUnlocked(true)}
+                    >
+                        Unlocked
+                    </Chip>
+                </div>
+            )}
+            <div className="space-y-5">
+                {groups.map(({ group, icons }) => (
+                    <section key={group}>
+                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-muted">
+                            {group}
+                        </h3>
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-6">
+                            {icons.map(({ key, label, Icon }) => {
+                                const selected = key === icon;
+                                const locked =
+                                    isLocked(key) && key !== currentIcon;
 
-                    return (
-                        <button
-                            key={key}
-                            type="button"
-                            onClick={() => onSelect(key)}
-                            aria-pressed={selected}
-                            className={`relative flex flex-col items-center gap-2 rounded-xl border px-2 py-3 text-xs font-medium transition ${
-                                selected
-                                    ? "border-brand-accent bg-brand-accent/5 ring-2 ring-brand-accent"
-                                    : "border-brand-border hover:bg-brand-bg"
-                            }`}
-                        >
-                            <span
-                                className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                                    selected
-                                        ? "bg-brand-accent text-brand-accent-text"
-                                        : "bg-brand-bg text-brand-text"
-                                }`}
-                            >
-                                <Icon className="h-5 w-5" />
-                            </span>
-                            <span className="text-brand-text">{label}</span>
-                            {key === currentIcon && (
-                                <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-600 text-white">
-                                    <LuCheck className="h-2.5 w-2.5" />
-                                </span>
-                            )}
-                        </button>
-                    );
-                })}
+                                return (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => onSelect(key)}
+                                        aria-pressed={selected}
+                                        aria-label={
+                                            isLocked(key)
+                                                ? `${label} (locked)`
+                                                : undefined
+                                        }
+                                        className={`group relative flex flex-col items-center gap-2 overflow-hidden rounded-xl border px-2 py-3 text-xs font-medium transition ${
+                                            selected
+                                                ? "border-brand-accent bg-brand-accent/5 ring-2 ring-brand-accent"
+                                                : "border-brand-border hover:bg-brand-bg"
+                                        }`}
+                                    >
+                                        <span
+                                            className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                                                selected
+                                                    ? "bg-brand-accent text-brand-accent-text"
+                                                    : locked
+                                                      ? "bg-brand-bg text-brand-muted"
+                                                      : "bg-brand-bg text-brand-text"
+                                            }`}
+                                        >
+                                            <Icon className="h-5 w-5" />
+                                        </span>
+                                        <span
+                                            className={
+                                                locked
+                                                    ? "text-brand-muted"
+                                                    : "text-brand-text"
+                                            }
+                                        >
+                                            {label}
+                                        </span>
+                                        {locked && (
+                                            <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 text-white">
+                                                <LuLock className="h-3 w-3" />
+                                            </span>
+                                        )}
+                                        {key === currentIcon && (
+                                            <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-600 text-white">
+                                                <LuCheck className="h-2.5 w-2.5" />
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
+                ))}
             </div>
         </Panel>
     );
@@ -629,7 +732,13 @@ function LogoPanel({ logoUrl, error, confirm }) {
                         setCropping(null);
                         resolve();
                     },
-                    onError: (errors) => reject(new Error(errors.logo ?? "Couldn't upload the logo - try again.")),
+                    onError: (errors) =>
+                        reject(
+                            new Error(
+                                errors.logo ??
+                                    "Couldn't upload the logo - try again.",
+                            ),
+                        ),
                 },
             );
         });
@@ -671,7 +780,8 @@ function LogoPanel({ logoUrl, error, confirm }) {
                         accept="image/*"
                         className="sr-only"
                         onChange={(e) => {
-                            if (e.target.files?.[0]) setCropping(e.target.files[0]);
+                            if (e.target.files?.[0])
+                                setCropping(e.target.files[0]);
                             e.target.value = "";
                         }}
                     />
@@ -703,7 +813,8 @@ function LogoPanel({ logoUrl, error, confirm }) {
             <FieldError message={error} />
             {!error && (
                 <p className="mt-3 text-xs text-brand-muted">
-                    You'll crop it to a square before it's saved. Logos with a transparent background stay transparent.
+                    You'll crop it to a square before it's saved. Logos with a
+                    transparent background stay transparent.
                 </p>
             )}
             {cropping && (
@@ -920,6 +1031,50 @@ function BannerTab({
     );
 }
 
+/** Banner photo + header text while the shop's plan doesn't include them. A banner already added stays (and can be removed). */
+function LockedBanner({ bannerUrl, plan, onRemove, saving }) {
+    return (
+        <Panel
+            title="Banner image"
+            description="A photo of your shop, food or drinks across the top of your card page, with your own header text colour."
+        >
+            <Link
+                href="/dashboard/plan"
+                className="group relative block h-40 overflow-hidden rounded-xl bg-brand-deep sm:h-48"
+            >
+                {bannerUrl ? (
+                    <img
+                        src={bannerUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                    />
+                ) : (
+                    <LuImage className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 text-white/10" />
+                )}
+                <LockOverlay />
+            </Link>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+                <p className="min-w-0 flex-1 text-sm text-brand-muted">
+                    Comes with {plan ? `the ${plan} plan` : "an upgrade"}.
+                </p>
+                {bannerUrl && (
+                    <button
+                        type="button"
+                        onClick={onRemove}
+                        disabled={saving}
+                        className={`${secondaryButton} text-red-600`}
+                    >
+                        <LuTrash2 className="h-4 w-4" /> Remove banner
+                    </button>
+                )}
+                <Link href="/dashboard/plan" className={primaryButton}>
+                    Upgrade
+                </Link>
+            </div>
+        </Panel>
+    );
+}
+
 /* ---------- Shared ---------- */
 
 /** Editor starting values: the saved customisation, else the current theme's own values. */
@@ -955,6 +1110,7 @@ export default function Theme({
     bannerUrl,
     logoUrl,
     themes,
+    themeLock,
     availableFonts,
     radiusPresets,
 }) {
@@ -1035,8 +1191,20 @@ export default function Theme({
     };
     const [confirm, confirmDialog] = useConfirm();
 
+    // A locked theme can be previewed; saving it goes to the plans instead.
+    const pickedLocked =
+        Boolean(themeLock) &&
+        ((tab === "themes" &&
+            selected !== currentTheme &&
+            !themeLock.free.includes(selected)) ||
+            (tab === "stamp" &&
+                icon !== stampIcon &&
+                !themeLock.stampIcons.includes(icon)));
+
     async function save() {
-        if (tab === "themes") {
+        if (pickedLocked) {
+            router.visit("/dashboard/plan");
+        } else if (tab === "themes") {
             if (
                 customTheme &&
                 !(await confirm({
@@ -1091,13 +1259,15 @@ export default function Theme({
         if (ok) router.delete("/dashboard/theme/banner", busy);
     }
 
-    const saveLabel = {
-        themes: "Use this theme",
-        customise: "Save my colours",
-        stamp: "Use this icon",
-        signup: "Use this icon",
-        banner: "Upload banner",
-    }[tab];
+    const saveLabel = pickedLocked
+        ? `Unlock with ${themeLock.plan ?? "an upgrade"}`
+        : {
+              themes: "Use this theme",
+              customise: "Save my colours",
+              stamp: "Use this icon",
+              signup: "Use this icon",
+              banner: "Upload banner",
+          }[tab];
 
     async function discardCustom() {
         const ok = await confirm({
@@ -1255,6 +1425,7 @@ export default function Theme({
                             currentTheme={currentTheme}
                             customised={Boolean(customTheme)}
                             defaultTheme={defaultTheme}
+                            lock={themeLock}
                         />
                     )}
                     {tab === "customise" && (
@@ -1273,6 +1444,7 @@ export default function Theme({
                             icon={icon}
                             onSelect={setIcon}
                             currentIcon={stampIcon}
+                            freeIcons={themeLock?.stampIcons}
                         />
                     )}
                     {tab === "signup" && (
@@ -1284,24 +1456,35 @@ export default function Theme({
                     )}
                     {tab === "banner" && (
                         <div className="space-y-6">
-                            <BannerTab
-                                bannerUrl={bannerUrl}
-                                shown={previewBanner}
-                                file={bannerFile}
-                                onFile={setBannerFile}
-                                error={errors?.banner}
-                                progress={uploadProgress}
-                                onRemove={removeBanner}
-                                saving={saving}
-                            />
-                            <HeaderPanel
-                                style={header}
-                                onChange={setHeader}
-                                saved={headerStyle}
-                                maxTint={maxTint}
-                                hasBanner={Boolean(previewBanner)}
-                                errors={errors ?? {}}
-                            />
+                            {themeLock ? (
+                                <LockedBanner
+                                    bannerUrl={bannerUrl}
+                                    plan={themeLock.plan}
+                                    onRemove={removeBanner}
+                                    saving={saving}
+                                />
+                            ) : (
+                                <>
+                                    <BannerTab
+                                        bannerUrl={bannerUrl}
+                                        shown={previewBanner}
+                                        file={bannerFile}
+                                        onFile={setBannerFile}
+                                        error={errors?.banner}
+                                        progress={uploadProgress}
+                                        onRemove={removeBanner}
+                                        saving={saving}
+                                    />
+                                    <HeaderPanel
+                                        style={header}
+                                        onChange={setHeader}
+                                        saved={headerStyle}
+                                        maxTint={maxTint}
+                                        hasBanner={Boolean(previewBanner)}
+                                        errors={errors ?? {}}
+                                    />
+                                </>
+                            )}
                             <LogoPanel
                                 logoUrl={logoUrl}
                                 error={errors?.logo}

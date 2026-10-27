@@ -236,6 +236,16 @@ test('the admin saves the page; it is tidied and shown to visitors', function ()
     );
 });
 
+test('a plan\'s "All themes" switch is saved and sent back to the editor', function () {
+    $form = landingForm();
+    $form['plans'][0]['all_themes'] = true;
+
+    $this->actingAs(landingAdmin())->put('/admin/landing-page', $form)->assertSessionHasNoErrors();
+
+    expect(Plan::sole()->all_themes)->toBeTrue();
+    $this->get('/admin/landing-page')->assertInertia(fn ($page) => $page->where('content.plans.0.all_themes', true));
+});
+
 test('every plan needs a price in every offered currency', function () {
     $form = landingForm();
     $form['plans'][0]['prices'] = ['GBP' => '4.99'];

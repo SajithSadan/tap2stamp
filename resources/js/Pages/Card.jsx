@@ -14,7 +14,7 @@ import { HiSparkles } from "react-icons/hi2";
 import { FaInstagram } from "react-icons/fa6";
 import { LuChevronRight, LuScan, LuUtensils, LuWifi } from "react-icons/lu";
 import { PiStorefrontFill } from "react-icons/pi";
-import { StampIcon } from "@/lib/stampIcons";
+import { GENERIC_STAMP_ICONS, StampIcon } from "@/lib/stampIcons";
 import { headerTextStyle, headerTintStyle } from "@/lib/headerStyle";
 import { CUSTOMER_UUID_KEY, LAST_SHOP_SLUG_KEY } from "@/lib/storage";
 import StampGrid from "@/Components/StampGrid";
@@ -45,7 +45,6 @@ function copyToClipboard(text) {
 /** Section panels: solid, with a hairline border and no shadow. */
 const SURFACE = "border border-brand-border bg-brand-card";
 
-const GENERIC_STAMP_ICONS = ["check", "star", "heart", "sparkles", "gift"];
 
 function HeaderIcon({ icon }) {
     return GENERIC_STAMP_ICONS.includes(icon) ? (

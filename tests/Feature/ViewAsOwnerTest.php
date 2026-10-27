@@ -76,8 +76,8 @@ test('back to admin ends the view and returns to the shop', function () {
     $this->actingAs($admin)->post("/admin/shops/{$shop->id}/view-as-owner");
     $this->post('/admin/view-as-owner/stop')->assertRedirect("/admin/shops/{$shop->id}/settings");
 
-    // An admin has no dashboard of their own.
-    $this->get('/dashboard')->assertForbidden();
+    // An admin has no dashboard of their own: a stale owner page leads back to the shop.
+    $this->get('/dashboard')->assertRedirect("/admin/shops/{$shop->id}/settings");
 });
 
 test('shops without an owner account cannot be viewed as one', function () {
@@ -161,4 +161,24 @@ test('changes can only be switched on while viewing a shop, and only by an admin
 
     $this->actingAs(viewAsAdmin())->put('/admin/view-as-owner/editing', ['editing' => true])->assertNotFound();
     $this->actingAs($owner)->put('/admin/view-as-owner/editing', ['editing' => true])->assertForbidden();
+});
+
+test('an owner page opened after "Back to admin" goes back to the shop, not a 403', function () {
+    [, $shop] = viewedShop();
+    $admin = viewAsAdmin();
+
+    $this->actingAs($admin)->post("/admin/shops/{$shop->id}/view-as-owner");
+    $this->get('/dashboard/menu')->assertOk();
+    $this->post('/admin/view-as-owner/stop');
+
+    // e.g. the browser's Back button, or another tab still on the menu.
+    $this->get('/dashboard/menu')->assertRedirect("/admin/shops/{$shop->id}/settings")->assertSessionHas('status');
+    // JSON callers keep the plain refusal.
+    $this->getJson('/dashboard/menu')->assertForbidden();
+
+    // Viewing again clears it; an admin who never viewed as an owner still gets the 403.
+    $this->post("/admin/shops/{$shop->id}/view-as-owner");
+    $this->get('/dashboard/menu')->assertOk();
+    $this->actingAs(viewAsAdmin())->withSession([])->flushSession();
+    $this->get('/dashboard/menu')->assertForbidden();
 });

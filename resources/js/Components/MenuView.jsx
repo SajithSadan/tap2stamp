@@ -3,10 +3,9 @@ import { LuSearch, LuUtensils, LuX } from "react-icons/lu";
 import { PiStorefrontFill } from "react-icons/pi";
 import PromoCarousel from "@/Components/Menu/PromoCarousel";
 import { headerTextStyle, headerTintStyle } from "@/lib/headerStyle";
-import { StampIcon } from "@/lib/stampIcons";
+import { GENERIC_STAMP_ICONS, StampIcon } from "@/lib/stampIcons";
 import { themeVars, useThemeFonts } from "@/lib/theme";
 
-const GENERIC_STAMP_ICONS = ["check", "star", "heart", "sparkles", "gift"];
 
 /** Long menus get a search box. */
 const SEARCH_FROM_ITEMS = 12;

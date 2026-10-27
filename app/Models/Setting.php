@@ -51,6 +51,9 @@ class Setting extends Model
     /** Which countries pay for plans with Stripe ({stripe: [alpha-2]}; everyone else Razorpay); App\Support\PaymentProviders. */
     public const PAYMENT_COUNTRIES = 'payment_countries';
 
+    /** The theme slugs every shop may pick ([slug]); the rest need a plan with all_themes. ThemeCatalog::freeThemes(). */
+    public const FREE_THEMES = 'free_themes';
+
     protected $fillable = [
         'key',
         'value',

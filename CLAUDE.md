@@ -159,6 +159,9 @@ Admins are never self-registered; owners can be created by the admin **or** sign
   the admin, `as_owner` (the middleware's `viewAsAdmin` request attribute). Shared `viewAs` prop
   (incl. `editing`) → amber (read-only) / red (editing) banner in `OwnerLayout` with
   "Back to admin" (`POST /admin/view-as-owner/stop`). Owner dashboard routes still take no shop param.
+  Stop keeps the shop in `ViewAsOwner::ENDED_KEY`, so an owner page opened afterwards (browser
+  Back, another tab) redirects to that shop's settings with a note instead of role:owner's bare
+  403; an admin who never viewed as an owner (or a JSON call) still gets the 403.
 - **Users** (`/admin/users`, `Admin\UserController`, `Pages/Admin/Users.jsx`, menu "Users",
   desktop menu only): every login, incl. **owners with no shop** - sign-up (`/register`) saves the
   user first and the shop only on the last `/onboarding` step (in a transaction), so an abandoned
@@ -422,7 +425,10 @@ owner-approved device.
   owner tells staff their PIN in person.
 - **Staff dashboard** (`/staff` → `Staff/Dashboard.jsx`): PIN sign-in, then it **opens on
   Today**. Tabs: Today, Customers (+ Menu), with **Scan** as the raised centre button of the tab
-  bar (like the owner's; camera only mounted while open). Customers = read-only lookup by name or ≥3 phone digits via
+  bar (like the owner's; camera only mounted while open). With a third tab (Menu) the footer
+  is 2 | Scan | 2 like the owner's: Today, Customers | Scan | Menu, **More**. More lists
+  tabs after the third (none yet: "Nothing more yet", kept for future staff pages). The
+  scanner has a ✕ that returns to the tab it was opened from. Customers = read-only lookup by name or ≥3 phone digits via
   `GET /api/staff/customers`, this shop only, phone shown as last 3 digits; Today = my
   numbers vs the whole shop's. Lookup can't stamp; stamping still needs the customer's QR.
 - **Owner dashboard** is now sidebar + sections, one Inertia page each, all in
@@ -563,6 +569,20 @@ figures are grouped in SQL - one row per customer, never per scan.
   shared `navSurface` / `sideLinkClass` / `tabLinkClass` in `Components/Dashboard/Ui.jsx` so
   desktop and phone stay the same colour.
 - Dev-only custom themes (`custom_themes` table) are not offered to owners.
+- **Theme lock**: owners pick from the **free themes** only (`ThemeCatalog::freeThemes()`:
+  `Setting::FREE_THEMES`, Admin → Settings → Appearance → Free themes, default
+  `ThemeCatalog::FREE_DEFAULT`; the default look is always free). Every theme opens when the
+  shop's plan has **All themes** (`plans.all_themes`, the switch on Admin → Landing page →
+  plan → Billing) and hasn't ended (`Shop::hasAllThemes()`: not `expired`). Checked in
+  `UpdateShopThemeRequest` (`Shop::canUseTheme()`); a theme the shop already has is kept and
+  may be re-picked. The same lock covers **stamp icons** (free = `StampIcons::FREE`, checked
+  in `updateStampIcon`) and the **banner photo + header text** (`UpdateShopBannerRequest`,
+  `UpdateShopHeaderStyleRequest`; removing a banner always works, an existing one stays).
+  Refusals use `ThemeCatalog::LOCKED_MESSAGE`. The Theme page gets `themeLock` (null = all
+  open, else `{free, stampIcons, plan}`): locked themes / icons wear `LockOverlay` (dark tint +
+  white lock), free first, can be previewed, and the save button becomes "Unlock with {plan}"
+  → `/dashboard/plan`; the Banner tab shows `LockedBanner` instead of the upload / header
+  panels. Logo and Customise (own colours) aren't locked. Tests: `Shop::factory()->allThemes()`.
 - **Reset**: `DELETE /dashboard/theme` sets `shops.theme` back to null (not to the default
   slug), so a future change of `ThemeCatalog::DEFAULT` still applies to those shops.
 - **Dashboard opt-in**: `shops.theme_in_dashboard` (bool, default false), toggled via
@@ -581,7 +601,10 @@ figures are grouped in SQL - one row per customer, never per scan.
 - **Stamp icon**: `shops.stamp_icon` (null = tick), keys in `App\Support\StampIcons::KEYS`,
   mapped to react-icons in `resources/js/lib/stampIcons.jsx` - **keep the two lists in sync**.
   Shown in filled stamps on `Card.jsx` and `MyCards.jsx` (`MyCardsController` sends it per card).
-  Icons are **solid** (Phosphor fill, plus 4 solid game-icons Phosphor lacks). Every stamp grid
+  Icons are **solid** (Phosphor fill, plus solid game-icons Phosphor lacks), ~80 of them, each
+  with a `group` (Rewards, Coffee & drinks, Bakery & sweets, Food, Beauty & barber, Shops &
+  services) that the owner's picker uses as headings (`STAMP_ICON_GROUPS`); the Rewards group
+  is `GENERIC_STAMP_ICONS` (header shows a storefront). `ThemeLockTest` checks the PHP / JS keys match. Every stamp grid
   (card page, My Cards, Theme preview) is drawn by `Components/StampGrid.jsx`: pressed-ink
   filled stamps (accent gradient, inner ring, fixed per-stamp tilt), dashed empty slots with a
   ghost icon, balanced rows (`stampColumns()`) as a real grid (every row starts from the left).

@@ -36,6 +36,7 @@ class Plan extends Model
         'period',
         'billing_note',
         'trial_days',
+        'all_themes',
         'is_default',
         'is_active',
         'position',
@@ -48,6 +49,7 @@ class Plan extends Model
             'features' => 'array',
             'highlighted' => 'boolean',
             'trial_days' => 'integer',
+            'all_themes' => 'boolean',
             'is_default' => 'boolean',
             'is_active' => 'boolean',
             'position' => 'integer',
@@ -144,7 +146,7 @@ class Plan extends Model
         return [
             ...$this->only([
                 'id', 'name', 'description', 'note', 'badge', 'highlighted', 'cta_label', 'period', 'billing_note',
-                'trial_days', 'is_default', 'is_active',
+                'trial_days', 'all_themes', 'is_default', 'is_active',
             ]),
             'prices' => $this->prices ?? [],
             'features' => $this->features ?? [],

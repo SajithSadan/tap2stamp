@@ -210,7 +210,7 @@ test('the dashboard opt-in uses the customised theme too', function () {
 
 test('an owner can choose the stamp icon, and customers see it', function () {
     $owner = User::factory()->create(['role' => UserRole::Owner]);
-    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+    $shop = Shop::factory()->allThemes()->create(['user_id' => $owner->id]);
 
     $this->actingAs($owner)->put('/dashboard/theme/stamp-icon', ['stamp_icon' => 'coffee'])->assertRedirect('/dashboard/theme');
 
@@ -278,7 +278,7 @@ test('the card header uses the defaults until the owner changes them', function 
 
 test('an owner can set the header text colour, banner darkness and title shadow', function () {
     $owner = User::factory()->create(['role' => UserRole::Owner]);
-    $shop = Shop::factory()->create(['user_id' => $owner->id]);
+    $shop = Shop::factory()->allThemes()->create(['user_id' => $owner->id]);
 
     $this->actingAs($owner)
         ->put('/dashboard/theme/header', ['text_color' => '#1a1a1a', 'tint' => 0, 'shadow' => true])

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\CustomTheme;
+use App\Models\Setting;
 use Illuminate\Validation\Rule;
 
 /**
@@ -1118,6 +1119,26 @@ class ThemeCatalog
     public static function exists(?string $slug): bool
     {
         return $slug !== null && array_key_exists($slug, self::all());
+    }
+
+    /** Why a locked theme, stamp icon or banner was refused (see Shop::hasAllThemes()). */
+    public const LOCKED_MESSAGE = 'This comes with a plan that includes all themes. See Billing & plan.';
+
+    /** Free for every shop until the admin picks others (Admin → Settings → Appearance). */
+    public const FREE_DEFAULT = ['tap2stamp', 'warm-artisan', 'modern-minimal'];
+
+    /**
+     * The themes every shop may pick; the rest are locked until the shop is
+     * on a plan with all_themes (Shop::hasAllThemes()). The default look is
+     * always free, so "Reset to default" always works.
+     *
+     * @return list<string>
+     */
+    public static function freeThemes(): array
+    {
+        $chosen = Setting::get(Setting::FREE_THEMES, self::FREE_DEFAULT);
+
+        return array_values(array_unique([self::DEFAULT, ...array_filter((array) $chosen, fn ($slug) => self::exists($slug))]));
     }
 
     /** Colours an owner can change on top of their theme (see forShop()). */

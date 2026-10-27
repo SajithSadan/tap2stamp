@@ -1,11 +1,12 @@
 import { Head } from "@inertiajs/react";
 import axios from "axios";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import {
     LuCheck,
     LuChartColumn,
     LuDelete,
+    LuEllipsis,
     LuGift,
     LuLock,
     LuLogOut,
@@ -16,6 +17,7 @@ import {
     LuStore,
     LuUsers,
     LuUtensils,
+    LuX,
 } from "react-icons/lu";
 import CardScanner from "@/Components/CardScanner";
 import { useConfirm } from "@/Components/ConfirmDialog";
@@ -810,6 +812,8 @@ export default function Dashboard() {
     const [retryKey, setRetryKey] = useState(0);
     const [me, setMe] = useState(null);
     const [tab, setTab] = useState("today");
+    const [returnTab, setReturnTab] = useState("today");
+    const [moreOpen, setMoreOpen] = useState(false);
     const [summary, setSummary] = useState(null);
 
     // One axios instance carrying the device's bearer token.
@@ -1043,14 +1047,22 @@ export default function Dashboard() {
         );
     }
 
-    // Tabs either side of the centre Scan button (the extra one goes left).
+    // Tabs either side of the centre Scan button. With a third tab (Menu) the footer
+    // becomes 2 | Scan | 2 like the owner's: the third tab + "More" (tabs after it, for later).
     const navTabs = TABS.filter((t) => t.id !== "menu" || me.menu_enabled);
-    const leftCount = Math.ceil(navTabs.length / 2);
+    const showMore = navTabs.length >= 3;
+    const leftCount = showMore ? 2 : Math.ceil(navTabs.length / 2);
+    const rightTabs = showMore ? navTabs.slice(2, 3) : navTabs.slice(leftCount);
+    const moreTabs = showMore ? navTabs.slice(3) : [];
+    const moreActive = moreTabs.some((t) => t.id === tab);
     const renderTab = ({ id, label, icon: Icon }) => (
         <button
             key={id}
             type="button"
-            onClick={() => setTab(id)}
+            onClick={() => {
+                setMoreOpen(false);
+                setTab(id);
+            }}
             aria-current={tab === id ? "page" : undefined}
             className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-3 text-xs font-medium ${tab === id ? "text-brand-accent" : "text-brand-muted"}`}
         >
@@ -1065,39 +1077,39 @@ export default function Dashboard() {
             <OfflineBanner />
 
             <div className="flex h-dvh flex-col bg-brand-bg">
-                <header className="flex items-center justify-between gap-3 border-b border-brand-border bg-brand-card px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-accent/10 font-semibold text-brand-accent">
-                            {me.staff.name.charAt(0).toUpperCase()}
-                        </span>
-                        <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-brand-text">
-                                {me.staff.name}
-                            </p>
-                            <p className="truncate text-xs text-brand-muted">
-                                {me.shop_name} · {me.device_name}
-                            </p>
-                        </div>
+                {/* Solid brand-deep band (white text), like the card page header and the owner's sidebar. */}
+                <header className="flex items-center gap-3 bg-brand-deep px-4 pb-3.5 pt-[max(0.875rem,env(safe-area-inset-top))] text-white">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-accent text-base font-bold text-brand-accent-text">
+                        {me.staff.name.charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-[15px] font-semibold leading-tight">
+                            {me.staff.name}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-white/60">
+                            {me.shop_name}
+                            {me.device_name && ` · ${me.device_name}`}
+                        </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                        {summary && (
-                            <div className="text-right">
-                                <p className="text-lg font-bold leading-none tabular-nums text-brand-text">
-                                    {summary.my_stamps_today}
-                                </p>
-                                <p className="text-[11px] text-brand-muted">
-                                    your stamps
-                                </p>
-                            </div>
-                        )}
-                        <button
-                            type="button"
-                            onClick={signOut}
-                            className="flex items-center gap-1.5 rounded-xl border border-brand-border px-3 py-2 text-xs font-medium text-brand-text active:bg-brand-bg"
+                    {summary && (
+                        <span
+                            className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-3 text-sm font-bold tabular-nums"
+                            title="Stamps you gave today"
+                            aria-label={`${summary.my_stamps_today} stamps you gave today`}
                         >
-                            <LuLogOut className="h-4 w-4" /> Switch
-                        </button>
-                    </div>
+                            <LuStamp className="h-4 w-4 text-brand-accent" />
+                            {summary.my_stamps_today}
+                        </span>
+                    )}
+                    <button
+                        type="button"
+                        onClick={signOut}
+                        aria-label="Switch staff member"
+                        title="Switch staff member"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 transition-colors hover:bg-white/15 active:scale-95"
+                    >
+                        <LuLogOut className="h-4 w-4" />
+                    </button>
                 </header>
 
                 {me.scan_paused && tab !== "scan" && (
@@ -1107,7 +1119,7 @@ export default function Dashboard() {
                 )}
 
                 {/* On Scan, room under the code bar so the raised button doesn't cover it. */}
-                <main className={`flex min-h-0 flex-1 flex-col ${tab === "scan" ? "pb-6" : ""}`}>
+                <main className={`relative flex min-h-0 flex-1 flex-col ${tab === "scan" ? "pb-6" : ""}`}>
                     {tab === "scan" && (
                         <ScanTab
                             api={api}
@@ -1115,6 +1127,17 @@ export default function Dashboard() {
                             onApiError={handleApiError}
                             paused={me.scan_paused}
                         />
+                    )}
+                    {/* Close the scanner: back to the tab it was opened from. */}
+                    {tab === "scan" && (
+                        <button
+                            type="button"
+                            onClick={() => setTab(returnTab)}
+                            aria-label="Close scanner"
+                            className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white text-neutral-900 active:scale-95"
+                        >
+                            <LuX className="h-5 w-5" />
+                        </button>
                     )}
                     {tab === "lookup" && (
                         <LookupTab api={api} onApiError={handleApiError} />
@@ -1138,7 +1161,11 @@ export default function Dashboard() {
                     <div className="relative flex min-w-14 flex-1 flex-col items-center justify-end">
                         <button
                             type="button"
-                            onClick={() => setTab("scan")}
+                            onClick={() => {
+                                // Remembered so the scanner's ✕ goes back there.
+                                setReturnTab(tab === "scan" ? "today" : tab);
+                                setTab("scan");
+                            }}
                             aria-label="Scan customer card"
                             aria-current={tab === "scan" ? "page" : undefined}
                             className="absolute -top-5 flex h-14 w-14 items-center justify-center rounded-full bg-brand-accent text-brand-accent-text shadow-lg ring-4 ring-brand-bg transition active:scale-95"
@@ -1152,8 +1179,67 @@ export default function Dashboard() {
                             Scan
                         </span>
                     </div>
-                    {navTabs.slice(leftCount).map(renderTab)}
+                    {rightTabs.map(renderTab)}
+                    {showMore && (
+                        <button
+                            type="button"
+                            onClick={() => setMoreOpen((open) => !open)}
+                            aria-expanded={moreOpen}
+                            aria-label={moreOpen ? "Close more" : "More"}
+                            className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-3 text-xs font-medium ${moreActive || moreOpen ? "text-brand-accent" : "text-brand-muted"}`}
+                        >
+                            {moreOpen ? <LuX className="h-5 w-5" /> : <LuEllipsis className="h-5 w-5" />}
+                            <span>More</span>
+                        </button>
+                    )}
                 </nav>
+
+                {/* "More": tabs after the footer's (none yet - kept for future staff pages). */}
+                <AnimatePresence>
+                    {moreOpen && (
+                        <>
+                            <motion.button
+                                type="button"
+                                aria-label="Close more"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setMoreOpen(false)}
+                                className="fixed inset-0 z-20 bg-black/20"
+                            />
+                            <motion.nav
+                                aria-label="More"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 20 }}
+                                transition={{ duration: 0.18, ease: "easeOut" }}
+                                className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 rounded-2xl border border-brand-border bg-brand-card p-3"
+                            >
+                                {moreTabs.length === 0 ? (
+                                    <p className="px-3 py-6 text-center text-sm text-brand-muted">Nothing more yet.</p>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {moreTabs.map(({ id, label, icon: Icon }) => (
+                                            <button
+                                                key={id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setMoreOpen(false);
+                                                    setTab(id);
+                                                }}
+                                                aria-current={tab === id ? "page" : undefined}
+                                                className={`flex min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium ${tab === id ? "bg-brand-accent/10 text-brand-accent" : "text-brand-text active:bg-brand-bg"}`}
+                                            >
+                                                <Icon className="h-5 w-5 shrink-0" />
+                                                <span className="truncate">{label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </motion.nav>
+                        </>
+                    )}
+                </AnimatePresence>
             </div>
         </>
     );

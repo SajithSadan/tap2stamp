@@ -31,6 +31,7 @@ class UpdateLandingPageRequest extends FormRequest
             'highlighted' => filter_var($plan['highlighted'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'is_default' => filter_var($plan['is_default'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'is_active' => filter_var($plan['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            'all_themes' => filter_var($plan['all_themes'] ?? false, FILTER_VALIDATE_BOOLEAN),
         ] : $plan)->all();
 
         $this->merge([
@@ -94,6 +95,7 @@ class UpdateLandingPageRequest extends FormRequest
             'plans.*.features.*' => ['string', 'max:200'],
             'plans.*.is_default' => ['boolean'],
             'plans.*.is_active' => ['boolean'],
+            'plans.*.all_themes' => ['boolean'],
             'plans.*.trial_days' => ['nullable', 'integer', 'between:0,365'],
             // As displayed: up to 2 decimals, e.g. 4.99 or 399.
             ...collect($currencies)->mapWithKeys(fn ($code) => [
@@ -189,6 +191,7 @@ class UpdateLandingPageRequest extends FormRequest
             'features' => array_values($plan['features'] ?? []),
             'is_default' => (bool) $plan['is_default'],
             'is_active' => (bool) $plan['is_active'],
+            'all_themes' => (bool) $plan['all_themes'],
             // Only the default's is used (new shops' trial); others keep what they had, else the usual length.
             ...(isset($plan['trial_days']) ? ['trial_days' => (int) $plan['trial_days']] : []),
         ])->values()->all();

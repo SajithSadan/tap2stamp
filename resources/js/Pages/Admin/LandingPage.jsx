@@ -61,6 +61,7 @@ const blankPlan = (currencies) => ({
     is_default: false,
     is_active: true,
     trial_days: 30,
+    all_themes: false,
     name: "",
     description: "",
     note: "",
@@ -87,6 +88,7 @@ const toForm = (plans) =>
         is_default: plan.is_default ?? false,
         is_active: plan.is_active ?? true,
         trial_days: plan.trial_days ?? 30,
+        all_themes: plan.all_themes ?? false,
     }));
 
 /** Saved (or default) content as the form's values. */
@@ -230,7 +232,7 @@ export default function LandingPage({ content, defaults, currencyOptions, limits
         if (!ok) return;
         const suggested = toFormData(defaults);
         // The suggested plans take over the saved ones in order (same id, so their shops stay on them).
-        const billing = ({ id, is_default, is_active, trial_days }) => ({ id, is_default, is_active, trial_days });
+        const billing = ({ id, is_default, is_active, trial_days, all_themes }) => ({ id, is_default, is_active, trial_days, all_themes });
         const plans = suggested.plans.map((plan, i) => ({ ...plan, ...billing(form.data.plans[i] ?? blankPlan([])) }));
         // A default left out of the suggested ones comes back on the first.
         if (!plans.some((p) => p.is_default)) plans[0] = { ...plans[0], is_default: true, is_active: true };
@@ -590,6 +592,9 @@ export default function LandingPage({ content, defaults, currencyOptions, limits
                                                 </span>
                                             )}
                                         </div>
+                                    </Row>
+                                    <Row label="All themes" hint="Shops on this plan get every card theme and stamp icon, and a banner photo. Others get the free ones (Settings → Appearance).">
+                                        <Switch checked={plan.all_themes} onChange={(on) => setPlan(i, { all_themes: on })} />
                                     </Row>
                                     {plan.is_default && (
                                         <Row id="plan-trial_days" label="Free trial" hint="Days, for new shops. 0 = none." error={errors[`plans.${i}.trial_days`]}>

@@ -478,6 +478,21 @@ class Shop extends Model
         return ThemeCatalog::forShop($this->theme, $this->theme_custom);
     }
 
+    /**
+     * Every catalog theme is open: the shop's plan includes all themes and
+     * hasn't ended (paid up, or in its trial). Otherwise only the free ones.
+     * A theme picked before the lock (or before the plan ended) is kept.
+     */
+    public function hasAllThemes(): bool
+    {
+        return (bool) $this->plan?->all_themes && $this->subscriptionStatus() !== self::SUBSCRIPTION_EXPIRED;
+    }
+
+    public function canUseTheme(string $slug): bool
+    {
+        return $this->hasAllThemes() || in_array($slug, ThemeCatalog::freeThemes(), true);
+    }
+
     /** The menu page's look (colours, fonts and layout), picked by the admin. */
     public function menuTheme(): array
     {

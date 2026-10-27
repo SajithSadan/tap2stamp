@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Plan;
 use App\Models\Shop;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -30,5 +31,14 @@ class ShopFactory extends Factory
             'wifi_ssid' => Str::slug($name, '').'-Guest',
             'wifi_password' => Str::password(10, symbols: false),
         ];
+    }
+
+    /** Paid up on a plan with every theme, stamp icon and the banner (Shop::hasAllThemes()). */
+    public function allThemes(): static
+    {
+        return $this->state(fn () => [
+            'plan_id' => Plan::firstOrCreate(['name' => 'Business'], ['prices' => [], 'all_themes' => true])->id,
+            'subscription_ends_at' => now()->addYear(),
+        ]);
     }
 }

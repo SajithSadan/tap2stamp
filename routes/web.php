@@ -293,6 +293,7 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
     Route::put('/settings/google', [SettingsController::class, 'updateGoogle'])->name('settings.google');
     Route::put('/settings/sidebar', [SettingsController::class, 'updateSidebar'])->name('settings.sidebar');
+    Route::put('/settings/free-themes', [SettingsController::class, 'updateFreeThemes'])->name('settings.free-themes');
     Route::put('/settings/bank', [SettingsController::class, 'updateBank'])->name('settings.bank');
     Route::put('/settings/welcome', [SettingsController::class, 'updateWelcome'])->name('settings.welcome');
     // Legal pages: company details, and each page's text (or back to the default).

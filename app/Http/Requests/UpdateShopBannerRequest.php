@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Support\ThemeCatalog;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateShopBannerRequest extends FormRequest
@@ -20,6 +22,8 @@ class UpdateShopBannerRequest extends FormRequest
             'banner' => [
                 'required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096',
                 'dimensions:min_width=600,min_height=200',
+                // A banner photo comes with a plan that has all themes (removing one is always allowed).
+                fn (string $attribute, mixed $value, Closure $fail) => $this->user()->shop->hasAllThemes() || $fail(ThemeCatalog::LOCKED_MESSAGE),
             ],
         ];
     }
