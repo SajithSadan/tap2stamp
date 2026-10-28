@@ -71,6 +71,7 @@ class Navigation
             // `feature`: only shown when the owner's shop has it (App\Support\Features).
             ['route' => 'dashboard.menu', 'label' => 'Menu', 'icon' => 'menu', 'roles' => $owner, 'active' => ['dashboard.menu*'], 'feature' => Features::MENU],
             ['route' => 'dashboard.marketing', 'label' => 'WhatsApp', 'icon' => 'whatsapp', 'roles' => $owner, 'feature' => Features::WHATSAPP],
+            ['route' => 'dashboard.games', 'label' => 'Reward games', 'icon' => 'games', 'roles' => $owner, 'active' => ['dashboard.games*'], 'feature' => Features::GAMES],
             ['route' => 'dashboard.staff', 'label' => 'Staff', 'icon' => 'staff', 'roles' => $owner, 'mobile_primary' => true],
             // UK shops order our counter display; anywhere else downloads the QR codes we assigned.
             [

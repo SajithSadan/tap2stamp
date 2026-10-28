@@ -320,6 +320,12 @@ class Shop extends Model
     }
 
     /** The promotion carousel above the menu, in order. */
+    /** The owner's reward games (Features::GAMES), in the owner's order. */
+    public function rewardGames(): HasMany
+    {
+        return $this->hasMany(RewardGame::class)->orderBy('position')->orderBy('id');
+    }
+
     public function menuBanners(): HasMany
     {
         return $this->hasMany(MenuBanner::class)->orderBy('position')->orderBy('id');

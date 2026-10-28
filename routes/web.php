@@ -46,6 +46,7 @@ use App\Http\Controllers\OwnerScanController;
 use App\Http\Controllers\PlanPaymentController;
 use App\Http\Controllers\QrRedirectController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\RewardGameController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\ShopBannerController;
 use App\Http\Controllers\ShopCodeController;
@@ -398,6 +399,18 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
         // Customers' replies (from Meta's webhook) and the owner's answers. Phone in the query/body, never the path.
         Route::get('/whatsapp/chat', [WhatsAppInboxController::class, 'show'])->middleware('throttle:120,1')->name('whatsapp.chat');
         Route::post('/whatsapp/chat', [WhatsAppInboxController::class, 'reply'])->middleware('throttle:30,1')->name('whatsapp.reply');
+    });
+
+    // Rewards & games (admin's feature switch; off for this shop = 404).
+    // Games are looked up through the owner's shop (RewardGameController::find), never by a bare id.
+    Route::middleware('feature:games')->group(function () {
+        Route::get('/games', [RewardGameController::class, 'index'])->name('games');
+        Route::get('/games/create', [RewardGameController::class, 'create'])->name('games.create');
+        Route::post('/games', [RewardGameController::class, 'store'])->middleware('throttle:30,1')->name('games.store');
+        Route::get('/games/{game}/edit', [RewardGameController::class, 'edit'])->whereNumber('game')->name('games.edit');
+        Route::put('/games/{game}', [RewardGameController::class, 'update'])->whereNumber('game')->name('games.update');
+        Route::put('/games/{game}/status', [RewardGameController::class, 'status'])->whereNumber('game')->name('games.status');
+        Route::delete('/games/{game}', [RewardGameController::class, 'destroy'])->whereNumber('game')->name('games.destroy');
     });
 
     // Ordering products (any quantity) through Stripe Checkout, and tracking them.

@@ -508,6 +508,48 @@ Default / On / Off). Always ask `Shop::hasFeature($key)` (override ?? default).
   `Shop::hasFeature(Features::MULTIPLE_STAMPS)` to swap the 8-hour wait for a 2-minute gap.
 - Adding a feature: `Features::ALL` + `inUse()` + the nav entry's `feature` + `feature:` on its
   routes (+ any public page).
+- **Rewards & games** (`Features::GAMES`, default **off**): the owner's "Reward games" section.
+  `NavigationTest`'s owner has every feature on so the full menu is checked.
+  - **Built so far: creating games** (owner, `RewardGameController`, `feature:games`):
+    `/dashboard/games` (`Dashboard/Games.jsx`: list, Publish / Pause, delete) and the builder
+    `/dashboard/games/create` · `/{game}/edit` (`Dashboard/GameEditor.jsx`), a 3-step builder
+    (1 Choose a game: type cards + that game's own settings - `headline` for all (null = the
+    type's own line in `RewardGames::TYPES`), the scratch card image; 2 Prizes: a card per
+    prize, kind as icon tiles, chance as **Rare / Sometimes / Often** (`CHANCES` = weights
+    5 / 15 / 40 in `lib/rewardGames.js`; other weights show "Custom", exact weight under
+    "More options"), prize ideas, an odds bar; 3 When to play: trigger cards, − / + counter,
+    dates and limits folded away). Preview + plain-words "How it works" (`howItWorks()`) +
+    Save / Publish stay beside every step; a failed save opens the first step with an error. Games are found through the owner's
+    shop (`find()`), never by a bare id; `TenantIsolationTest` covers it.
+  - **Registry** `App\Support\RewardGames`: `TYPES` (wheel / scratch / boxes / slots / gift /
+    plinko "Ball drop", with min / max prizes) ↔ `GAME_TYPE_ICONS` in `lib/rewardGames.js` and
+    the per-type component in `Components/Games/GamePreview.jsx` - **keep in sync** (a test
+    checks). Every game only reveals the server's draw: slots = each winnable prize has its own
+    symbol (`SLOT_SYMBOLS`, three in a row wins it, a mixed row = no win - never fake near
+    misses); plinko = one equal slot per prize; `TRIGGERS` (every N stamps, card
+    full, first stamp); `PRIZE_KINDS` (item / discount = a voucher staff give out, bonus
+    stamps, no win). Statuses draft / live / paused.
+  - **Tables**: `reward_games` (shop, name, type, status, trigger + trigger_value, starts_on /
+    ends_on, max_plays_per_customer, voucher_days, position) and `reward_game_prizes` (title,
+    detail, kind, bonus_stamps, weight = chance relative to the others, stock, daily_limit,
+    won_count, position). `SaveRewardGameRequest` validates (at least one winnable prize);
+    `RewardGameBuilder::save()` writes game + prizes in one transaction, keeping prize ids
+    (and won_count) that come back and refusing ids that aren't the game's.
+  - **Scratch card image** (`reward_games.image_path`, `RewardGame::imageUrl()`): the layer
+    customers scratch off (null = plain silver). Picked in the builder (scratch only), sent
+    with the game's Save as FormData (an edit is a POST with `_method: put`), JPG / PNG / WebP
+    ≤ 4 MB, ≥ 300 × 200, stored on the `uploads` disk under `reward-games/{shop}/` with a random
+    name; replacing, `remove_image` or deleting the game (`RewardGameBuilder::delete()`)
+    deletes the old file. Not fillable - only the builder sets it.
+  - **Play limits** (step 3, "How often can each customer play?"): `max_plays_per_customer`
+    per `plays_period` (day / week / month / total, UK days; null with a limit = total, the
+    old meaning; no limit = no period) and `after_win` (continue / day = done for the day /
+    game = done with this game; "no win" isn't a win) - `RewardGames::PLAYS_PERIODS` /
+    `AFTER_WIN`. The rule lives in **`RewardGame::canPlay($plays, $lastWinAt, $now)`** (+
+    `playsWindowStart()`), which the play step must call.
+  - **Not built yet**: customers playing (draw server-side in `StampService` after a stamp,
+    `reward_game_plays`, reveal on the card page), "My prizes" vouchers, staff giving prizes
+    out, numbers in Insights.
 
 ## Owner Insights (additive)
 
@@ -1619,6 +1661,7 @@ unticked box on a repeat registration is not a withdrawal. Withdrawal is the uns
 Plus `subscription_payments.amount_refunded` / `refunded_at` / `disputed_at` (see "Plan payments").
 Plus `orders.amount_refunded_pence` / `refunded_at` (refunds from the shop's Payments tab).
 Plus `shops.scanning_paused_at` (the admin's per-shop "Pause scanning").
+Plus `plans.all_themes` (theme lock), `reward_games` / `reward_game_prizes` (see "Rewards & games").
 Plus `shop_whatsapp_accounts.templates` / `templates_checked_at`, `marketing_messages.delivered_at` /
 `read_at` (+ index on `wa_message_id`, the webhook's lookup) and `whatsapp_messages` (see "WhatsApp marketing").
 

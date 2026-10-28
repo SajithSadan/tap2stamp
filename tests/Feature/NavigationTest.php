@@ -4,6 +4,7 @@ use App\Enums\UserRole;
 use App\Http\Middleware\EnsureNavigationAccess;
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\Features;
 use App\Support\Navigation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -15,8 +16,11 @@ function navUser(UserRole $role): User
     $user = User::factory()->create(['role' => $role]);
 
     if ($role === UserRole::Owner) {
-        // Card link allowed, so the full owner menu (incl. "Customer page") shows.
-        Shop::factory()->create(['user_id' => $user->id, 'show_card_link' => true]);
+        // Card link allowed and every feature on, so the full owner menu (incl. "Customer page") shows.
+        Shop::factory()->create([
+            'user_id' => $user->id, 'show_card_link' => true,
+            'features' => array_fill_keys(array_keys(Features::ALL), true),
+        ]);
     }
 
     return $user;

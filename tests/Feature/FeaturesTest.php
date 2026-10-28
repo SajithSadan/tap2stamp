@@ -175,3 +175,24 @@ test('feature settings are validated and admin-only', function () {
     $this->actingAs($owner)->put('/admin/settings/features', ['feature' => 'menu', 'enabled' => false])->assertForbidden();
     $this->actingAs($owner)->put("/admin/shops/{$shop->id}/features", ['features' => ['menu' => 'off']])->assertForbidden();
 });
+
+test('rewards & games is off until the admin switches it on, per shop or for everyone', function () {
+    [$owner, $shop] = featureOwner();
+    $admin = featureAdmin();
+
+    expect(ownerMenu($owner))->not->toContain('Reward games');
+    $this->actingAs($owner)->get('/dashboard/games')->assertNotFound();
+
+    // One shop.
+    $this->actingAs($admin)->put("/admin/shops/{$shop->id}/features", ['features' => [Features::GAMES => 'on']])->assertSessionHasNoErrors();
+    // fresh(): the test's $owner still holds the shop it loaded before.
+    expect(ownerMenu($owner->fresh()))->toContain('Reward games');
+    $this->actingAs($owner->fresh())->get('/dashboard/games')->assertOk()->assertInertia(fn ($page) => $page->component('Dashboard/Games'));
+
+    // Everyone (the shop back on the default).
+    [$other] = featureOwner();
+    $this->actingAs($admin)->put('/admin/settings/features', ['feature' => Features::GAMES, 'enabled' => true])->assertSessionHasNoErrors();
+    expect(ownerMenu($other))->toContain('Reward games');
+    $this->actingAs($admin)->put('/admin/settings/features', ['feature' => Features::GAMES, 'enabled' => false]);
+    $this->actingAs($other)->get('/dashboard/games')->assertNotFound();
+});

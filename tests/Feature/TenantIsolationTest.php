@@ -10,6 +10,7 @@ use App\Models\Shop;
 use App\Models\StaffDevice;
 use App\Models\StaffMember;
 use App\Models\User;
+use App\Services\RewardGameBuilder;
 use App\Services\ShopMenu;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
@@ -175,10 +176,46 @@ test('sign-up can never make an admin, and an owner can only ever have one shop'
     expect(Shop::where('user_id', $v['attacker']->id)->count())->toBe(1);
 });
 
+test("an owner can't open, change, publish or delete another shop's reward game, or steal its prizes", function () {
+    $makeOwner = function (string $name) {
+        $owner = User::factory()->create(['role' => UserRole::Owner]);
+        $shop = Shop::factory()->create(['user_id' => $owner->id, 'name' => $name]);
+        $shop->forceFill(['features' => ['games' => true]])->save();
+
+        return [$owner, $shop];
+    };
+    [, $victim] = $makeOwner('Victim Cafe');
+    [$attacker, $attackerShop] = $makeOwner('Attacker Cafe');
+    $game = app(RewardGameBuilder::class)->save($victim, null, ['name' => 'Victim wheel', 'type' => 'wheel', 'trigger' => 'every_n_stamps', 'trigger_value' => 3, 'voucher_days' => 30], [
+        ['title' => 'Free coffee', 'kind' => 'item', 'weight' => 10],
+        ['title' => 'Try again', 'kind' => 'no_win', 'weight' => 90],
+    ]);
+    $before = $game->fresh()->load('prizes')->toBuilder();
+    $form = ['name' => 'Hacked', 'type' => 'wheel', 'trigger' => 'card_full', 'voucher_days' => 30, 'prizes' => [
+        ['title' => 'Free car', 'kind' => 'item', 'weight' => 1],
+        ['title' => 'Nothing', 'kind' => 'no_win', 'weight' => 1],
+    ]];
+    $this->actingAs($attacker);
+
+    $this->get("/dashboard/games/{$game->id}/edit")->assertNotFound();
+    $this->put("/dashboard/games/{$game->id}", $form)->assertNotFound();
+    $this->put("/dashboard/games/{$game->id}/status", ['status' => 'live'])->assertNotFound();
+    $this->delete("/dashboard/games/{$game->id}")->assertNotFound();
+    // The victim's prize ids, sent with a new game of the attacker's own, are refused.
+    $form['prizes'][0]['id'] = $game->prizes->first()->id;
+    $this->post('/dashboard/games', $form)->assertSessionHasErrors('prizes');
+
+    expect($game->fresh()->load('prizes')->toBuilder())->toBe($before)
+        ->and($attackerShop->rewardGames()->count())->toBe(0);
+});
+
 test('every route that takes a record id is covered by an ownership check', function () {
     // Owner routes with an id in the URL: each one checks the record is the owner's shop's
     // (tested above). A NEW one must be added to the tests above, then to this list.
     $covered = [
+        'dashboard/games/{game}', // found through the owner's shop (RewardGameController::find)
+        'dashboard/games/{game}/edit',
+        'dashboard/games/{game}/status',
         'dashboard/marketing/{campaign}/send',
         'dashboard/orders/{order}/success',
         'dashboard/staff-devices/{staffDevice}',

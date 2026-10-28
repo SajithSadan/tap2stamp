@@ -23,6 +23,9 @@ final class Features
     /** Customers may collect more than one stamp a day (StampService: a short gap instead of the usual wait). */
     public const MULTIPLE_STAMPS = 'multiple_stamps';
 
+    /** Rewards & games: spin-the-wheel and other games customers play for prizes (the owner's "Reward games"). */
+    public const GAMES = 'games';
+
     /**
      * `default`: what applies while the admin never set the platform default -
      * chosen so adding a switch changed nothing for anyone. `keep_in_use`:
@@ -44,6 +47,13 @@ final class Features
         self::MULTIPLE_STAMPS => [
             'label' => 'Multiple stamps a day',
             'description' => 'Customers can collect more than one stamp a day, a couple of minutes apart (so a double scan never counts twice). Off: one stamp, then the usual wait.',
+            'default' => false,
+            'keep_in_use' => false,
+        ],
+        // Off until the admin switches it on, platform-wide or per shop.
+        self::GAMES => [
+            'label' => 'Rewards & games',
+            'description' => 'The owner\'s Reward games section: games customers play for prizes (spin the wheel and more).',
             'default' => false,
             'keep_in_use' => false,
         ],
