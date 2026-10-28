@@ -337,7 +337,8 @@ export default function Settings({ shop, contact, countries, industries = [], me
 
     useEffect(() => {
         if (!cardUrl) return;
-        QRCode.toDataURL(cardUrl, { margin: 2, width: 600 })
+        // ?scan=1: a scan of the printed QR is a counter scan (Quick scan stamps, when the shop has it).
+        QRCode.toDataURL(`${cardUrl}?scan=1`, { margin: 2, width: 600 })
             .then(setPosterQr)
             .catch(() => setPosterQr(null));
     }, [cardUrl]);

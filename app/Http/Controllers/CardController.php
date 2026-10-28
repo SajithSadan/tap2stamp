@@ -8,10 +8,13 @@ use App\Models\CustomerShopCard;
 use App\Models\Review;
 use App\Models\Shop;
 use App\Services\CustomerRegistrar;
+use App\Services\StampService;
 use App\Support\Countries;
+use App\Support\QuickScan;
 use App\Support\SignupIcons;
 use App\Support\StampIcons;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,14 +26,24 @@ class CardController extends Controller
      * client-side (localStorage isn't available server-side) - this only
      * sends the public shop info needed either way.
      */
-    public function show(Request $request, Shop $shop): Response
+    public function show(Request $request, Shop $shop): Response|RedirectResponse
     {
+        // The Settings counter QR (/s/{slug}?scan=1) was scanned: a fresh Quick scan
+        // link when it's on (QuickScan), else just the card - never a lasting ?scan.
+        if ($request->has('scan')) {
+            return redirect()->to(QuickScan::landingUrl($shop))->header('Cache-Control', 'no-store');
+        }
+
         // ?preview=1 (the admin / owner "open customer page" buttons): the
         // page shows a sample card and never reads or saves a customer.
         $preview = $request->boolean('preview');
+        $tap = $request->query('tap');
 
         return Inertia::render('Card', [
             'preview' => $preview ? $this->previewCard($request, $shop) : null,
+            // Opened by scanning the shop's QR with Quick scan on: the page stamps
+            // itself once (quickStamp()), with this token. Null otherwise.
+            'quickScan' => ! $preview && is_string($tap) && QuickScan::enabled($shop) && QuickScan::valid($shop, $tap) ? $tap : null,
             'shop' => [
                 'id' => $shop->id,
                 'slug' => $shop->slug,
@@ -53,6 +66,8 @@ class CardController extends Controller
                 'menu_url' => $shop->cardMenuUrl(),
                 // The sign-up's phone country picker starts on the shop's own country.
                 'country' => $shop->country,
+                // Quick scan on: the footer's Scan button (scan the shop's QR to get a stamp).
+                'quick_scan' => QuickScan::enabled($shop),
             ],
             // The look the owner picked on /dashboard/theme (or the default).
             'theme' => $shop->appliedTheme(),
@@ -103,6 +118,24 @@ class CardController extends Controller
         $card = $registrar->registerExistingFor($shop, $customer, $validated['marketing_consent']);
 
         return response()->json($this->cardPayload($card, $shop));
+    }
+
+    /**
+     * Quick scan: the card page opened by scanning the shop's QR stamps itself,
+     * once, with the signed token it was opened with. Expired, forged or another
+     * shop's token = 403 (the page asks to scan the QR again), never a stamp.
+     */
+    public function quickStamp(Request $request, Shop $shop, Customer $customer, StampService $stamps): JsonResponse
+    {
+        $request->validate(['tap' => ['required', 'string', 'max:64']]);
+
+        if (! QuickScan::valid($shop, $request->string('tap')->value())) {
+            return response()->json(['status' => 'error', 'code' => 'tap_expired', 'message' => 'Scan the QR code at the counter again.'], 403);
+        }
+
+        [$status, $body] = $stamps->quickScan($shop, $customer);
+
+        return response()->json($body, $status);
     }
 
     /**

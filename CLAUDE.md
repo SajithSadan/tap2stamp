@@ -24,7 +24,9 @@ ratings/reviews, Instagram, Wi-Fi).
 ## Product rules
 
 - Customers: no app, no passwords. First visit = name + UK mobile once; a persistent `uuid` is
-  stored in `localStorage`. The browser is READ-ONLY: it can never change stamps.
+  stored in `localStorage`. The browser is READ-ONLY: it can never change stamps - the one
+  exception is **Quick scan** (below), where scanning the shop's QR may add one stamp, through
+  the same `StampService` path and wait as a staff scan.
 - Staff: device authenticated via a long-lived bearer token stored in browser storage; the
   staff scanner is a PWA (Add to Home Screen). On top of that, each staff member signs in on
   the device with their name + PIN, so every stamp records who gave it (see "Staff accounts").
@@ -508,6 +510,33 @@ Default / On / Off). Always ask `Shop::hasFeature($key)` (override ?? default).
   `Shop::hasFeature(Features::MULTIPLE_STAMPS)` to swap the 8-hour wait for a 2-minute gap.
 - Adding a feature: `Features::ALL` + `inUse()` + the nav entry's `feature` + `feature:` on its
   routes (+ any public page).
+- **Quick scan** (`Features::QUICK_SCAN`, default **off**; platform default + per-shop override
+  like the others): the customer stamps their own card by scanning **the same shop QR they
+  signed up with**, no staff scan. `App\Support\QuickScan`:
+  - **Only a scan stamps**, never just opening `/s/{slug}` (My Cards, the bottom nav, the
+    home-screen app and history all open it). `/qr/{code}` whose destination is exactly a
+    shop's card link, and the Settings counter QR (now `/s/{slug}?scan=1`, which
+    `CardController::show` 302s on), redirect to `/s/{slug}?tap={token}`: `{expires}.{HMAC}`
+    for that shop, `loyalty.quick_scan_link_minutes` (15) - long enough to sign up first.
+    Off = the plain link, unchanged. Card QRs printed before `?scan=1` don't quick-stamp.
+  - `Card.jsx` (`quickScan` prop) drops `tap` from the address at once, then, once the card is
+    known (also right after sign-up / join), calls `POST /s/{slug}/card/{uuid}/quick-stamp
+    {tap}` **once** → `StampService::quickScan()` → `scan(…, quickScan: true)`: same row lock
+    and wait, **always the full wait** (Multiple stamps a day ignored), **never a redeem**
+    (staff still give rewards), needs an existing card (409 `no_card`), not in the activity
+    log (an owner signed in on the phone mustn't be the "stamper"); `stamp_logs.quick_scan`
+    marks it ("Quick scan" in the owner's activity). Bad / expired / other shop's token → 403
+    `tap_expired`. Throttle `quick-stamp`: 5/min per card + 120/min per IP (shop Wi-Fi).
+  - The live `card.updated` event and the quick-stamp answer both report the stamp;
+    `announceStamp()` celebrates each stamp count once.
+  - **Scan in the customer footer**: `BottomNav` `scan` prop (card page: `shop.quick_scan`;
+    My Cards: any active card's `quick_scan`) adds a raised **Scan** button between "Stamp
+    card" and "Wallet". It opens `Components/ShopQrScanner.jsx` (html5-qrcode, lazy-loaded),
+    which only accepts this site's `/qr/{code}` or `/s/{slug}` (opened as `?scan=1`) and goes
+    there as a full page load - so the same server redirect + token does the stamping.
+    Anything else ("That's not a shop's QR code") keeps scanning.
+  - A photo of the printed QR still works from anywhere - the wait limits it to one stamp
+    per window. Stronger options (location check, changing QR on a screen) weren't chosen.
 - **Rewards & games** (`Features::GAMES`, default **off**): the owner's "Reward games" section.
   `NavigationTest`'s owner has every feature on so the full menu is checked.
   - **Built so far: creating games** (owner, `RewardGameController`, `feature:games`):
@@ -1661,6 +1690,7 @@ unticked box on a repeat registration is not a withdrawal. Withdrawal is the uns
 Plus `subscription_payments.amount_refunded` / `refunded_at` / `disputed_at` (see "Plan payments").
 Plus `orders.amount_refunded_pence` / `refunded_at` (refunds from the shop's Payments tab).
 Plus `shops.scanning_paused_at` (the admin's per-shop "Pause scanning").
+Plus `stamp_logs.quick_scan` (bool, the customer's own Quick scan stamp; see "Feature switches").
 Plus `plans.all_themes` (theme lock), `reward_games` / `reward_game_prizes` (see "Rewards & games").
 Plus `shop_whatsapp_accounts.templates` / `templates_checked_at`, `marketing_messages.delivered_at` /
 `read_at` (+ index on `wa_message_id`, the webhook's lookup) and `whatsapp_messages` (see "WhatsApp marketing").

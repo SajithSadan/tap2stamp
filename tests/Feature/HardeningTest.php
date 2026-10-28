@@ -89,10 +89,13 @@ test('customer-facing routes have no way to change stamps', function () {
 
     // Only registration (new customer, or a known one joining another shop)
     // and reviews write anything, and none of them touches stamps
-    // (covered by CardRegistrationTest / ReviewTest).
+    // (covered by CardRegistrationTest / ReviewTest). The one exception is
+    // Quick scan: one stamp, only with a signed scan token, the shop's switch
+    // on and the usual wait (QuickScanTest).
     expect($customerRoutes)->toEqualCanonicalizing([
         's/{shop}/register',
         's/{shop}/card/{customer}/join',
         's/{shop}/card/{customer}/review',
+        's/{shop}/card/{customer}/quick-stamp',
     ]);
 });

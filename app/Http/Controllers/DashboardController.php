@@ -675,7 +675,7 @@ class DashboardController extends Controller
         return [
             'id' => $log->id,
             'customer_name' => $log->customer->name,
-            'staff_name' => $log->staffMember?->name ?? $log->owner?->name ?? '—',
+            'staff_name' => $log->staffMember?->name ?? $log->owner?->name ?? ($log->quick_scan ? 'Quick scan' : '—'),
             'action' => $log->action_type->value,
             'created_at' => $log->created_at->timezone('Europe/London')->format('j M, g:i A'),
         ];

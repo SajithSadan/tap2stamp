@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\QrCode;
 use App\Models\Shop;
+use App\Support\QuickScan;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -44,9 +45,12 @@ class QrRedirectController extends Controller
         }
 
         if ($qrCode?->destination_url) {
+            // A shop's card link with Quick scan on: the scan itself may stamp (QuickScan).
+            $shop = QuickScan::shopForDestination($qrCode->destination_url);
+
             // 302, never 301: browsers cache a 301 indefinitely, which would
             // keep sending the sticker to its old destination after a remap.
-            return redirect()->away($qrCode->destination_url)
+            return redirect()->away($shop && QuickScan::enabled($shop) ? QuickScan::landingUrl($shop) : $qrCode->destination_url)
                 ->header('Cache-Control', 'no-store');
         }
 

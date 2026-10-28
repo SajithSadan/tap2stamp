@@ -198,7 +198,14 @@ function StampShower() {
  * In preview the page never reads or writes the saved customer, never asks to
  * sign up or join, and never posts anything.
  */
-export default function Card({ shop, theme, preview = null, phoneCountries = [] }) {
+// Quick scan answers the customer can't act on, beyond asking staff.
+const QUICK_SCAN_MESSAGES = {
+    cooldown: "You've already collected today's stamp. See you next visit!",
+    tap_expired: "This link has expired. Scan the QR code at the counter again.",
+};
+const QUICK_SCAN_FALLBACK = "Couldn't add your stamp. Show your QR code to staff instead.";
+
+export default function Card({ shop, theme, preview = null, quickScan = null, phoneCountries = [] }) {
     // The owner's chosen look (Dashboard → Theme), applied to this page only.
     useDocumentTheme(theme);
     const surface = SURFACE;
@@ -221,6 +228,13 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
     const [celebrate, setCelebrate] = useState(false);
     const [stampShower, setStampShower] = useState(false);
     const [redeemedToast, setRedeemedToast] = useState(false);
+    // Quick scan's one-line answer at the top ({ text, ok }), hidden after a few seconds.
+    const [quickToast, setQuickToast] = useState(null);
+    const quickToastTimeoutRef = useRef(null);
+    // The page stamps itself once per scan, and the stamp count last celebrated
+    // (the live event and the quick-stamp answer both report the same stamp).
+    const quickScanUsedRef = useRef(false);
+    const celebratedStampsRef = useRef(null);
     const [loadError, setLoadError] = useState(false);
     const [qrOpen, setQrOpen] = useState(false);
     // "Your reward is ready!" - when the card is full (on opening it, or as a live stamp fills it).
@@ -458,6 +472,58 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
         });
     }
 
+    // A new stamp (a staff scan's live event, or the customer's own quick scan):
+    // update the card and celebrate - once per stamp, whichever reports it first.
+    function announceStamp(stamps, maxStamps) {
+        setCard((prev) => (prev ? { ...prev, stamps, max_stamps: maxStamps } : prev));
+        if (celebratedStampsRef.current === stamps) return;
+        celebratedStampsRef.current = stamps;
+
+        triggerCelebration();
+        playChime();
+        celebrateStamp(stamps >= maxStamps);
+        if (navigator.vibrate) navigator.vibrate([70, 45, 110, 35, 70]);
+    }
+
+    function showQuickToast(text, ok = false) {
+        setQuickToast({ text, ok });
+        if (quickToastTimeoutRef.current) clearTimeout(quickToastTimeoutRef.current);
+        quickToastTimeoutRef.current = setTimeout(() => setQuickToast(null), 4000);
+    }
+
+    // Quick scan: the address carries a one-time `tap` token. Drop it from the
+    // address straight away, so a reload, a bookmark or the home-screen app never
+    // stamps again (the token stays in memory for this visit).
+    useEffect(() => {
+        if (!quickScan) return;
+        const url = new URL(window.location.href);
+        url.searchParams.delete("tap");
+        window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    }, []);
+
+    // ...and once the card is known (straight away, or after signing up / joining), stamp it - once.
+    useEffect(() => {
+        if (!quickScan || preview || !card?.uuid || quickScanUsedRef.current) return;
+        quickScanUsedRef.current = true;
+
+        axios
+            .post(`/s/${shop.slug}/card/${card.uuid}/quick-stamp`, { tap: quickScan })
+            .then(({ data }) => {
+                if (data.code === "stamp_added") {
+                    announceStamp(data.stamps, data.max_stamps);
+                    showQuickToast(`Stamp collected! ${data.stamps} of ${data.max_stamps}`, true);
+                }
+                // reward_ready: the card is full - the reward popup already says so.
+            })
+            .catch((error) => {
+                const code = error.response?.data?.code;
+                showQuickToast(QUICK_SCAN_MESSAGES[code] ?? QUICK_SCAN_FALLBACK);
+            });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [card?.uuid]);
+
+    useEffect(() => () => quickToastTimeoutRef.current && clearTimeout(quickToastTimeoutRef.current), []);
+
     // Real-time updates from staff scans (Stage 7). Resilience: if Pusher
     // isn't configured or the connection fails, the page still works via
     // the normal fetch-on-load path above - this is purely additive.
@@ -478,6 +544,12 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
             channel = pusher.subscribe(channelName);
 
             channel.bind("card.updated", (data) => {
+                if (data.action === "stamp_added") {
+                    announceStamp(data.stamps, data.max_stamps);
+                    return;
+                }
+
+                celebratedStampsRef.current = null;
                 setCard((prev) =>
                     prev
                         ? {
@@ -489,13 +561,7 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                 );
                 triggerCelebration();
                 playChime();
-                if (data.action === "stamp_added") {
-                    celebrateStamp(data.stamps >= data.max_stamps);
-                    if (navigator.vibrate)
-                        navigator.vibrate([70, 45, 110, 35, 70]);
-                } else if (navigator.vibrate) {
-                    navigator.vibrate(60);
-                }
+                if (navigator.vibrate) navigator.vibrate(60);
 
                 if (data.action === "reward_redeemed") {
                     setRedeemedToast(true);
@@ -674,6 +740,22 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
                         className="fixed inset-x-5 top-3 z-20 mx-auto max-w-sm rounded-brand bg-brand-accent px-4 py-3 text-center text-sm font-semibold text-brand-accent-text shadow-lg"
                     >
                         🎉 Reward redeemed — enjoy!
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {quickToast && (
+                    <motion.div
+                        role="status"
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className={`fixed inset-x-5 top-3 z-20 mx-auto max-w-sm rounded-brand px-4 py-3 text-center text-sm font-semibold shadow-lg ${
+                            quickToast.ok ? "bg-brand-accent text-brand-accent-text" : "bg-brand-deep text-white"
+                        }`}
+                    >
+                        {quickToast.text}
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -1224,7 +1306,7 @@ export default function Card({ shop, theme, preview = null, phoneCountries = [] 
 
             {/* Hidden behind the sign-up modal it would only peek out from under. */}
             {/* Preview hides it too: its tabs lead to the saved customer's own cards. */}
-            {!showModal && !preview && <BottomNav />}
+            {!showModal && !preview && <BottomNav scan={shop.quick_scan} />}
         </>
     );
 }

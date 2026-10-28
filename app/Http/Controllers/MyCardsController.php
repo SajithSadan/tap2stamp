@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\CustomerShopCard;
+use App\Support\QuickScan;
 use App\Support\StampIcons;
 use Illuminate\Http\JsonResponse;
 
@@ -25,6 +26,8 @@ class MyCardsController extends Controller
                 'rewards_claimed' => $card->rewards_claimed,
                 // Blocked by the admin: listed (greyed, no QR) so the customer knows why, after the working ones.
                 'active' => ! $card->shop->isBlocked(),
+                // Any card's shop with Quick scan on shows the footer's Scan button.
+                'quick_scan' => ! $card->shop->isBlocked() && QuickScan::enabled($card->shop),
                 // Each card wears its own shop's look, like on the shop's card page.
                 'theme' => $card->shop->appliedTheme(),
             ])

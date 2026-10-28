@@ -26,6 +26,9 @@ final class Features
     /** Rewards & games: spin-the-wheel and other games customers play for prizes (the owner's "Reward games"). */
     public const GAMES = 'games';
 
+    /** Customers stamp their own card by scanning the shop's QR (App\Support\QuickScan) - no staff scan. */
+    public const QUICK_SCAN = 'quick_scan';
+
     /**
      * `default`: what applies while the admin never set the platform default -
      * chosen so adding a switch changed nothing for anyone. `keep_in_use`:
@@ -54,6 +57,12 @@ final class Features
         self::GAMES => [
             'label' => 'Rewards & games',
             'description' => 'The owner\'s Reward games section: games customers play for prizes (spin the wheel and more).',
+            'default' => false,
+            'keep_in_use' => false,
+        ],
+        self::QUICK_SCAN => [
+            'label' => 'Quick scan',
+            'description' => 'Customers get their stamp by scanning the shop\'s QR code themselves, without a staff scan. Still one stamp per visit (the full wait, even with Multiple stamps a day); staff still give the rewards.',
             'default' => false,
             'keep_in_use' => false,
         ],

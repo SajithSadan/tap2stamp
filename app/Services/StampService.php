@@ -25,10 +25,16 @@ class StampService
      * isn't full (e.g. a double tap after it was given) answers `no_reward`
      * and never stamps.
      *
+     * $quickScan: the customer stamping their own card (Features::QUICK_SCAN,
+     * see quickScan()) - never a redeem, always the full wait, not in the
+     * activity log (that's for admins, owners and staff).
+     *
      * @return array{0: int, 1: array<string, mixed>} [HTTP status, JSON body]
      */
-    public function scan(Shop $shop, string $payload, ?StaffMember $staff = null, ?int $ownerId = null, bool $redeem = false): array
+    public function scan(Shop $shop, string $payload, ?StaffMember $staff = null, ?int $ownerId = null, bool $redeem = false, bool $quickScan = false): array
     {
+        $redeem = $redeem && ! $quickScan;
+
         // Blocked by the admin - the staff API is already closed; this also covers the owner scanner.
         if ($shop->isBlocked()) {
             return $this->error(403, 'shop_blocked', "This shop's account is paused.");
@@ -57,7 +63,7 @@ class StampService
             return $this->error(404, 'customer_not_found', 'No customer found for this QR code.');
         }
 
-        [$status, $body] = DB::transaction(function () use ($customer, $shop, $staff, $ownerId, $redeem) {
+        [$status, $body] = DB::transaction(function () use ($customer, $shop, $staff, $ownerId, $redeem, $quickScan) {
             // lockForUpdate() inside the transaction: two near-simultaneous
             // scans of the same card must serialize here, or both could read
             // the same current_stamps and both increment - a lost update.
@@ -87,7 +93,8 @@ class StampService
 
             // One stamp per visit (an 8-hour wait), or - with "Multiple stamps a day" on for
             // this shop - only a short gap so a double scan still can't count twice.
-            $multiple = $shop->hasFeature(Features::MULTIPLE_STAMPS);
+            // A customer's own quick scan always waits the full time, or they could tap their card full.
+            $multiple = ! $quickScan && $shop->hasFeature(Features::MULTIPLE_STAMPS);
             $waitMinutes = $multiple
                 ? (int) config('loyalty.multi_stamp_gap_minutes')
                 : (int) config('loyalty.stamp_cooldown_hours') * 60;
@@ -96,23 +103,27 @@ class StampService
                 return $this->cooldown($card, $customer, $maxStamps, $waitMinutes, $multiple);
             }
 
-            return $this->stamp($card, $customer, $maxStamps, $staff, $ownerId);
+            return $this->stamp($card, $customer, $maxStamps, $staff, $ownerId, $quickScan);
         });
 
         // Dispatched AFTER the transaction above has committed - a broadcast
         // failure must never break or roll back a stamp that already
         // succeeded, so it's wrapped in try/catch and only logged.
         if (in_array($body['code'], ['stamp_added', 'reward_redeemed'], true)) {
-            // Who stamped whom (the customer by name only, never the phone).
+            // Who stamped whom (the customer by name only, never the phone). A
+            // quick scan is the customer's own (stamp_logs.quick_scan): an owner
+            // signed in on the same phone must not be logged as the one who stamped.
             $redeemed = $body['code'] === 'reward_redeemed';
-            ActivityLogger::record(
-                $redeemed ? 'stamp.reward_redeemed' : 'stamp.added',
-                $redeemed ? "Redeemed {$customer->name}'s reward" : "Stamped {$customer->name}'s card ({$body['stamps']}/{$body['max_stamps']})",
-                $shop->id,
-                $customer,
-                ['stamps' => [$redeemed ? $body['max_stamps'] : $body['stamps'] - 1, $body['stamps']]],
-                $staff ? ActivityLogger::staff($staff) : ($ownerId && ($owner = User::find($ownerId)) ? ActivityLogger::user($owner) : null),
-            );
+            if (! $quickScan) {
+                ActivityLogger::record(
+                    $redeemed ? 'stamp.reward_redeemed' : 'stamp.added',
+                    $redeemed ? "Redeemed {$customer->name}'s reward" : "Stamped {$customer->name}'s card ({$body['stamps']}/{$body['max_stamps']})",
+                    $shop->id,
+                    $customer,
+                    ['stamps' => [$redeemed ? $body['max_stamps'] : $body['stamps'] - 1, $body['stamps']]],
+                    $staff ? ActivityLogger::staff($staff) : ($ownerId && ($owner = User::find($ownerId)) ? ActivityLogger::user($owner) : null),
+                );
+            }
 
             try {
                 event(new CardUpdated(
@@ -129,6 +140,27 @@ class StampService
         }
 
         return [$status, $body];
+    }
+
+    /**
+     * Quick scan: the customer's own card page, opened by scanning the shop's
+     * QR, stamps itself. Same path as a staff scan (row lock, the wait), so a
+     * double scan, double tap or two open tabs still give one stamp. Only for
+     * a customer who already has a card here - sign-up comes first.
+     *
+     * @return array{0: int, 1: array<string, mixed>}
+     */
+    public function quickScan(Shop $shop, Customer $customer): array
+    {
+        if (! $shop->hasFeature(Features::QUICK_SCAN)) {
+            return $this->error(403, 'quick_scan_off', 'Show your QR code to staff to collect your stamp.');
+        }
+
+        if (! CustomerShopCard::where('shop_id', $shop->id)->where('customer_id', $customer->id)->exists()) {
+            return $this->error(409, 'no_card', 'Join first to collect stamps.');
+        }
+
+        return $this->scan($shop, "TOKEN:{$customer->uuid}|SHOP:{$shop->id}", quickScan: true);
     }
 
     private function redeem(CustomerShopCard $card, Customer $customer, int $maxStamps, ?StaffMember $staff, ?int $ownerId): array
@@ -201,7 +233,7 @@ class StampService
         ]];
     }
 
-    private function stamp(CustomerShopCard $card, Customer $customer, int $maxStamps, ?StaffMember $staff, ?int $ownerId): array
+    private function stamp(CustomerShopCard $card, Customer $customer, int $maxStamps, ?StaffMember $staff, ?int $ownerId, bool $quickScan = false): array
     {
         $card->update([
             'current_stamps' => $card->current_stamps + 1,
@@ -214,6 +246,7 @@ class StampService
             'staff_member_id' => $staff?->id,
             'owner_user_id' => $ownerId,
             'action_type' => ActionType::StampAdded,
+            'quick_scan' => $quickScan,
         ]);
 
         return [200, [

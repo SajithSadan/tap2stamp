@@ -24,12 +24,14 @@ class StampLog extends Model
         'staff_member_id',
         'owner_user_id',
         'action_type',
+        'quick_scan',
     ];
 
     protected function casts(): array
     {
         return [
             'action_type' => ActionType::class,
+            'quick_scan' => 'boolean',
         ];
     }
 

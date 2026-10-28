@@ -5,6 +5,10 @@ return [
     // Shops with "Multiple stamps a day" (App\Support\Features): the gap between stamps instead -
     // just long enough that an accidental double scan doesn't count twice.
     'multi_stamp_gap_minutes' => (int) env('MULTI_STAMP_GAP_MINUTES', 2),
+    // Quick scan (App\Support\Features): how long the signed link a scanned shop QR
+    // opens stays usable - long enough to sign up first, short enough that a saved
+    // or shared link soon stops stamping.
+    'quick_scan_link_minutes' => (int) env('QUICK_SCAN_LINK_MINUTES', 15),
     'default_max_stamps' => 6,
     // A staff PIN sign-in on a shared device lasts roughly one shift.
     'staff_session_hours' => (int) env('STAFF_SESSION_HOURS', 12),

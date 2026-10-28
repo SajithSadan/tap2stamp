@@ -100,6 +100,13 @@ Route::get('/s/{shop:slug}/card/{customer:uuid}', [CardController::class, 'cardS
     ->name('card.state')
     ->withoutScopedBindings();
 
+// Quick scan (Features::QUICK_SCAN): the card page opened by scanning the shop's
+// QR stamps itself, once, with its signed token. Same StampService path as staff.
+Route::post('/s/{shop:slug}/card/{customer:uuid}/quick-stamp', [CardController::class, 'quickStamp'])
+    ->middleware(['throttle:quick-stamp', 'shop.active'])
+    ->name('card.quick-stamp')
+    ->withoutScopedBindings();
+
 // In-app rating/review (never posted to Google or shown publicly - saved
 // to our own DB, visible only to the shop owner once Stage 4 exists).
 // Requires an existing card, same nested-binding caveat as card.state.

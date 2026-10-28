@@ -75,6 +75,14 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($token ? 'device:'.hash('sha256', $token) : 'ip:'.$request->ip());
         });
 
+        // Quick scan: customers at the counter share the shop's Wi-Fi IP too, so
+        // per card (the path = shop slug + customer uuid; throttling runs before
+        // route binding) - a stamp needs only one call - with a loose per-IP ceiling.
+        RateLimiter::for('quick-stamp', fn (Request $request) => [
+            Limit::perMinute(5)->by('card:'.sha1($request->path())),
+            Limit::perMinute(120)->by('ip:'.$request->ip()),
+        ]);
+
         // A 4-digit PIN is only 10,000 guesses - cap wrong-PIN attempts per
         // device hard, same per-device keying as staff-scan above.
         RateLimiter::for('staff-pin', function (Request $request) {

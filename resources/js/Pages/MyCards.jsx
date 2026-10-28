@@ -268,7 +268,7 @@ export default function MyCards() {
                 </div>
             </div>
 
-            <BottomNav />
+            <BottomNav scan={Boolean(cards?.some((card) => card.quick_scan))} />
         </>
     );
 }
