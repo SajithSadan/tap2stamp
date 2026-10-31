@@ -69,6 +69,7 @@ function PaymentHistory({ payments }) {
                             <span className="block truncate text-xs text-brand-muted">
                                 {p.method}
                                 {p.reference && ` · ${p.reference}`}
+                                {p.coupon_label && ` · ${p.coupon_label}`}
                             </span>
                             {(p.refund_label || p.disputed) && (
                                 <span className="block text-xs font-medium text-amber-800">{[p.refund_label, p.disputed && "Disputed"].filter(Boolean).join(" · ")}</span>

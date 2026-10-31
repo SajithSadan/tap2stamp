@@ -17,6 +17,7 @@ import {
     LuSearch,
     LuShieldCheck,
     LuStar,
+    LuTicket,
     LuTrash2,
     LuX,
 } from "react-icons/lu";
@@ -327,6 +328,9 @@ export default function LandingPage({ content, defaults, currencyOptions, limits
                     <PreviewButton currencies={data.currencies} />
                     <Link href="/admin/plans/preview" className={secondaryButton}>
                         <LuEye className="h-4 w-4" /> Owner view
+                    </Link>
+                    <Link href="/admin/plans/coupons" className={secondaryButton}>
+                        <LuTicket className="h-4 w-4" /> Plan coupons
                     </Link>
                     <button type="button" onClick={loadDefaults} className={secondaryButton}>
                         <LuRotateCcw className="h-4 w-4" /> Load defaults

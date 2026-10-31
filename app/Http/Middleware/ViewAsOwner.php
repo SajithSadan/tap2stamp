@@ -40,6 +40,7 @@ class ViewAsOwner
     private const OWNER_ONLY = [
         'dashboard.orders.checkout',
         // Plan payments: the owner pays with their own card / UPI.
+        'dashboard.plan.quote',
         'dashboard.plan.pay',
         'dashboard.plan.pay.confirm',
         'dashboard.orders.coupon',

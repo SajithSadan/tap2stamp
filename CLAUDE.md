@@ -1526,6 +1526,28 @@ Owners pay for a year of a plan on Billing & plan, in the shop's currency
   `async_payment_succeeded` (`/api/stripe/webhook`; plan payment first, else a counter display
   order) and `/api/razorpay/webhook` (`routes/api.php`) (`X-Razorpay-Signature` = HMAC of the body
   with `RAZORPAY_WEBHOOK_SECRET`; `payment.captured` / `order.paid`, amount checked).
+- **Confirmation box + plan coupons**: every plan button first opens a confirm dialog
+  (`ConfirmDialog` in `PlanCheckout.jsx`): plan, the year it covers, price, **"Have a coupon
+  code?"**, discount, total, "Pay {total}". Its numbers come from `POST /dashboard/plan/quote
+  {plan_id, code?}` (`PlanPaymentController::quote` → `SubscriptionCheckout::quote()`, throttled
+  10/min, `OWNER_ONLY`); a bad code answers 422 `errors.code`. `POST /dashboard/plan/pay` takes
+  the same `code` and re-checks it (`couponFor()`).
+  - **Plan coupons are separate from the counter display's `coupons`**: `plan_coupons`
+    (`App\Models\PlanCoupon`), Admin → Landing & plans → **Plan coupons** button
+    (`/admin/plans/coupons`, `Admin\PlanCouponController`, `SavePlanCouponRequest`,
+    `Pages/Admin/PlanCoupons/Index.jsx`): code, percent / fixed, **`discounts` = {country:
+    value}** - the countries that can use it, each with its own discount (fixed = an amount in
+    the currency that country's shops pay in, `Currencies::forCountry` ?? GBP). Optional plan,
+    valid-until (end of day UK), total uses, once per shop, on / off. Never deleted.
+  - `problemFor()`: off / expired, country not listed, another plan, used up, already used by
+    this shop. **Only paid payments count as a use.** What's left must be 0 or at least
+    `PlanCoupon::MIN_CHARGE` (1 major unit), else refused.
+  - Payments keep `plan_coupon_id`, `coupon_code`, `list_amount` (price before the coupon);
+    Stripe's line item / Razorpay's order are for the discounted amount (Stripe's description
+    names the coupon). History rows get `coupon_label`.
+  - **All of it off** (e.g. 100%): no provider at all - a payment with `provider` **`free`**
+    (`SubscriptionPayment::FREE`, `provider_order_id` `free-{uuid}`, amount 0) is marked paid
+    straight away ("Free with coupon"); never refundable on the Payments tab.
 - **Stripe ids**: `provider_order_id` = the Checkout Session (`cs_`); once paid
   `provider_payment_id` = its PaymentIntent (`pi_`), which refunds and disputes name
   (`findPayment()` matches either; `SubscriptionPayment::stripeIntentId()` for a refund - rows from
@@ -1695,6 +1717,7 @@ unticked box on a repeat registration is not a withdrawal. Withdrawal is the uns
 `marketing_campaigns`, `marketing_messages`. Plus `shop_whatsapp_accounts` (see "WhatsApp marketing").
 Plus `subscription_payments.amount_refunded` / `refunded_at` / `disputed_at` (see "Plan payments").
 Plus `orders.amount_refunded_pence` / `refunded_at` (refunds from the shop's Payments tab).
+Plus `plan_coupons` and `subscription_payments.plan_coupon_id` / `coupon_code` / `list_amount` (see "Plan payments").
 Plus `shops.scanning_paused_at` (the admin's per-shop "Pause scanning").
 Plus `stamp_logs.quick_scan` (bool, the customer's own Quick scan stamp; see "Feature switches").
 Plus `plans.all_themes` (theme lock), `reward_games` / `reward_game_prizes` (see "Rewards & games").

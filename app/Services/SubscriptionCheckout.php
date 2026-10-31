@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Plan;
+use App\Models\PlanCoupon;
 use App\Models\Shop;
 use App\Models\SubscriptionPayment;
 use App\Models\User;
@@ -11,6 +12,7 @@ use App\Support\CrmStage;
 use App\Support\Currencies;
 use App\Support\PaymentProviders;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -85,21 +87,103 @@ class SubscriptionCheckout
     }
 
     /**
-     * A pending payment + what the browser needs to open the payment window.
+     * $code as a coupon $shop can use on $plan, or why not (shown to the
+     * owner as it is). A coupon must leave nothing to pay, or enough for the
+     * provider to take (PlanCoupon::MIN_CHARGE).
+     *
+     * @return array{0: ?PlanCoupon, 1: ?string}
+     */
+    public function couponFor(Shop $shop, Plan $plan, string $code): array
+    {
+        $coupon = PlanCoupon::findByCode($code);
+        if (! $coupon) {
+            return [null, "This coupon code isn't valid."];
+        }
+        if ($problem = $coupon->problemFor($shop, $plan)) {
+            return [null, $problem];
+        }
+
+        $quote = $this->quote($shop, $plan, $coupon);
+        $minimum = PlanCoupon::MIN_CHARGE * 10 ** Currencies::decimals($quote['currency']);
+
+        return $quote['amount'] > 0 && $quote['amount'] < $minimum
+            ? [null, "This coupon code can't be used on the {$plan->name} plan."]
+            : [$coupon, null];
+    }
+
+    /**
+     * What paying for $plan comes to (smallest units, and labels for the
+     * confirmation box): the price, the coupon's discount and what's left.
      *
      * @return array<string, mixed>
      */
-    public function start(Shop $shop, User $owner, Plan $plan): array
+    public function quote(Shop $shop, Plan $plan, ?PlanCoupon $coupon = null): array
     {
         $currency = $this->currencyFor($shop);
-        $amount = Currencies::toMinor((string) $plan->prices[$currency], $currency);
-        $provider = $this->providerFor($shop);
+        $list = Currencies::toMinor((string) $plan->prices[$currency], $currency);
+        $discount = $coupon?->discountFor($list, $shop->country, $currency) ?? 0;
+
+        return [
+            'plan' => $plan->name,
+            'currency' => $currency,
+            'list_amount' => $list,
+            'discount' => $discount,
+            'amount' => $list - $discount,
+            'list_label' => Currencies::format($list, $currency),
+            'discount_label' => $discount > 0 ? Currencies::format($discount, $currency) : null,
+            'amount_label' => Currencies::format($list - $discount, $currency),
+            // The year this payment would cover.
+            'period_label' => $shop->paidYearStart()->timezone('Europe/London')->format('j M Y').' - '.$shop->paidYearEnd()->format('j M Y'),
+            'coupon' => $coupon ? ['code' => $coupon->code, 'label' => $coupon->labelFor($shop->country, $currency)] : null,
+        ];
+    }
+
+    /**
+     * A pending payment + what the browser needs to open the payment window.
+     * A coupon ($coupon, already checked by couponFor()) lowers the amount;
+     * one that takes all of it marks the year paid straight away, no provider.
+     *
+     * @return array<string, mixed>
+     */
+    public function start(Shop $shop, User $owner, Plan $plan, ?PlanCoupon $coupon = null): array
+    {
+        $quote = $this->quote($shop, $plan, $coupon);
+        $currency = $quote['currency'];
+        $amount = $quote['amount'];
+        $provider = $amount === 0 ? SubscriptionPayment::FREE : $this->providerFor($shop);
         $description = "Tada Tap {$plan->name} plan - 1 year - {$shop->name}";
-        // The year this payment would cover, so the payment page can say so.
-        $period = $shop->paidYearStart()->timezone('Europe/London')->format('j M Y').' - '.$shop->paidYearEnd()->format('j M Y');
+        $period = $quote['period_label'];
+        $couponValues = [
+            'plan_coupon_id' => $coupon?->id,
+            'coupon_code' => $coupon?->code,
+            'list_amount' => $coupon ? $quote['list_amount'] : null,
+        ];
+
+        if ($provider === SubscriptionPayment::FREE) {
+            $payment = $shop->subscriptionPayments()->create([
+                'plan_id' => $plan->id,
+                'user_id' => $owner->id,
+                'plan_name' => $plan->name,
+                'provider' => SubscriptionPayment::FREE,
+                'currency' => $currency,
+                'amount' => 0,
+                ...$couponValues,
+                'status' => SubscriptionPayment::PENDING,
+                'provider_order_id' => 'free-'.Str::uuid(),
+            ]);
+            $this->recordPaid($payment, null);
+
+            return [
+                'provider' => SubscriptionPayment::FREE,
+                'payment_id' => $payment->id,
+                'plan' => $plan->name,
+                'status' => 'paid',
+                'paid_until_label' => $payment->fresh()->period_ends_at?->timezone('Europe/London')->format('j M Y'),
+            ];
+        }
 
         if ($provider === SubscriptionPayment::STRIPE) {
-            $metadata = ['type' => 'subscription', 'shop_id' => $shop->id, 'plan_id' => $plan->id];
+            $metadata = array_filter(['type' => 'subscription', 'shop_id' => $shop->id, 'plan_id' => $plan->id, 'coupon' => $coupon?->code]);
             $session = $this->stripe->createCheckoutSession([
                 'mode' => 'payment',
                 'line_items' => [[
@@ -107,7 +191,13 @@ class SubscriptionCheckout
                     'price_data' => [
                         'currency' => strtolower($currency),
                         'unit_amount' => $amount,
-                        'product_data' => ['name' => "Tada Tap {$plan->name} plan - 1 year", 'description' => $period],
+                        'product_data' => [
+                            'name' => "Tada Tap {$plan->name} plan - 1 year",
+                            // Stripe's page and receipt show the price and the coupon.
+                            'description' => $coupon
+                                ? "{$period} · {$quote['list_label']} with coupon {$coupon->code} (-{$quote['discount_label']})"
+                                : $period,
+                        ],
                     ],
                 ]],
                 'customer_email' => $owner->email,
@@ -119,10 +209,11 @@ class SubscriptionCheckout
             ]);
             $orderId = $session['id'];
         } else {
-            $order = $this->razorpay->createOrder($amount, $currency, 'plan-'.$shop->id.'-'.now()->timestamp, [
+            $order = $this->razorpay->createOrder($amount, $currency, 'plan-'.$shop->id.'-'.now()->timestamp, array_filter([
                 'shop_id' => (string) $shop->id,
                 'plan_id' => (string) $plan->id,
-            ]);
+                'coupon' => $coupon?->code,
+            ]));
             $orderId = $order['id'];
         }
 
@@ -133,6 +224,7 @@ class SubscriptionCheckout
             'provider' => $provider,
             'currency' => $currency,
             'amount' => $amount,
+            ...$couponValues,
             'status' => SubscriptionPayment::PENDING,
             'provider_order_id' => $orderId,
         ]);

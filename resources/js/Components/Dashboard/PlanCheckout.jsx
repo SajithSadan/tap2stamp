@@ -1,7 +1,7 @@
 import { router } from "@inertiajs/react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuCircleCheck, LuX } from "react-icons/lu";
+import { LuCircleCheck, LuLock, LuTicket, LuX } from "react-icons/lu";
 import { primaryButton } from "@/Components/Dashboard/Ui";
 
 /**
@@ -59,10 +59,115 @@ function Modal({ title, onClose, children }) {
     );
 }
 
+/** "Have a coupon code?" → a code box; the server checks it (POST /dashboard/plan/quote). */
+function PlanCouponField({ coupon, checking, error, onApply, onRemove }) {
+    const [open, setOpen] = useState(false);
+    const [code, setCode] = useState("");
+
+    if (coupon) {
+        return (
+            <p className="flex items-center gap-2 text-sm text-brand-text">
+                <LuTicket className="h-4 w-4 shrink-0 text-emerald-700" />
+                <span>
+                    <span className="font-semibold">{coupon.code}</span> · {coupon.label}
+                </span>
+                <button type="button" onClick={onRemove} aria-label="Remove coupon" className="rounded-lg p-1 text-brand-muted hover:bg-brand-bg hover:text-brand-text">
+                    <LuX className="h-4 w-4" />
+                </button>
+            </p>
+        );
+    }
+
+    if (!open) {
+        return (
+            <button type="button" onClick={() => setOpen(true)} className="text-sm font-medium text-brand-accent underline-offset-2 hover:underline">
+                Have a coupon code?
+            </button>
+        );
+    }
+
+    return (
+        <form
+            noValidate
+            onSubmit={(e) => {
+                e.preventDefault();
+                if (code.trim()) onApply(code.trim());
+            }}
+        >
+            <div className="flex items-center gap-2">
+                <input
+                    type="text"
+                    autoFocus
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={32}
+                    aria-label="Coupon code"
+                    placeholder="Coupon code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    className="h-10 min-w-0 flex-1 rounded-xl border border-brand-border bg-brand-card px-3 text-sm uppercase text-brand-text outline-none placeholder:normal-case placeholder:text-brand-muted focus:border-brand-accent"
+                />
+                <button
+                    type="submit"
+                    disabled={checking || !code.trim()}
+                    className="h-10 rounded-xl border border-brand-border bg-brand-card px-3.5 text-sm font-medium text-brand-text hover:bg-brand-bg disabled:opacity-50"
+                >
+                    {checking ? "Checking…" : "Apply"}
+                </button>
+            </div>
+            {error && (
+                <p role="alert" className="mt-1.5 text-xs text-red-700">
+                    {error}
+                </p>
+            )}
+        </form>
+    );
+}
+
+/** Before paying: the plan, the year it covers, the price, a coupon code and what's left to pay. */
+function ConfirmDialog({ quote, checking, couponError, paying, onApplyCoupon, onRemoveCoupon, onPay, onClose }) {
+    const free = quote.amount === 0;
+
+    return (
+        <Modal title={`Pay for ${quote.plan}`} onClose={paying ? null : onClose}>
+            <p className="-mt-2 mb-4 text-sm text-brand-muted">One year · {quote.period_label}</p>
+            <dl className="divide-y divide-brand-border border-y border-brand-border text-sm">
+                <div className="flex justify-between gap-4 py-2.5">
+                    <dt className="text-brand-muted">{quote.plan} plan</dt>
+                    <dd className="tabular-nums text-brand-text">{quote.list_label}</dd>
+                </div>
+                {quote.discount_label && (
+                    <div className="flex justify-between gap-4 py-2.5">
+                        <dt className="text-brand-muted">Coupon {quote.coupon?.code}</dt>
+                        <dd className="tabular-nums text-emerald-700">-{quote.discount_label}</dd>
+                    </div>
+                )}
+                <div className="flex justify-between gap-4 py-2.5 font-semibold text-brand-text">
+                    <dt>Total</dt>
+                    <dd className="font-heading text-lg tabular-nums">{quote.amount_label}</dd>
+                </div>
+            </dl>
+            <div className="mt-3">
+                <PlanCouponField coupon={quote.coupon} checking={checking} error={couponError} onApply={onApplyCoupon} onRemove={onRemoveCoupon} />
+            </div>
+            <button type="button" onClick={onPay} disabled={paying || checking} className={`${primaryButton} mt-5 w-full`}>
+                {!free && <LuLock className="h-4 w-4" />}
+                {paying ? "Opening…" : free ? "Start my plan" : `Pay ${quote.amount_label}`}
+            </button>
+        </Modal>
+    );
+}
+
 export function usePlanCheckout({ shopName }) {
     const [busyId, setBusyId] = useState(null);
     const [done, setDone] = useState(null); // {plan, paid_until_label} | {pending: message}
     const [error, setError] = useState(null);
+    // The confirmation box: {plan, quote}; the coupon check / payment in progress.
+    const [confirming, setConfirming] = useState(null);
+    const [checking, setChecking] = useState(false);
+    const [couponError, setCouponError] = useState(null);
+    const [paying, setPaying] = useState(false);
 
     /** Ask the server whether the payment really went through (it checks with the provider). */
     async function confirm(body, plan) {
@@ -75,12 +180,59 @@ export function usePlanCheckout({ shopName }) {
         }
     }
 
+    /** The plan's button: open the confirmation box with the price (no coupon yet). */
     async function pay(plan) {
         setBusyId(plan.id);
         setError(null);
+        setCouponError(null);
 
         try {
-            const { data } = await window.axios.post("/dashboard/plan/pay", { plan_id: plan.id });
+            const { data } = await window.axios.post("/dashboard/plan/quote", { plan_id: plan.id });
+            setConfirming({ plan, quote: data });
+        } catch (err) {
+            setError(err.response?.data?.message ?? "Payments aren't available right now. Please try again in a few minutes.");
+        } finally {
+            setBusyId(null);
+        }
+    }
+
+    /** Apply (code) or remove (null) a coupon: the server works out the new total. */
+    async function applyCoupon(code) {
+        setChecking(true);
+        setCouponError(null);
+        try {
+            const { data } = await window.axios.post("/dashboard/plan/quote", { plan_id: confirming.plan.id, code });
+            setConfirming((c) => ({ ...c, quote: data }));
+        } catch (err) {
+            const status = err.response?.status;
+            setCouponError(
+                status === 422
+                    ? (err.response.data.errors?.code?.[0] ?? err.response.data.message)
+                    : status === 429
+                      ? "Too many tries - please wait a minute."
+                      : "We couldn't check the code. Please try again.",
+            );
+        } finally {
+            setChecking(false);
+        }
+    }
+
+    /** "Pay": Stripe's page, Razorpay's window, or - all of it taken off by a coupon - straight to paid. */
+    async function startPayment() {
+        const { plan, quote } = confirming;
+        setPaying(true);
+        setCouponError(null);
+
+        try {
+            const { data } = await window.axios.post("/dashboard/plan/pay", { plan_id: plan.id, code: quote.coupon?.code ?? null });
+
+            if (data.provider === "free") {
+                setConfirming(null);
+                setPaying(false);
+                setDone({ plan: data.plan, paid_until_label: data.paid_until_label });
+                router.reload({ only: ["shop", "plans", "payments"] });
+                return;
+            }
 
             if (data.provider === "stripe") {
                 // Stripe's own page; it comes back with ?session_id=… (or without, if cancelled).
@@ -89,6 +241,8 @@ export function usePlanCheckout({ shopName }) {
                 return;
             }
 
+            setConfirming(null);
+            setPaying(false);
             const Razorpay = await loadRazorpay();
             new Razorpay({
                 key: data.key_id,
@@ -103,10 +257,15 @@ export function usePlanCheckout({ shopName }) {
                 theme: { color: accentColour() },
                 handler: (response) => confirm({ payment_id: data.payment_id, ...response }, data.plan),
             }).open();
-            setBusyId(null);
         } catch (err) {
+            setPaying(false);
+            if (err.response?.status === 422 && err.response.data.errors?.code) {
+                // The coupon stopped working meanwhile (used up, expired): say so in the box.
+                setCouponError(err.response.data.errors.code[0]);
+                return;
+            }
+            setConfirming(null);
             setError(err.response?.data?.message ?? "Payments aren't available right now. Please try again in a few minutes.");
-            setBusyId(null);
         }
     }
 
@@ -123,6 +282,18 @@ export function usePlanCheckout({ shopName }) {
 
     const dialogs = (
         <>
+            {confirming && (
+                <ConfirmDialog
+                    quote={confirming.quote}
+                    checking={checking}
+                    couponError={couponError}
+                    paying={paying}
+                    onApplyCoupon={applyCoupon}
+                    onRemoveCoupon={() => applyCoupon(null)}
+                    onPay={startPayment}
+                    onClose={() => setConfirming(null)}
+                />
+            )}
             {done && (
                 <Modal title={done.pending ? "Payment received?" : "Thank you!"} onClose={() => setDone(null)}>
                     {done.pending ? (

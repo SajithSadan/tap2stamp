@@ -17,6 +17,9 @@ class SubscriptionPayment extends Model
 
     public const RAZORPAY = 'razorpay';
 
+    /** A coupon took the whole price off: nothing was charged, no provider. */
+    public const FREE = 'free';
+
     public const PENDING = 'pending';
 
     public const PAID = 'paid';
@@ -32,6 +35,9 @@ class SubscriptionPayment extends Model
         'provider',
         'currency',
         'amount',
+        'plan_coupon_id',
+        'coupon_code',
+        'list_amount',
         'amount_refunded',
         'status',
         'provider_order_id',
@@ -47,6 +53,7 @@ class SubscriptionPayment extends Model
     {
         return [
             'amount' => 'integer',
+            'list_amount' => 'integer',
             'amount_refunded' => 'integer',
             'period_starts_at' => 'datetime',
             'period_ends_at' => 'datetime',
@@ -66,6 +73,11 @@ class SubscriptionPayment extends Model
         return $this->belongsTo(Plan::class);
     }
 
+    public function planCoupon(): BelongsTo
+    {
+        return $this->belongsTo(PlanCoupon::class);
+    }
+
     /**
      * One row of a shop's payment history (owner's Billing & plan): when, which
      * plan, how much, how, the year it covers and the provider's reference
@@ -82,9 +94,17 @@ class SubscriptionPayment extends Model
             'paid_label' => $day($this->paid_at),
             'plan' => $this->plan_name,
             'amount' => $this->amountLabel(),
-            'method' => $this->provider === self::STRIPE ? 'Card (Stripe)' : 'Razorpay',
+            'method' => match ($this->provider) {
+                self::STRIPE => 'Card (Stripe)',
+                self::FREE => 'Free with coupon',
+                default => 'Razorpay',
+            },
             'period_label' => $this->period_starts_at ? $day($this->period_starts_at).' - '.$day($this->period_ends_at) : null,
             'reference' => $this->provider_payment_id,
+            // "Coupon WELCOME · ₹1,000 off"; null = paid in full.
+            'coupon_label' => $this->coupon_code
+                ? "Coupon {$this->coupon_code}".($this->list_amount > $this->amount ? ' · '.$this->amountLabel($this->list_amount - $this->amount).' off' : '')
+                : null,
             // "Refunded ₹4,999" (all of it: the year was taken back) or a part of it; null = none.
             'refund_label' => $this->amount_refunded > 0
                 ? ($this->status === self::REFUNDED ? 'Refunded' : 'Partly refunded').' '.$this->amountLabel($this->amount_refunded)

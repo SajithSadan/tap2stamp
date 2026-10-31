@@ -45,7 +45,7 @@ class ShopPayments
                 'kind' => self::PLAN,
                 'what' => "{$payment->plan_name} plan",
                 'paid_at' => $payment->paid_at,
-                ...$this->refundable($payment->status === SubscriptionPayment::PAID, $payment->amount, $payment->amount_refunded, $payment->currency),
+                ...$this->refundable($payment->status === SubscriptionPayment::PAID && $payment->provider !== SubscriptionPayment::FREE, $payment->amount, $payment->amount_refunded, $payment->currency),
             ]);
 
         $orders = $shop->orders()->where('status', OrderStatus::Paid)->get()
@@ -89,7 +89,7 @@ class ShopPayments
         $currency = $plan ? $payment->currency : 'GBP';
         $total = $plan ? $payment->amount : $payment->total_pence;
         $already = $plan ? $payment->amount_refunded : $payment->amount_refunded_pence;
-        $online = $plan ? $payment->status === SubscriptionPayment::PAID : $payment->isPaid() && $payment->payment_method === PaymentMethod::Stripe && filled($payment->stripe_payment_intent);
+        $online = $plan ? $payment->status === SubscriptionPayment::PAID && $payment->provider !== SubscriptionPayment::FREE : $payment->isPaid() && $payment->payment_method === PaymentMethod::Stripe && filled($payment->stripe_payment_intent);
         $minor = Currencies::toMinor($amount, $currency);
 
         if (! $online) {

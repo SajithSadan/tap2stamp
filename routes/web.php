@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\LegalPageController;
 use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PlanController;
+use App\Http\Controllers\Admin\PlanCouponController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\QrCodeController;
 use App\Http\Controllers\Admin\QrDesignController;
@@ -263,6 +264,10 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/plans/preview', [PlanController::class, 'preview'])->name('plans.preview');
     // Which countries pay with Stripe (everyone else: Razorpay).
     Route::put('/plans/payments', [PlanController::class, 'updatePayments'])->name('plans.payments');
+    // Coupon codes for plan payments (separate from the counter display's coupons below).
+    Route::get('/plans/coupons', [PlanCouponController::class, 'index'])->name('plans.coupons.index');
+    Route::post('/plans/coupons', [PlanCouponController::class, 'store'])->name('plans.coupons.store');
+    Route::put('/plans/coupons/{planCoupon}', [PlanCouponController::class, 'update'])->name('plans.coupons.update');
     Route::get('/coupons', [CouponController::class, 'index'])->name('coupons.index');
     Route::post('/coupons', [CouponController::class, 'store'])->name('coupons.store');
     Route::put('/coupons/{coupon}', [CouponController::class, 'update'])->name('coupons.update');
@@ -346,6 +351,8 @@ Route::middleware(['auth', 'role:owner', 'shop.ready', 'nav.access'])->prefix('d
     // The shop's plan, trial / paid year, and the plans to upgrade to.
     Route::get('/plan', [DashboardController::class, 'plan'])->name('plan');
     // Pay for a year of a plan: Stripe's card form (UK) / Razorpay (elsewhere).
+    // The confirmation box: price, period and a coupon code (throttled, so codes can't be guessed).
+    Route::post('/plan/quote', [PlanPaymentController::class, 'quote'])->middleware('throttle:10,1')->name('plan.quote');
     Route::post('/plan/pay', [PlanPaymentController::class, 'start'])->middleware('throttle:10,1')->name('plan.pay');
     Route::post('/plan/pay/confirm', [PlanPaymentController::class, 'confirm'])->middleware('throttle:30,1')->name('plan.pay.confirm');
     Route::get('/qr-codes', [DashboardController::class, 'qrCodes'])->name('qr-codes');
