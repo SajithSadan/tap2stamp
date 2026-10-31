@@ -1,17 +1,16 @@
 import { router } from "@inertiajs/react";
-import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuCircleCheck, LuLock, LuX } from "react-icons/lu";
-import { FieldError, primaryButton } from "@/Components/Dashboard/Ui";
+import { LuCircleCheck, LuX } from "react-icons/lu";
+import { primaryButton } from "@/Components/Dashboard/Ui";
 
 /**
  * Paying for a year of a plan (Billing & plan). The server picks the window
- * by the shop's country (App\Support\PaymentProviders): Stripe's card form in
- * our own dialog, or Razorpay's payment window. Either way the browser only
- * reports back - the server checks with Stripe / Razorpay before the plan
- * starts (PlanPaymentController::confirm, plus the webhooks).
+ * by the shop's country (App\Support\PaymentProviders): Stripe's hosted
+ * Checkout page (back here with ?session_id=…), or Razorpay's payment window.
+ * Either way the browser only reports back - the server checks with Stripe /
+ * Razorpay before the plan starts (PlanPaymentController::confirm, plus the
+ * webhooks).
  *
  *   const { pay, busyId, dialogs } = usePlanCheckout();
  *   <button onClick={() => pay(plan)} />   ...   {dialogs}
@@ -60,82 +59,15 @@ function Modal({ title, onClose, children }) {
     );
 }
 
-/** The Stripe card form (Payment Element) for one PaymentIntent. */
-function StripeForm({ session, onPaid }) {
-    const stripe = useStripe();
-    const elements = useElements();
-    const [error, setError] = useState(null);
-    const [paying, setPaying] = useState(false);
-
-    async function submit(event) {
-        event.preventDefault();
-        if (!stripe || !elements) return;
-        setPaying(true);
-        setError(null);
-
-        const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
-            elements,
-            // Only methods that leave the page (some bank checks) come back here.
-            confirmParams: { return_url: `${window.location.origin}/dashboard/plan?paid=${session.payment_id}` },
-            redirect: "if_required",
-        });
-
-        if (stripeError) {
-            setError(stripeError.message ?? "The payment didn't go through.");
-            setPaying(false);
-            return;
-        }
-
-        if (["succeeded", "processing"].includes(paymentIntent?.status)) {
-            await onPaid(session.payment_id);
-        }
-        setPaying(false);
-    }
-
-    return (
-        <form onSubmit={submit} noValidate>
-            <PaymentElement options={{ layout: "tabs" }} />
-            <FieldError message={error} />
-            <button type="submit" disabled={!stripe || paying} className={`${primaryButton} mt-5 w-full`}>
-                <LuLock className="h-4 w-4" /> {paying ? "Paying…" : `Pay ${session.amount_label}`}
-            </button>
-        </form>
-    );
-}
-
-function StripeDialog({ session, onClose, onPaid }) {
-    const stripePromise = useMemo(() => loadStripe(session.publishable_key), [session.publishable_key]);
-    const options = {
-        clientSecret: session.client_secret,
-        appearance: { theme: "stripe", variables: { colorPrimary: accentColour(), borderRadius: "12px" } },
-    };
-
-    return (
-        <Modal title={`Pay for ${session.plan}`} onClose={onClose}>
-            <p className="-mt-2 mb-4 text-sm text-brand-muted">
-                <strong className="text-brand-text">{session.amount_label}</strong> for one year · {session.period_label}
-            </p>
-            <Elements stripe={stripePromise} options={options}>
-                <StripeForm session={session} onPaid={onPaid} />
-            </Elements>
-            <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-brand-muted">
-                <LuLock className="h-3.5 w-3.5" /> Secure payment by Stripe
-            </p>
-        </Modal>
-    );
-}
-
 export function usePlanCheckout({ shopName }) {
     const [busyId, setBusyId] = useState(null);
-    const [stripeSession, setStripeSession] = useState(null);
     const [done, setDone] = useState(null); // {plan, paid_until_label} | {pending: message}
     const [error, setError] = useState(null);
 
-    /** Ask the server whether payment {id} really went through (it checks with the provider). */
-    async function confirm(paymentId, plan, extra = {}) {
+    /** Ask the server whether the payment really went through (it checks with the provider). */
+    async function confirm(body, plan) {
         try {
-            const { data } = await window.axios.post("/dashboard/plan/pay/confirm", { payment_id: paymentId, ...extra });
-            setStripeSession(null);
+            const { data } = await window.axios.post("/dashboard/plan/pay/confirm", body);
             setDone(data.status === "paid" ? { plan, paid_until_label: data.paid_until_label } : { pending: data.message });
             router.reload({ only: ["shop", "plans"] });
         } catch {
@@ -151,51 +83,46 @@ export function usePlanCheckout({ shopName }) {
             const { data } = await window.axios.post("/dashboard/plan/pay", { plan_id: plan.id });
 
             if (data.provider === "stripe") {
-                setStripeSession(data);
-            } else {
-                const Razorpay = await loadRazorpay();
-                new Razorpay({
-                    key: data.key_id,
-                    order_id: data.order_id,
-                    amount: data.amount,
-                    currency: data.currency,
-                    name: "Tada Tap",
-                    description: `${data.plan} plan · 1 year`,
-                    image: `${window.location.origin}/images/favicon-512.png`,
-                    prefill: data.prefill,
-                    notes: { shop: shopName },
-                    theme: { color: accentColour() },
-                    handler: (response) => confirm(data.payment_id, data.plan, response),
-                }).open();
+                // Stripe's own page; it comes back with ?session_id=… (or without, if cancelled).
+                // The button stays busy while the browser leaves.
+                window.location.assign(data.url);
+                return;
             }
+
+            const Razorpay = await loadRazorpay();
+            new Razorpay({
+                key: data.key_id,
+                order_id: data.order_id,
+                amount: data.amount,
+                currency: data.currency,
+                name: "Tada Tap",
+                description: `${data.plan} plan · 1 year`,
+                image: `${window.location.origin}/images/favicon-512.png`,
+                prefill: data.prefill,
+                notes: { shop: shopName },
+                theme: { color: accentColour() },
+                handler: (response) => confirm({ payment_id: data.payment_id, ...response }, data.plan),
+            }).open();
+            setBusyId(null);
         } catch (err) {
             setError(err.response?.data?.message ?? "Payments aren't available right now. Please try again in a few minutes.");
-        } finally {
             setBusyId(null);
         }
     }
 
-    // Back from a payment method that left the page (Stripe return_url): check it once.
+    // Back from Stripe's Checkout page: check that session once.
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const paid = params.get("paid");
-        if (!paid) return;
-        params.delete("paid");
-        ["payment_intent", "payment_intent_client_secret", "redirect_status"].forEach((key) => params.delete(key));
+        const sessionId = params.get("session_id");
+        if (!sessionId) return;
+        params.delete("session_id");
         window.history.replaceState(window.history.state, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
-        confirm(Number(paid), null);
+        confirm({ session_id: sessionId }, null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const dialogs = (
         <>
-            {stripeSession && (
-                <StripeDialog
-                    session={stripeSession}
-                    onClose={() => setStripeSession(null)}
-                    onPaid={(paymentId) => confirm(paymentId, stripeSession.plan)}
-                />
-            )}
             {done && (
                 <Modal title={done.pending ? "Payment received?" : "Thank you!"} onClose={() => setDone(null)}>
                     {done.pending ? (

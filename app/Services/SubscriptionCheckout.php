@@ -15,16 +15,21 @@ use RuntimeException;
 
 /**
  * An owner paying for a year of a plan, in the shop's own currency:
- * Stripe's card form for the Stripe countries (PaymentProviders), Razorpay's
- * payment window everywhere else.
+ * Stripe's hosted Checkout page for the Stripe countries (PaymentProviders),
+ * Razorpay's payment window everywhere else.
  *
- * start() creates the provider's PaymentIntent / order and a pending
- * SubscriptionPayment; the browser opens the payment window with it. Paid is
- * only ever decided here, from the provider itself: Stripe's PaymentIntent
- * status, Razorpay's signed answer checked against the payment fetched from
- * Razorpay (captured), or either provider's signed webhook - whichever comes
- * first. markPaid() is idempotent. The webhooks also bring refunds (a full
- * one takes the paid year back) and chargebacks (flagged for the admin).
+ * start() creates the provider's Checkout Session / order and a pending
+ * SubscriptionPayment; the browser goes to Stripe's page / opens Razorpay's
+ * window with it. Paid is only ever decided here, from the provider itself:
+ * the Checkout Session fetched from Stripe, Razorpay's signed answer checked
+ * against the payment fetched from Razorpay (captured), or either provider's
+ * signed webhook - whichever comes first. markPaid() is idempotent. The
+ * webhooks also bring refunds (a full one takes the paid year back) and
+ * chargebacks (flagged for the admin).
+ *
+ * Stripe rows: provider_order_id = the Checkout Session (cs_), and once paid
+ * provider_payment_id = its PaymentIntent (pi_), which refunds and disputes
+ * name. Rows from the old card form have the PaymentIntent as the order id.
  */
 class SubscriptionCheckout
 {
@@ -60,7 +65,7 @@ class SubscriptionCheckout
     public function available(Shop $shop): bool
     {
         return $this->providerFor($shop) === SubscriptionPayment::STRIPE
-            ? $this->stripe->elementsConfigured()
+            ? $this->stripe->configured()
             : $this->razorpay->configured();
     }
 
@@ -90,17 +95,29 @@ class SubscriptionCheckout
         $amount = Currencies::toMinor((string) $plan->prices[$currency], $currency);
         $provider = $this->providerFor($shop);
         $description = "Tada Tap {$plan->name} plan - 1 year - {$shop->name}";
+        // The year this payment would cover, so the payment page can say so.
+        $period = $shop->paidYearStart()->timezone('Europe/London')->format('j M Y').' - '.$shop->paidYearEnd()->format('j M Y');
 
         if ($provider === SubscriptionPayment::STRIPE) {
-            $intent = $this->stripe->createPaymentIntent([
-                'amount' => $amount,
-                'currency' => strtolower($currency),
-                'description' => $description,
-                'receipt_email' => $owner->email,
-                'automatic_payment_methods' => ['enabled' => true],
-                'metadata' => ['type' => 'subscription', 'shop_id' => $shop->id, 'plan_id' => $plan->id],
+            $metadata = ['type' => 'subscription', 'shop_id' => $shop->id, 'plan_id' => $plan->id];
+            $session = $this->stripe->createCheckoutSession([
+                'mode' => 'payment',
+                'line_items' => [[
+                    'quantity' => 1,
+                    'price_data' => [
+                        'currency' => strtolower($currency),
+                        'unit_amount' => $amount,
+                        'product_data' => ['name' => "Tada Tap {$plan->name} plan - 1 year", 'description' => $period],
+                    ],
+                ]],
+                'customer_email' => $owner->email,
+                'metadata' => $metadata,
+                'payment_intent_data' => ['description' => $description, 'metadata' => $metadata],
+                // Back on Billing & plan, which asks the server to check the session.
+                'success_url' => route('dashboard.plan').'?session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url' => route('dashboard.plan'),
             ]);
-            $orderId = $intent['id'];
+            $orderId = $session['id'];
         } else {
             $order = $this->razorpay->createOrder($amount, $currency, 'plan-'.$shop->id.'-'.now()->timestamp, [
                 'shop_id' => (string) $shop->id,
@@ -125,12 +142,11 @@ class SubscriptionCheckout
             'payment_id' => $payment->id,
             'plan' => $plan->name,
             'amount_label' => $payment->amountLabel(),
-            // The year this payment would cover, so the window can say so.
-            'period_label' => $shop->paidYearStart()->timezone('Europe/London')->format('j M Y').' - '.$shop->paidYearEnd()->format('j M Y'),
+            'period_label' => $period,
         ];
 
         return $provider === SubscriptionPayment::STRIPE
-            ? [...$common, 'publishable_key' => $this->stripe->publishableKey(), 'client_secret' => $intent['client_secret']]
+            ? [...$common, 'url' => $session['url']]
             : [...$common,
                 'key_id' => $this->razorpay->keyId(),
                 'order_id' => $orderId,
@@ -150,7 +166,7 @@ class SubscriptionCheckout
      * The browser says the window finished: check with the provider itself.
      * Razorpay: the signed {order, payment id}, then the payment fetched from
      * Razorpay's API (captured, same order / amount / currency); Stripe: the
-     * PaymentIntent fetched from Stripe. True when the payment is paid.
+     * Checkout Session fetched from Stripe. True when the payment is paid.
      */
     public function confirm(SubscriptionPayment $payment, array $razorpay = []): bool
     {
@@ -167,19 +183,23 @@ class SubscriptionCheckout
             return $signed && $this->settleRazorpay($payment, $this->razorpay->fetchPayment($paymentId)) === self::MARKED_PAID;
         }
 
-        return $this->stripeIntentPaid($payment, $this->stripe->retrievePaymentIntent($payment->provider_order_id)) === self::MARKED_PAID;
+        return $this->stripeSessionPaid($payment, $this->stripe->retrieveCheckoutSession($payment->provider_order_id)) === self::MARKED_PAID;
     }
 
-    /** Stripe webhook payment_intent.succeeded (only our plan payments are found). What it did, for the log. */
-    public function confirmStripeIntent(array $intent): string
+    /**
+     * Stripe webhook checkout.session.completed / async_payment_succeeded
+     * (only our plan payments are found; NOT_OURS = maybe a counter display
+     * order). What it did, for the log.
+     */
+    public function confirmStripeSession(array $session): string
     {
-        $payment = $this->findPayment(SubscriptionPayment::STRIPE, $intent['id'] ?? null);
+        $payment = $this->findPayment(SubscriptionPayment::STRIPE, $session['id'] ?? null);
 
-        return $payment ? $this->stripeIntentPaid($payment, [
-            'status' => $intent['status'] ?? null,
-            'amount' => (int) ($intent['amount'] ?? 0),
-            'currency' => strtoupper((string) ($intent['currency'] ?? '')),
-            'latest_charge' => is_string($intent['latest_charge'] ?? null) ? $intent['latest_charge'] : null,
+        return $payment ? $this->stripeSessionPaid($payment, [
+            'payment_status' => $session['payment_status'] ?? null,
+            'payment_intent' => is_string($session['payment_intent'] ?? null) ? $session['payment_intent'] : null,
+            'amount_total' => (int) ($session['amount_total'] ?? 0),
+            'currency' => strtoupper((string) ($session['currency'] ?? '')),
         ]) : self::NOT_OURS;
     }
 
@@ -268,11 +288,17 @@ class SubscriptionCheckout
         return in_array($this->recordPaid($payment, $providerPaymentId), [self::MARKED_PAID, self::ALREADY_PAID], true);
     }
 
+    /** By the provider's order id - for Stripe also by the PaymentIntent (refunds and disputes name that). */
     private function findPayment(string $provider, ?string $orderId): ?SubscriptionPayment
     {
-        return filled($orderId)
-            ? SubscriptionPayment::where('provider', $provider)->where('provider_order_id', $orderId)->first()
-            : null;
+        if (blank($orderId)) {
+            return null;
+        }
+
+        return SubscriptionPayment::where('provider', $provider)
+            ->where(fn ($query) => $query->where('provider_order_id', $orderId)
+                ->when($provider === SubscriptionPayment::STRIPE, fn ($query) => $query->orWhere('provider_payment_id', $orderId)))
+            ->first();
     }
 
     /**
@@ -304,13 +330,15 @@ class SubscriptionCheckout
             : self::NOT_PAID;
     }
 
-    private function stripeIntentPaid(SubscriptionPayment $payment, array $intent): string
+    /** Paid, for this amount and currency - then its PaymentIntent is kept for refunds. */
+    private function stripeSessionPaid(SubscriptionPayment $payment, array $session): string
     {
-        $paid = ($intent['status'] ?? null) === 'succeeded'
-            && (int) ($intent['amount'] ?? 0) === $payment->amount
-            && strtoupper((string) ($intent['currency'] ?? '')) === $payment->currency;
+        $paid = ($session['payment_status'] ?? null) === 'paid'
+            && filled($session['payment_intent'] ?? null)
+            && (int) ($session['amount_total'] ?? 0) === $payment->amount
+            && strtoupper((string) ($session['currency'] ?? '')) === $payment->currency;
 
-        return $paid ? $this->recordPaid($payment, $intent['latest_charge'] ?? null) : self::NOT_PAID;
+        return $paid ? $this->recordPaid($payment, $session['payment_intent']) : self::NOT_PAID;
     }
 
     private function recordPaid(SubscriptionPayment $payment, ?string $providerPaymentId): string

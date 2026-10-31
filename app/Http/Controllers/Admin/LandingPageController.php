@@ -49,7 +49,7 @@ class LandingPageController extends Controller
             // Payments: which countries use Stripe (the rest Razorpay), and whether each has its keys.
             'payments' => [
                 'stripe_countries' => PaymentProviders::stripeCountries(),
-                'stripe_ready' => $stripe->elementsConfigured(),
+                'stripe_ready' => $stripe->configured(),
                 'razorpay_ready' => $razorpay->configured(),
                 'countries' => Countries::options(),
             ],

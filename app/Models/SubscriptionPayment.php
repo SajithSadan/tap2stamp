@@ -93,6 +93,16 @@ class SubscriptionPayment extends Model
         ];
     }
 
+    /**
+     * A Stripe payment's PaymentIntent (what a refund needs): kept as the
+     * payment id once a Checkout Session is paid; payments from the old card
+     * form have it as the order id.
+     */
+    public function stripeIntentId(): ?string
+    {
+        return str_starts_with((string) $this->provider_order_id, 'pi_') ? $this->provider_order_id : $this->provider_payment_id;
+    }
+
     /** "₹4,999" / "£49.99" - the payment's amount, or $minor in its currency. */
     public function amountLabel(?int $minor = null): string
     {

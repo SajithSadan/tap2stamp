@@ -52,21 +52,18 @@ return [
         'token' => env('IPINFO_TOKEN'),
     ],
 
-    // Stripe Checkout for owners ordering products (the counter display).
-    // Only the secret key is needed - payment happens on Stripe's own page.
-    // The webhook secret comes from the endpoint added in Stripe's dashboard
-    // (or `stripe listen` locally).
-    // Plan payments use Stripe's card form on our page (Elements), which also
-    // needs the publishable key (STRIPE_KEY, pk_...).
+    // Stripe Checkout for owners ordering products (the counter display) and
+    // paying for plans. Only the secret key is needed - payment happens on
+    // Stripe's own page. The webhook secret comes from the endpoint added in
+    // Stripe's dashboard (or `stripe listen` locally).
     'stripe' => [
         'secret' => env('STRIPE_SECRET'),
-        'key' => env('STRIPE_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
     // Razorpay: plan payments outside the Stripe countries (Admin → Landing page →
     // Payments). Key id + secret from Dashboard → API Keys; the webhook secret
-    // from Dashboard → Webhooks ({APP_URL}/razorpay/webhook, events
+    // from Dashboard → Webhooks ({APP_URL}/api/razorpay/webhook, events
     // payment.captured + order.paid).
     'razorpay' => [
         'key_id' => env('RAZORPAY_KEY_ID'),

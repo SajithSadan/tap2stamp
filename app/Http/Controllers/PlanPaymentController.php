@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Plan;
+use App\Models\SubscriptionPayment;
 use App\Services\SubscriptionCheckout;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,7 +12,7 @@ use Throwable;
 
 /**
  * The owner pays for a year of a plan from Billing & plan: start() opens the
- * payment window (Stripe card form / Razorpay), confirm() asks the provider
+ * payment page (Stripe Checkout / Razorpay's window), confirm() asks the provider
  * whether it really went through. Always the signed-in owner's own shop.
  */
 class PlanPaymentController extends Controller
@@ -43,13 +44,18 @@ class PlanPaymentController extends Controller
     public function confirm(Request $request, SubscriptionCheckout $checkout): JsonResponse
     {
         $input = $request->validate([
-            'payment_id' => ['required', 'integer'],
+            // Razorpay's window answers with our payment id; Stripe's page comes back with its session id.
+            'payment_id' => ['required_without:session_id', 'nullable', 'integer'],
+            'session_id' => ['required_without:payment_id', 'nullable', 'string', 'max:255'],
             'razorpay_payment_id' => ['nullable', 'string', 'max:100'],
             'razorpay_order_id' => ['nullable', 'string', 'max:100'],
             'razorpay_signature' => ['nullable', 'string', 'max:200'],
         ]);
         // Only this owner's shop's payments can be found.
-        $payment = $request->user()->shop->subscriptionPayments()->findOrFail($input['payment_id']);
+        $payments = $request->user()->shop->subscriptionPayments();
+        $payment = filled($input['payment_id'] ?? null)
+            ? $payments->findOrFail($input['payment_id'])
+            : $payments->where('provider', SubscriptionPayment::STRIPE)->where('provider_order_id', $input['session_id'])->firstOrFail();
 
         try {
             $paid = $checkout->confirm($payment, $input);

@@ -107,7 +107,7 @@ class ShopPayments
             if ($plan && $payment->provider === SubscriptionPayment::RAZORPAY) {
                 $done = $this->razorpay->refundPayment((string) $payment->provider_payment_id, $minor, $notes)['status'] === 'processed';
             } else {
-                $intent = $plan ? $payment->provider_order_id : $payment->stripe_payment_intent;
+                $intent = $plan ? $payment->stripeIntentId() : $payment->stripe_payment_intent;
                 $done = $this->stripe->refund((string) $intent, $minor, $notes)['status'] === 'succeeded';
             }
         } catch (RuntimeException|ApiErrorException $e) {

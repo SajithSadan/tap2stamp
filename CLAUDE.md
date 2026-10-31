@@ -1501,35 +1501,41 @@ and there's only one copy. There is no separate Plans page any more.
   Card (Stripe) / Razorpay and the provider's payment id. Unfinished attempts aren't listed;
   nothing shows before the first payment.
 
-## Plan payments (Stripe card form / Razorpay, by country)
+## Plan payments (Stripe Checkout / Razorpay, by country)
 
 Owners pay for a year of a plan on Billing & plan, in the shop's currency
 (`Currencies::forCountry`, GBP if none; amounts in the smallest unit via `Currencies::toMinor`).
 
 - **Which window**: `App\Support\PaymentProviders` - the **Stripe countries** (Admin → Landing page →
-  Plan billing → Payments, `Setting::PAYMENT_COUNTRIES` = `{stripe: [alpha-2]}`, default `['GB']`) get Stripe's
-  **Payment Element** in our own dialog (`@stripe/react-stripe-js`); **every other country gets
-  Razorpay's window** (`checkout.js`, loaded on the first Pay). Adding a country to the list moves
-  it to Stripe.
+  Plan billing → Payments, `Setting::PAYMENT_COUNTRIES` = `{stripe: [alpha-2]}`, default `['GB']`) go
+  to **Stripe's hosted Checkout page** (same as counter display orders; no Stripe JS, no
+  publishable key); **every other country gets Razorpay's window** (`checkout.js`, loaded on the
+  first Pay). Adding a country to the list moves it to Stripe.
 - **Payable** (`SubscriptionCheckout::payable()`): the plan is offered, that provider has keys
-  (`STRIPE_SECRET` + `STRIPE_KEY`; `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET`) and the plan has a
+  (`STRIPE_SECRET`; `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET`) and the plan has a
   price in the shop's currency. Otherwise its Upgrade button is disabled.
 - **Flow**: `POST /dashboard/plan/pay {plan_id}` (`PlanPaymentController::start`) creates the
-  PaymentIntent / Razorpay order (`StripeGateway`, `RazorpayGateway` - plain HTTP, the key secret
-  never reaches the browser) + a pending `subscription_payments` row → the window opens
-  (`Components/Dashboard/PlanCheckout.jsx`, `usePlanCheckout`) → `POST /dashboard/plan/pay/confirm
-  {payment_id, razorpay_*}`: the server checks **with the provider** (PaymentIntent status +
-  amount + currency; Razorpay HMAC `order|payment` with the key secret). Webhooks confirm too:
-  Stripe `payment_intent.succeeded` (`/api/stripe/webhook`) and `/api/razorpay/webhook` (`routes/api.php`)
-  (`X-Razorpay-Signature` = HMAC of the body with `RAZORPAY_WEBHOOK_SECRET`; `payment.captured` /
-  `order.paid`, amount checked). Stripe methods that leave the page come back to
-  `/dashboard/plan?paid={id}`, which confirms once.
+  Checkout Session / Razorpay order (`StripeGateway`, `RazorpayGateway` - plain HTTP, the key secret
+  never reaches the browser) + a pending `subscription_payments` row → the browser goes to
+  Stripe's `url` / opens Razorpay's window (`Components/Dashboard/PlanCheckout.jsx`,
+  `usePlanCheckout`) → `POST /dashboard/plan/pay/confirm` with `{payment_id, razorpay_*}`, or
+  `{session_id}` when Stripe sends the owner back to `/dashboard/plan?session_id=…` (confirmed once,
+  then dropped from the address; cancel = back to the page, nothing changes). The server checks
+  **with the provider** (the session fetched: `paid` + amount + currency; Razorpay HMAC
+  `order|payment` with the key secret). Webhooks confirm too: Stripe `checkout.session.completed` /
+  `async_payment_succeeded` (`/api/stripe/webhook`; plan payment first, else a counter display
+  order) and `/api/razorpay/webhook` (`routes/api.php`) (`X-Razorpay-Signature` = HMAC of the body
+  with `RAZORPAY_WEBHOOK_SECRET`; `payment.captured` / `order.paid`, amount checked).
+- **Stripe ids**: `provider_order_id` = the Checkout Session (`cs_`); once paid
+  `provider_payment_id` = its PaymentIntent (`pi_`), which refunds and disputes name
+  (`findPayment()` matches either; `SubscriptionPayment::stripeIntentId()` for a refund - rows from
+  the old card form have the `pi_` as the order id).
 - **The browser check is verified with the provider**: Razorpay's signed answer, then the
   payment **fetched from Razorpay's API** (same order / amount / currency, `captured`; an
   `authorized` one is captured first - `RazorpayGateway::fetchPayment()` / `capturePayment()`),
-  Stripe's PaymentIntent fetched from Stripe. **Webhooks are the source of truth** for what
+  Stripe's Checkout Session fetched from Stripe. **Webhooks are the source of truth** for what
   happens after: Razorpay `payment.authorized` / `payment.captured` / `order.paid`,
-  `refund.processed`, `payment.dispute.created`; Stripe `payment_intent.succeeded`,
+  `refund.processed`, `payment.dispute.created`; Stripe `checkout.session.*`,
   `charge.refunded`, `charge.dispute.created`. Each logs one `Razorpay webhook` /
   `Stripe webhook` line with its result (`SubscriptionCheckout::MARKED_PAID` …).
 - **Refunds / chargebacks** (`recordRefund()` / `recordDispute()`, idempotent): a **full**

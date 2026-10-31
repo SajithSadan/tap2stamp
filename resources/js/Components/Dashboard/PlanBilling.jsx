@@ -23,7 +23,7 @@ function KeyStatus({ ready, env }) {
 
 /**
  * Which payment window each country's owners pay in: the Stripe countries
- * (UK to start) get Stripe's card form, every other country Razorpay.
+ * (UK to start) get Stripe's Checkout page, every other country Razorpay.
  * Adding a country here moves it to Stripe.
  */
 export function PaymentsPanel({ payments }) {
@@ -49,8 +49,8 @@ export function PaymentsPanel({ payments }) {
                 <div>
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-semibold text-brand-text">Stripe</span>
-                        <span className="text-sm text-brand-muted">card form on our page</span>
-                        <KeyStatus ready={payments.stripe_ready} env="STRIPE_SECRET and STRIPE_KEY" />
+                        <span className="text-sm text-brand-muted">Stripe's checkout page</span>
+                        <KeyStatus ready={payments.stripe_ready} env="STRIPE_SECRET" />
                     </div>
                     <ul className="mt-3 flex flex-wrap gap-1.5">
                         {countries.map((code) => (

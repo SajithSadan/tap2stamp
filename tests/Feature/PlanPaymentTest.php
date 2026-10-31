@@ -38,16 +38,33 @@ function payingOwner(string $country = 'GB'): array
     return [$owner, $shop];
 }
 
-function stripeReady(array $intent = []): void
+/** Stripe Checkout session cs_123 for the Growth plan (£49.50); $session overrides what Stripe answers. */
+function stripeReady(array $session = []): void
 {
-    test()->mock(StripeGateway::class, function (MockInterface $mock) use ($intent) {
-        $mock->shouldReceive('elementsConfigured')->andReturn(true);
-        $mock->shouldReceive('publishableKey')->andReturn('pk_test_123');
-        $mock->shouldReceive('createPaymentIntent')->andReturn(['id' => 'pi_123', 'client_secret' => 'pi_123_secret']);
-        $mock->shouldReceive('retrievePaymentIntent')->with('pi_123')->andReturn([
-            'id' => 'pi_123', 'status' => 'succeeded', 'amount' => 4950, 'currency' => 'GBP', 'latest_charge' => 'ch_1', ...$intent,
+    test()->mock(StripeGateway::class, function (MockInterface $mock) use ($session) {
+        $mock->shouldReceive('configured')->andReturn(true);
+        $mock->shouldReceive('createCheckoutSession')
+            ->withArgs(fn (array $p) => $p['mode'] === 'payment'
+                && $p['line_items'][0]['price_data']['unit_amount'] === 4950
+                && $p['line_items'][0]['price_data']['currency'] === 'gbp'
+                && str_contains($p['success_url'], '/dashboard/plan?session_id={CHECKOUT_SESSION_ID}'))
+            ->andReturn(['id' => 'cs_123', 'url' => 'https://checkout.stripe.com/c/pay/cs_123']);
+        $mock->shouldReceive('retrieveCheckoutSession')->with('cs_123')->andReturn([
+            'id' => 'cs_123', 'payment_status' => 'paid', 'payment_intent' => 'pi_123', 'amount_total' => 4950, 'currency' => 'GBP', ...$session,
         ]);
     });
+}
+
+/** Sends a Stripe webhook signed with whsec_plan (the real gateway checks it). */
+function stripeWebhook(string $type, array $object): TestResponse
+{
+    $payload = json_encode(['id' => 'evt_'.$type, 'object' => 'event', 'type' => $type, 'data' => ['object' => $object]]);
+    $time = time();
+
+    return test()->call('POST', '/api/stripe/webhook', [], [], [], [
+        'HTTP_STRIPE_SIGNATURE' => "t={$time},v1=".hash_hmac('sha256', "{$time}.{$payload}", 'whsec_plan'),
+        'CONTENT_TYPE' => 'application/json',
+    ], $payload);
 }
 
 function fakeRazorpayOrder(): void
@@ -138,7 +155,7 @@ test('without the keys a plan is not payable here (the WhatsApp button stays)', 
     $this->postJson('/dashboard/plan/pay', ['plan_id' => growth()->id])->assertNotFound();
 });
 
-test('a UK owner pays by card: the plan starts when the free trial ends', function () {
+test("a UK owner pays on Stripe's Checkout page: the plan starts when the free trial ends", function () {
     stripeReady();
     [$owner, $shop] = payingOwner('GB');
 
@@ -149,14 +166,14 @@ test('a UK owner pays by card: the plan starts when the free trial ends', functi
 
     $start = $this->postJson('/dashboard/plan/pay', ['plan_id' => growth()->id])->assertOk()
         ->assertJsonPath('provider', 'stripe')
-        ->assertJsonPath('client_secret', 'pi_123_secret')
-        ->assertJsonPath('publishable_key', 'pk_test_123')
+        ->assertJsonPath('url', 'https://checkout.stripe.com/c/pay/cs_123')
         ->assertJsonPath('amount_label', '£49.50');
 
     $payment = SubscriptionPayment::find($start->json('payment_id'));
-    expect($payment)->status->toBe('pending')->amount->toBe(4950)->currency->toBe('GBP');
+    expect($payment)->status->toBe('pending')->amount->toBe(4950)->currency->toBe('GBP')->provider_order_id->toBe('cs_123');
 
-    $this->postJson('/dashboard/plan/pay/confirm', ['payment_id' => $payment->id])->assertOk()
+    // Back from Stripe with ?session_id=cs_123.
+    $this->postJson('/dashboard/plan/pay/confirm', ['session_id' => 'cs_123'])->assertOk()
         ->assertJsonPath('status', 'paid')
         ->assertJsonPath('paid_until_label', '15 Nov 2027');
 
@@ -164,17 +181,48 @@ test('a UK owner pays by card: the plan starts when the free trial ends', functi
     expect($shop->plan_id)->toBe(growth()->id)
         ->and($shop->crm_stage)->toBe('paid')
         ->and($shop->subscriptionStatus())->toBe('active')
-        ->and($payment->fresh())->status->toBe('paid')->provider_payment_id->toBe('ch_1')
+        ->and($payment->fresh())->status->toBe('paid')->provider_payment_id->toBe('pi_123')
+        ->and($payment->fresh()->stripeIntentId())->toBe('pi_123')
         ->and($payment->fresh()->period_starts_at->format('Y-m-d'))->toBe('2026-11-15');
 });
 
-test('a Stripe payment that did not go through, or for another amount, does not start the plan', function () {
-    stripeReady(['status' => 'requires_payment_method']);
+test('a Stripe session that is not paid, or for another amount or currency, does not start the plan', function (array $session) {
+    stripeReady($session);
     [$owner, $shop] = payingOwner('GB');
-    $id = $this->actingAs($owner)->postJson('/dashboard/plan/pay', ['plan_id' => growth()->id])->json('payment_id');
+    $this->actingAs($owner)->postJson('/dashboard/plan/pay', ['plan_id' => growth()->id])->assertOk();
 
-    $this->postJson('/dashboard/plan/pay/confirm', ['payment_id' => $id])->assertStatus(202)->assertJsonPath('status', 'pending');
+    $this->postJson('/dashboard/plan/pay/confirm', ['session_id' => 'cs_123'])->assertStatus(202)->assertJsonPath('status', 'pending');
     expect($shop->fresh()->subscription_ends_at)->toBeNull();
+})->with([
+    'unpaid' => [['payment_status' => 'unpaid', 'payment_intent' => null]],
+    'another amount' => [['amount_total' => 100]],
+    'another currency' => [['currency' => 'USD']],
+]);
+
+test("an owner can't confirm another shop's Stripe session", function () {
+    stripeReady();
+    [$owner] = payingOwner('GB');
+    $this->actingAs($owner)->postJson('/dashboard/plan/pay', ['plan_id' => growth()->id])->assertOk();
+
+    $other = User::factory()->create(['role' => UserRole::Owner]);
+    Shop::factory()->create(['user_id' => $other->id, 'country' => 'GB']);
+
+    $this->actingAs($other)->postJson('/dashboard/plan/pay/confirm', ['session_id' => 'cs_123'])->assertNotFound();
+});
+
+test("Stripe's checkout.session.completed webhook starts the plan when the owner never came back", function () {
+    stripeReady();
+    config(['services.stripe.webhook_secret' => 'whsec_plan']);
+    [$owner, $shop] = payingOwner('GB');
+    $this->actingAs($owner)->postJson('/dashboard/plan/pay', ['plan_id' => growth()->id])->assertOk();
+    $this->app->instance(StripeGateway::class, new StripeGateway);
+
+    $session = ['id' => 'cs_123', 'object' => 'checkout.session', 'payment_status' => 'paid', 'payment_intent' => 'pi_123', 'amount_total' => 4950, 'currency' => 'gbp'];
+    stripeWebhook('checkout.session.completed', $session)->assertOk();
+    stripeWebhook('checkout.session.completed', $session)->assertOk();
+
+    expect($shop->fresh()->subscription_ends_at->format('Y-m-d'))->toBe('2027-11-15')
+        ->and(SubscriptionPayment::where('status', 'paid')->count())->toBe(1);
 });
 
 test('an Indian owner pays with Razorpay; only a correctly signed answer starts the plan', function () {
@@ -393,25 +441,16 @@ test("Stripe's refund and chargeback webhooks update a card-paid plan", function
     // The webhooks check real signatures: the real gateway from here on.
     $this->app->instance(StripeGateway::class, new StripeGateway);
 
-    $send = function (string $type, array $object) {
-        $payload = json_encode(['id' => 'evt_'.$type, 'object' => 'event', 'type' => $type, 'data' => ['object' => $object]]);
-        $time = time();
-
-        return $this->call('POST', '/api/stripe/webhook', [], [], [], [
-            'HTTP_STRIPE_SIGNATURE' => "t={$time},v1=".hash_hmac('sha256', "{$time}.{$payload}", 'whsec_plan'),
-            'CONTENT_TYPE' => 'application/json',
-        ], $payload);
-    };
-
-    $send('charge.dispute.created', ['id' => 'dp_1', 'object' => 'dispute', 'payment_intent' => 'pi_123'])->assertOk();
+    // They name the PaymentIntent, kept when the session was paid.
+    stripeWebhook('charge.dispute.created', ['id' => 'dp_1', 'object' => 'dispute', 'payment_intent' => 'pi_123'])->assertOk();
     expect(SubscriptionPayment::find($id)->disputed_at)->not->toBeNull();
 
-    $send('charge.refunded', ['id' => 'ch_1', 'object' => 'charge', 'payment_intent' => 'pi_123', 'amount_refunded' => 4950])->assertOk();
+    stripeWebhook('charge.refunded', ['id' => 'ch_1', 'object' => 'charge', 'payment_intent' => 'pi_123', 'amount_refunded' => 4950])->assertOk();
     expect(SubscriptionPayment::find($id)->status)->toBe('refunded')
         ->and($shop->fresh()->subscription_ends_at)->toBeNull();
 
     // Another business's charge (e.g. a counter display order) isn't a plan payment.
-    $send('charge.refunded', ['id' => 'ch_2', 'object' => 'charge', 'payment_intent' => 'pi_other', 'amount_refunded' => 4000])->assertOk();
+    stripeWebhook('charge.refunded', ['id' => 'ch_2', 'object' => 'charge', 'payment_intent' => 'pi_other', 'amount_refunded' => 4000])->assertOk();
 });
 
 test("the admin sees a shop's payments on its Account tab, also while its free trial still runs", function () {
