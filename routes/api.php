@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\PosCustomerController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\RazorpayWebhookController;
 use App\Http\Controllers\StripeWebhookController;
@@ -27,12 +28,29 @@ Route::get('/deploy/clear-cache', [DeployController::class, 'clearCache'])
 Route::get('/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify'])->name('api.whatsapp.webhook.verify');
 Route::post('/whatsapp/webhook', [WhatsAppWebhookController::class, 'receive'])->name('api.whatsapp.webhook');
 
-// Stripe's payment confirmations: counter display orders (Checkout) and plan
-// payments (Payment Element). Trusted only with a valid Stripe-Signature
+// Stripe's payment confirmations: counter display orders and plan payments
+// (both Stripe Checkout). Trusted only with a valid Stripe-Signature
 // (STRIPE_WEBHOOK_SECRET).
 Route::post('/stripe/webhook', StripeWebhookController::class)
     ->middleware('throttle:60,1')
     ->name('api.stripe.webhook');
+
+// The billing desktop app (POS): onboard a restaurant, sign in, then a bearer
+// token (`pos.auth`) for its details and password. Send `Accept: application/json`.
+Route::prefix('pos')->name('api.pos.')->group(function () {
+    Route::post('/register', [PosCustomerController::class, 'register'])->middleware('throttle:pos-register')->name('register');
+    Route::post('/login', [PosCustomerController::class, 'login'])->middleware('throttle:pos-login')->name('login');
+
+    Route::middleware('pos.auth')->group(function () {
+        Route::put('/password', [PosCustomerController::class, 'changePassword'])->middleware('throttle:pos-password')->name('password');
+
+        Route::middleware('throttle:pos')->group(function () {
+            Route::get('/me', [PosCustomerController::class, 'show'])->name('me');
+            Route::put('/me', [PosCustomerController::class, 'update'])->name('me.update');
+            Route::post('/logout', [PosCustomerController::class, 'logout'])->name('logout');
+        });
+    });
+});
 
 // Razorpay's plan payment confirmations: trusted only with a valid
 // X-Razorpay-Signature (RAZORPAY_WEBHOOK_SECRET).

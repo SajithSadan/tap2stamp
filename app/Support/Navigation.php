@@ -50,6 +50,8 @@ class Navigation
             ['route' => 'admin.index', 'label' => 'Shops', 'icon' => 'shops', 'roles' => $admin, 'active' => ['admin.index', 'admin.shops.*']],
             ['route' => 'admin.follow-ups', 'label' => 'Follow-ups', 'icon' => 'follow-ups', 'roles' => $admin, 'active' => ['admin.follow-ups*'], 'mobile' => false],
             ['route' => 'admin.users.index', 'label' => 'Users', 'icon' => 'users', 'roles' => $admin, 'active' => ['admin.users.*'], 'mobile' => false],
+            // Restaurants on the billing desktop app (/api/pos). Desktop sidebar only.
+            ['route' => 'admin.pos-customers.index', 'label' => 'POS customers', 'icon' => 'pos', 'roles' => $admin, 'active' => ['admin.pos-customers.*'], 'mobile' => false],
             // "Products" and "Coupons" are buttons on this page, not their own menu items.
             // Not in the phone tab bar (keeps 2 + Scan + 2); on phones a shop's orders are on its page.
             ['route' => 'admin.orders.index', 'label' => 'Orders', 'icon' => 'orders', 'roles' => $admin, 'active' => ['admin.orders.*', 'admin.products.*', 'admin.coupons.*'], 'mobile' => false],

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AuthenticatePosCustomer;
 use App\Http\Middleware\AuthenticateStaffDevice;
 use App\Http\Middleware\EnsureNavigationAccess;
 use App\Http\Middleware\EnsureOwnerHasShop;
@@ -49,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'shop.ready' => EnsureOwnerHasShop::class,
             'nav.access' => EnsureNavigationAccess::class,
             'staff.auth' => AuthenticateStaffDevice::class,
+            'pos.auth' => AuthenticatePosCustomer::class,
             'staff.signed-in' => EnsureStaffSignedIn::class,
             'feature' => EnsureShopFeature::class,
             'shop.active' => EnsureShopActive::class,

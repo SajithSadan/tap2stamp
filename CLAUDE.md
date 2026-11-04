@@ -1663,6 +1663,36 @@ Links (shared `legalLinks`, `Components/LegalLinks.jsx`):
 - the sign-up form ("By creating an account you agree to…");
 - the customer card sign-up (privacy) and the owner's order rows (refunds, delivery).
 
+## Billing desktop app accounts (POS, additive - a separate product)
+
+Restaurants using our Electron billing app (`C:\Users\acer\Desktop\projects\billingsoftware`) sign
+up and sign in through `/api/pos` (`routes/api.php`, `Api\PosCustomerController`). Not linked to
+loyalty shops.
+
+- **Table** `pos_customers` (`App\Models\PosCustomer`): restaurant name, contact name, email,
+  phone, address (line 1/2, town, state, postcode, country), `username` (lower-case, unique),
+  `password`, `password_changed_at`, `api_token_hash`, `last_login_at`.
+- **Password**: stored **encrypted** with APP_KEY (Laravel's `encrypted` cast), not hashed, so
+  we can read it back (`$customer->password`) - by the user's choice. **Plain only on the admin
+  page**: Admin → **POS customers** (`/admin/pos-customers`, `Admin\PosCustomerController`,
+  `Pages/Admin/PosCustomers.jsx`, desktop menu) - the grid never carries it; "Show" fetches one
+  (`POST /admin/pos-customers/{posCustomer}/password`, logged `pos.password_viewed`), never in
+  the CSV. **Everywhere else only encrypted**: `toApi()` sends `password_encrypted` (the stored
+  ciphertext). **Changing APP_KEY makes every stored POS password unreadable**
+  (`passwordMatches()` then fails safely).
+- The billing app's integration prompt (fields, rules, endpoints, errors) is
+  `billingsoftware/POS_ACCOUNT_API_PROMPT.txt` (plain text, to copy-paste) - **update it when the API changes**.
+- **API**: `POST register` (details + username + password → `{token, customer}`, 201),
+  `POST login` (`{username, password}` → a new token; replaces the old one, so one signed-in
+  app per restaurant), and with `Authorization: Bearer {token}` (`pos.auth`,
+  `AuthenticatePosCustomer`, sha256 like staff devices): `GET /me`, `PUT /me` (details only),
+  `PUT /password` (`current_password`, `password`, `password_confirmation`), `POST /logout`.
+  Named limiters `pos-register` / `pos-login` / `pos-password` / `pos`. Send `Accept: application/json`.
+- **Activity log**: actor type **`pos`** (`ActivityLogger::posCustomer()`, passed explicitly -
+  `actor()` never finds one): `pos.registered`, `pos.signed_in`, `pos.updated` (before/after),
+  `pos.password_changed` (`['•••', 'changed']` + the IP in the description - never the
+  password), `pos.signed_out`. "POS" role on Admin → Activity.
+
 ## Navigation & page access (one registry)
 
 `App\Support\Navigation::items()` is the **single list of dashboard menu pages and which roles

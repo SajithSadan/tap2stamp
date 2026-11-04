@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PlanController;
 use App\Http\Controllers\Admin\PlanCouponController;
+use App\Http\Controllers\Admin\PosCustomerController as AdminPosCustomerController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\QrCodeController;
 use App\Http\Controllers\Admin\QrDesignController;
@@ -187,6 +188,11 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::get('/', [ShopOwnerController::class, 'index'])->name('index');
     // Every login, incl. owners who never finished shop setup (no shop yet).
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    // Billing desktop app accounts; the password is only shown on request (logged).
+    Route::get('/pos-customers', [AdminPosCustomerController::class, 'index'])->name('pos-customers.index');
+    Route::post('/pos-customers/{posCustomer}/password', [AdminPosCustomerController::class, 'password'])
+        ->middleware('throttle:30,1')
+        ->name('pos-customers.password');
     Route::get('/shops/create', [ShopOwnerController::class, 'create'])->name('shops.create');
     Route::get('/shops/slug', [ShopOwnerController::class, 'slug'])->name('shops.slug');
     Route::post('/shops', [ShopOwnerController::class, 'store'])->name('shops.store');

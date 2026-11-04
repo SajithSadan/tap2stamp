@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\UserRole;
 use App\Models\ActivityLog;
+use App\Models\PosCustomer;
 use App\Models\Shop;
 use App\Models\StaffDevice;
 use App\Models\StaffMember;
@@ -25,7 +26,8 @@ use Throwable;
  */
 class ActivityLogger
 {
-    public const ACTOR_TYPES = ['admin', 'owner', 'staff'];
+    /** pos = a restaurant using the billing desktop app (PosCustomer), passed in explicitly. */
+    public const ACTOR_TYPES = ['admin', 'owner', 'staff', 'pos'];
 
     /**
      * @param  array<string, mixed>|null  $changes  {field: [before, after]} or extra detail
@@ -112,6 +114,19 @@ class ActivityLogger
             // A query, not $user->shop: loading the relation here would cache it
             // (as null, mid sign-up) on the very User the request goes on to use.
             'shop_id' => $user->role === UserRole::Owner ? Shop::where('user_id', $user->id)->value('id') : null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public static function posCustomer(PosCustomer $customer): array
+    {
+        return [
+            'actor_type' => 'pos',
+            'user_id' => null,
+            'staff_member_id' => null,
+            'actor_name' => "{$customer->restaurant_name} ({$customer->username})",
+            'as_owner' => false,
+            'shop_id' => null,
         ];
     }
 

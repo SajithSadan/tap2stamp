@@ -1,6 +1,6 @@
 import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
-import { LuArrowRight, LuShield, LuStore, LuUserCog, LuX } from 'react-icons/lu';
+import { LuArrowRight, LuMonitor, LuShield, LuStore, LuUserCog, LuX } from 'react-icons/lu';
 import AdminLayout from '@/Components/Dashboard/AdminLayout';
 import DataTable from '@/Components/Dashboard/DataTable';
 import { inputClass } from '@/Components/Dashboard/Ui';
@@ -10,6 +10,7 @@ const ROLES = {
     admin: { label: 'Admin', plural: 'Admins', icon: LuShield, tone: 'bg-brand-deep text-white' },
     owner: { label: 'Owner', plural: 'Owners', icon: LuStore, tone: 'bg-brand-accent/15 text-brand-text' },
     staff: { label: 'Staff', plural: 'Staff', icon: LuUserCog, tone: 'bg-sky-500/10 text-sky-700' },
+    pos: { label: 'POS', plural: 'POS customers', icon: LuMonitor, tone: 'bg-amber-500/10 text-amber-800' },
 };
 
 const RANGE_LABELS = { 1: 'Today', 7: '7 days', 30: '30 days', 90: '90 days' };

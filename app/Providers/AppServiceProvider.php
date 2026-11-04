@@ -85,6 +85,16 @@ class AppServiceProvider extends ServiceProvider
 
         // A 4-digit PIN is only 10,000 guesses - cap wrong-PIN attempts per
         // device hard, same per-device keying as staff-scan above.
+        // Billing desktop app (/api/pos): sign-up and sign-in per IP (a
+        // restaurant's PCs share one), password tries and other calls per token.
+        RateLimiter::for('pos-register', fn (Request $request) => Limit::perMinute(5)->by('pos-register:'.$request->ip()));
+        RateLimiter::for('pos-login', fn (Request $request) => [
+            Limit::perMinute(10)->by('pos-login:'.$request->ip()),
+            Limit::perMinute(5)->by('pos-login-user:'.strtolower((string) $request->input('username'))),
+        ]);
+        RateLimiter::for('pos-password', fn (Request $request) => Limit::perMinute(5)->by('pos-password:'.hash('sha256', (string) $request->bearerToken())));
+        RateLimiter::for('pos', fn (Request $request) => Limit::perMinute(60)->by('pos:'.hash('sha256', (string) $request->bearerToken())));
+
         RateLimiter::for('staff-pin', function (Request $request) {
             $token = $request->bearerToken();
 
