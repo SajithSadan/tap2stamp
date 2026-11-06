@@ -193,6 +193,13 @@ Route::middleware(['auth', 'role:admin', 'nav.access'])->prefix('admin')->name('
     Route::post('/pos-customers/{posCustomer}/password', [AdminPosCustomerController::class, 'password'])
         ->middleware('throttle:30,1')
         ->name('pos-customers.password');
+    // The one-time key that activates the billing app on a PC: we read it out to the customer.
+    Route::post('/pos-customers/{posCustomer}/activation-key', [AdminPosCustomerController::class, 'activationKey'])
+        ->middleware('throttle:30,1')
+        ->name('pos-customers.activation-key');
+    Route::post('/pos-customers/{posCustomer}/activation-key/new', [AdminPosCustomerController::class, 'newActivationKey'])
+        ->middleware('throttle:30,1')
+        ->name('pos-customers.activation-key.new');
     Route::get('/shops/create', [ShopOwnerController::class, 'create'])->name('shops.create');
     Route::get('/shops/slug', [ShopOwnerController::class, 'slug'])->name('shops.slug');
     Route::post('/shops', [ShopOwnerController::class, 'store'])->name('shops.store');

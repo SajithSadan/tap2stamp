@@ -93,6 +93,7 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(5)->by('pos-login-user:'.strtolower((string) $request->input('username'))),
         ]);
         RateLimiter::for('pos-password', fn (Request $request) => Limit::perMinute(5)->by('pos-password:'.hash('sha256', (string) $request->bearerToken())));
+        RateLimiter::for('pos-activate', fn (Request $request) => Limit::perMinute(10)->by('pos-activate:'.hash('sha256', (string) $request->bearerToken())));
         RateLimiter::for('pos', fn (Request $request) => Limit::perMinute(60)->by('pos:'.hash('sha256', (string) $request->bearerToken())));
 
         RateLimiter::for('staff-pin', function (Request $request) {

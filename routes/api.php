@@ -43,6 +43,7 @@ Route::prefix('pos')->name('api.pos.')->group(function () {
 
     Route::middleware('pos.auth')->group(function () {
         Route::put('/password', [PosCustomerController::class, 'changePassword'])->middleware('throttle:pos-password')->name('password');
+        Route::post('/activate', [PosCustomerController::class, 'activate'])->middleware('throttle:pos-activate')->name('activate');
 
         Route::middleware('throttle:pos')->group(function () {
             Route::get('/me', [PosCustomerController::class, 'show'])->name('me');

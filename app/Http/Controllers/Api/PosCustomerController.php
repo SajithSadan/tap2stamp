@@ -13,9 +13,13 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * The billing desktop app's account API (/api/pos): onboard a restaurant,
- * sign in, read / edit its details, change its password. Every change is in
- * the activity log as the restaurant (actor `pos`) - the password itself
- * never is.
+ * sign in, read / edit its details, change its password, activate a PC
+ * with its one-time activation key. Every change is in the activity log as
+ * the restaurant (actor `pos`) - the password and the key themselves never
+ * are.
+ *
+ * The app sends its PC's id in the X-POS-Device header; /me answers whether
+ * the app is (still) activated on that PC.
  */
 class PosCustomerController extends Controller
 {
@@ -28,6 +32,9 @@ class PosCustomerController extends Controller
                 'password' => $request->input('password'),
                 'password_changed_at' => now(),
             ]);
+
+            // Not in the response: we read it out to the customer (Admin → POS customers).
+            $customer->issueActivationKey();
 
             return [$customer, $customer->issueToken()];
         });
@@ -58,7 +65,79 @@ class PosCustomerController extends Controller
 
     public function show(Request $request): JsonResponse
     {
-        return response()->json(['customer' => $this->customer($request)->toApi()]);
+        return response()->json($this->withDevice($request, $this->customer($request)));
+    }
+
+    /**
+     * Unlocks the billing app on one PC with the activation key we gave the
+     * customer. The key works once: after that only on the PC it activated
+     * (reinstalling there), never on another. Wrong keys count; at
+     * MAX_ACTIVATION_ATTEMPTS the key is locked until the admin makes a new one.
+     */
+    public function activate(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'activation_key' => ['required', 'string', 'max:32'],
+            'device_id' => ['required', 'string', 'min:16', 'max:128'],
+        ]);
+        $key = PosCustomer::normaliseActivationKey($input['activation_key']);
+        $device = $input['device_id'];
+
+        // Locked row: two PCs trying the same key at once can't both get it.
+        // Results, not exceptions, so a wrong try's count is kept (not rolled back).
+        [$customer, $outcome] = DB::transaction(function () use ($request, $key, $device) {
+            $customer = PosCustomer::whereKey($this->customer($request)->id)->lockForUpdate()->firstOrFail();
+
+            if ($customer->activation_key_used_at && $customer->isActivatedOn($device) && $customer->activationKeyMatches($key)) {
+                return [$customer, 'again'];
+            }
+
+            $state = $customer->activationKeyState();
+            if (in_array($state, ['none', 'locked'], true)) {
+                return [$customer, $state];
+            }
+            if (! $customer->activationKeyMatches($key)) {
+                $customer->increment('activation_attempts');
+
+                return [$customer, $customer->activation_attempts >= PosCustomer::MAX_ACTIVATION_ATTEMPTS ? 'locked' : 'wrong'];
+            }
+            if ($state !== 'active') {
+                return [$customer, $state]; // used (on another PC) or expired
+            }
+
+            $customer->forceFill([
+                'activation_key_used_at' => now(),
+                'activation_attempts' => 0,
+                'activated_device_id' => $device,
+                'activated_at' => now(),
+            ])->save();
+
+            return [$customer, 'activated'];
+        });
+
+        if (in_array($outcome, ['activated', 'again'], true)) {
+            if ($outcome === 'activated') {
+                ActivityLogger::record('pos.activated', "{$customer->restaurant_name} activated the billing app on a PC (from {$request->ip()})", null, $customer, null, ActivityLogger::posCustomer($customer));
+            }
+
+            return response()->json(['activated' => true, 'activated_at' => $customer->activated_at?->toIso8601String(), ...$this->withDevice($request, $customer, $device)]);
+        }
+
+        $left = PosCustomer::MAX_ACTIVATION_ATTEMPTS - $customer->activation_attempts;
+        $message = match ($outcome) {
+            'none' => 'There is no activation key for this restaurant yet. Contact us to get one.',
+            'locked' => 'Too many wrong activation keys. Contact us for a new key.',
+            'wrong' => "That activation key is wrong. {$left} ".($left === 1 ? 'try' : 'tries').' left.',
+            'used' => 'This activation key has already been used. Contact us for a new key.',
+            'expired' => 'This activation key has expired. Contact us for a new key.',
+        };
+        ActivityLogger::record('pos.activation_failed', "{$customer->restaurant_name}: activation refused ({$outcome}, from {$request->ip()})", null, $customer, null, ActivityLogger::posCustomer($customer));
+
+        return response()->json([
+            'message' => $message,
+            'code' => $outcome,
+            'errors' => ['activation_key' => [$message]],
+        ], 422);
     }
 
     public function update(SavePosCustomerRequest $request): JsonResponse
@@ -105,6 +184,20 @@ class PosCustomerController extends Controller
         ActivityLogger::record('pos.signed_out', "{$customer->restaurant_name} signed out of the billing app", null, $customer, null, ActivityLogger::posCustomer($customer));
 
         return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * The customer, and whether the app is activated on the PC asking
+     * (X-POS-Device). false once the key was used on another PC.
+     *
+     * @return array<string, mixed>
+     */
+    private function withDevice(Request $request, PosCustomer $customer, ?string $device = null): array
+    {
+        return [
+            'customer' => $customer->toApi(),
+            'device_activated' => $customer->isActivatedOn($device ?? $request->header('X-POS-Device')),
+        ];
     }
 
     private function customer(Request $request): PosCustomer

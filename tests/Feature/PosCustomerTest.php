@@ -143,6 +143,9 @@ test('only the admin sees the plain password, one at a time, and each look is lo
     $this->actingAs($admin)->get('/admin/pos-customers')->assertInertia(fn ($page) => $page
         ->component('Admin/PosCustomers')
         ->where('customers.0.username', 'mandhihouse')
+        ->where('customers.0.place', 'Kozhikode, Kerala')
+        ->where('customers.0.country_code', 'IN')
+        ->where('customers.0.country', 'India')
         ->missing('customers.0.password'));
 
     $this->postJson("/admin/pos-customers/{$customer->id}/password")->assertOk()->assertJsonPath('password', 'secret123');
@@ -160,4 +163,95 @@ test('signing out stops the token working', function () {
 
     $this->postJson('/api/pos/logout', [], ['Authorization' => "Bearer {$token}"])->assertOk();
     $this->getJson('/api/pos/me', ['Authorization' => "Bearer {$token}"])->assertUnauthorized();
+});
+
+function posActivate(string $token, ?string $key, string $device = 'device-aaaaaaaaaaaaaaaa')
+{
+    return test()->postJson('/api/pos/activate', ['activation_key' => $key, 'device_id' => $device], ['Authorization' => "Bearer {$token}"]);
+}
+
+test('registering makes a one-time activation key that is never sent to the app', function () {
+    $response = $this->postJson('/api/pos/register', posOnboarding())->assertCreated()
+        ->assertJsonMissingPath('customer.activation_key');
+    $customer = PosCustomer::findOrFail($response->json('customer.id'));
+
+    expect($customer->activation_key)->toMatch('/^\d{8}$/')
+        ->and(DB::table('pos_customers')->value('activation_key'))->not->toBe($customer->activation_key)
+        ->and($customer->activationKeyState())->toBe('active')
+        ->and($customer->activation_key_expires_at->isFuture())->toBeTrue();
+});
+
+test('the activation key unlocks one PC once, and only that PC afterwards', function () {
+    [$customer, $token] = posRegister();
+    $key = $customer->activation_key;
+    $spoken = PosCustomer::formatActivationKey($key); // "1234-5678", as read out
+
+    posActivate($token, $spoken)->assertOk()->assertJsonPath('activated', true)->assertJsonPath('device_activated', true);
+    expect($customer->fresh())->activationKeyState()->toBe('used')
+        ->activated_device_id->toBe('device-aaaaaaaaaaaaaaaa');
+    expect(ActivityLog::where('action', 'pos.activated')->count())->toBe(1);
+
+    // Reinstalling on the same PC: the same key works again there.
+    posActivate($token, $key)->assertOk();
+    // Another PC: refused.
+    posActivate($token, $key, 'device-bbbbbbbbbbbbbbbb')->assertStatus(422)->assertJsonPath('code', 'used')->assertJsonValidationErrors('activation_key');
+
+    $this->getJson('/api/pos/me', ['Authorization' => "Bearer {$token}", 'X-POS-Device' => 'device-aaaaaaaaaaaaaaaa'])->assertJsonPath('device_activated', true);
+    $this->getJson('/api/pos/me', ['Authorization' => "Bearer {$token}", 'X-POS-Device' => 'device-bbbbbbbbbbbbbbbb'])->assertJsonPath('device_activated', false);
+});
+
+test('wrong activation keys are counted and lock the key', function () {
+    [$customer, $token] = posRegister();
+    $wrong = $customer->activation_key === '00000000' ? '11111111' : '00000000';
+
+    posActivate($token, $wrong)->assertStatus(422)->assertJsonPath('code', 'wrong')->assertJsonPath('message', 'That activation key is wrong. 4 tries left.');
+    foreach (range(1, 3) as $_) {
+        posActivate($token, $wrong)->assertJsonPath('code', 'wrong');
+    }
+    posActivate($token, $wrong)->assertJsonPath('code', 'locked');
+    // Even the right key, once locked.
+    posActivate($token, $customer->activation_key)->assertStatus(422)->assertJsonPath('code', 'locked');
+});
+
+test('an expired activation key is refused', function () {
+    [$customer, $token] = posRegister();
+    $this->travel(PosCustomer::ACTIVATION_KEY_HOURS + 1)->hours();
+
+    posActivate($token, $customer->activation_key)->assertStatus(422)->assertJsonPath('code', 'expired');
+});
+
+test('activating needs the token and a device id', function () {
+    [$customer, $token] = posRegister();
+
+    $this->postJson('/api/pos/activate', ['activation_key' => $customer->activation_key, 'device_id' => 'device-aaaaaaaaaaaaaaaa'])->assertUnauthorized();
+    posActivate($token, $customer->activation_key, 'short')->assertJsonValidationErrors('device_id');
+});
+
+test('a new key from the admin moves the app to another PC', function () {
+    [$customer, $token] = posRegister();
+    posActivate($token, $customer->activation_key)->assertOk();
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($admin)->get('/admin/pos-customers')->assertInertia(fn ($page) => $page
+        ->where('customers.0.activation', 'used')
+        ->missing('customers.0.activation_key'));
+
+    $this->postJson("/admin/pos-customers/{$customer->id}/activation-key")->assertOk()
+        ->assertJsonPath('key', PosCustomer::formatActivationKey($customer->activation_key));
+    $new = $this->postJson("/admin/pos-customers/{$customer->id}/activation-key/new")->assertOk()
+        ->assertJsonPath('state', 'active')
+        ->json('key');
+    expect(ActivityLog::where('action', 'pos.activation_key_viewed')->count())->toBe(1)
+        ->and(ActivityLog::where('action', 'pos.activation_key_issued')->count())->toBe(1);
+
+    // The old PC still works until the new key is used elsewhere.
+    expect($customer->fresh()->isActivatedOn('device-aaaaaaaaaaaaaaaa'))->toBeTrue();
+    posActivate($token, $new, 'device-bbbbbbbbbbbbbbbb')->assertOk();
+    expect($customer->fresh())
+        ->isActivatedOn('device-aaaaaaaaaaaaaaaa')->toBeFalse()
+        ->isActivatedOn('device-bbbbbbbbbbbbbbbb')->toBeTrue();
+
+    $owner = User::factory()->create(['role' => UserRole::Owner]);
+    $this->actingAs($owner)->postJson("/admin/pos-customers/{$customer->id}/activation-key")->assertForbidden();
+    $this->actingAs($owner)->postJson("/admin/pos-customers/{$customer->id}/activation-key/new")->assertForbidden();
 });
